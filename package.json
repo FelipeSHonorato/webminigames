@@ -1,0 +1,13 @@
+{
+  "name": "webminigames",
+  "version": "0.1.0",
+  "description": "Mini-games de lógica no navegador: Zip e Patches.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "npx --yes serve .",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=20" },
+  "license": "MIT"
+}

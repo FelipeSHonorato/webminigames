@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WebMiniGames</title>
+<link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="logo" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="12" fill="#14213d"/>
+    <rect x="27" y="27" width="13" height="13" rx="4" fill="#f2b134"/>
+    <path d="M10 12H32V24H10V36H24" fill="none" stroke="#2cc4b6" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="10" cy="12" r="3.4" fill="#fff"/>
+  </symbol>
+</svg>
+
+<!-- ===== Entrada ===== -->
+<section id="view-auth" aria-labelledby="auth-title">
+  <div class="hero">
+    <div class="brand"><svg class="logo" width="44" height="44" aria-hidden="true"><use href="#logo"/></svg>WebMiniGames</div>
+    <div>
+      <h1 id="auth-title">Quebra-cabeças rápidos para jogar agora.</h1>
+      <p>Trace caminhos no Zip e divida a grade em retângulos no Patches. Os níveis sobem conforme você vence.</p>
+    </div>
+    <svg class="deco" viewBox="0 0 300 300" aria-hidden="true">
+      <g fill="none" stroke="#2a3a4c" stroke-width="2">
+        <path d="M60 0V300M120 0V300M180 0V300M240 0V300M0 60H300M0 120H300M0 180H300M0 240H300"/>
+      </g>
+      <rect x="186" y="186" width="108" height="108" rx="14" fill="#f2b134" opacity=".55"/>
+      <rect x="6" y="186" width="108" height="48" rx="14" fill="#8e7cf0" opacity=".55"/>
+      <path d="M30 30H210V90H90V150H150" fill="none" stroke="#2cc4b6" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>
+      <circle cx="30" cy="30" r="17" fill="#e8eef5"/><text x="30" y="31" text-anchor="middle" dominant-baseline="central" font-size="20" font-weight="700" fill="#14213d">1</text>
+      <text x="240" y="240" text-anchor="middle" dominant-baseline="central" font-size="34" font-weight="700" fill="#fff">9</text>
+    </svg>
+  </div>
+  <div class="panel">
+    <div class="card">
+      <form id="form" novalidate>
+        <div class="tabs" role="tablist" aria-label="Acesso">
+          <button type="button" role="tab" id="tab-login" aria-selected="true">Entrar</button>
+          <button type="button" role="tab" id="tab-register" aria-selected="false">Criar conta</button>
+        </div>
+        <label id="nameField" hidden>Nome<input id="name" autocomplete="name" maxlength="40"></label>
+        <label>E-mail<input id="email" type="email" autocomplete="email" inputmode="email"></label>
+        <label>Senha<input id="password" type="password" autocomplete="current-password" minlength="6"></label>
+        <p id="error" role="alert"></p>
+        <button class="btn primary" id="submit" type="submit">Entrar</button>
+      </form>
+      <div class="divider">ou</div>
+      <div class="stack">
+        <button class="btn" id="google" type="button"><span class="gmark" aria-hidden="true">G</span>Continuar com Google</button>
+        <button class="btn" id="anon" type="button">Entrar como anônimo</button>
+      </div>
+      <p class="note">Protótipo: as contas ficam salvas só neste navegador e o botão do Google é uma simulação, sem conexão real com o Google.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ===== Hub ===== -->
+<!-- ===== Jogo ===== -->
+<script src="shared/file-warning.js"></script>
+<script type="module" src="js/login.js"></script>
+</body>
+</html>

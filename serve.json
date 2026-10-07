@@ -1,0 +1,8 @@
+{
+  "cleanUrls": false,
+  "directoryListing": false,
+  "rewrites": [
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/games/:game", "destination": "/games/:game/index.html" }
+  ]
+}
