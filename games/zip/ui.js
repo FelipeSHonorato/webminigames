@@ -1,9 +1,13 @@
+import { Scores } from "../../shared/scores.js";
+import { mountRanking } from "../../shared/ranking-panel.js";
 import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
-import { WINS_PER_LEVEL, winsKey } from "../../shared/progress.js";
+import { WINS_PER_LEVEL, winsKey, pointsFor, pointsLegend } from "../../shared/progress.js";
 import { LEVELS, N, STORE_KEY, TOTAL, applyMove, generatePuzzle, isSolved } from "./domain.js";
 
 requireSession("../../index.html");   // sem sessão, volta para o login
+const ranking = mountRanking({ gameId: "zip", title: "Zip" });
+document.querySelector(".help")?.append(` ${pointsLegend()}`);   // pontuação junto da explicação do jogo
 
 /* ===================== UI ===================== */
 const svg = document.getElementById("board");
@@ -32,11 +36,20 @@ function renderLevel() {
 function creditWin() {
   if (credited) return "";
   credited = true;
-  const before = levelOf(wins);
+  const before = levelOf(wins), points = pointsFor(puzzle.level ?? before);   // pontos do nível em que a fase foi gerada
   wins++; saveWins(wins); renderLevel();
-  return levelOf(wins) > before ? ` Novo nível: ${currentLevel().name}!` : "";
+  let note = "";
+  if (Scores.canRank()) {
+    Scores.submit("zip", points).then(() => ranking.refresh());              // só aqui, ao concluir o cenário
+    note = ` +${points} pontos!`;
+  } else note = " Crie uma conta para pontuar no ranking.";
+  return note + (levelOf(wins) > before ? ` Novo nível: ${currentLevel().name}!` : "");
 }
-const newPuzzle = () => generatePuzzle(makeRng((Math.random() * 2 ** 32) >>> 0), currentLevel());
+function newPuzzle() {
+  const level = levelOf(wins), p = generatePuzzle(makeRng((Math.random() * 2 ** 32) >>> 0), LEVELS[level]);
+  p.level = level;
+  return p;
+}
 
 let head = { x: 0, y: 0 }, aim = { x: 0, y: 0 }, axis = null, pointer = null, rafId = null, lastT = 0, trailEl, headEl;
 

@@ -7,6 +7,12 @@ Site de mini-games de lógica que roda direto no navegador, sem build e sem depe
 
 Os dois têm quatro níveis (Fácil, Médio, Difícil e Genius). O nível sobe a cada 15 vitórias, por jogo e por usuário, e as fases são geradas na hora, sempre com solução única.
 
+## Pontuação e ranking
+
+Cada partida vencida vale pontos conforme o nível em que a fase foi gerada: **Fácil 5, Médio 10, Difícil 15, Genius 20**. Os pontos só são gravados quando o cenário é concluído (reiniciar a fase e vencer de novo não soma outra vez). Só contas pontuam; jogadores anônimos veem o ranking, mas não aparecem nele.
+
+Cada jogo tem um painel lateral de ranking, aberto ao entrar (em telas largas) e recolhível pela aba "Ranking". Ele tem duas visões: **Geral** e **Minha região** (a região é escolhida no cadastro). Empates são resolvidos por quem chegou primeiro à pontuação.
+
 ## Rodando localmente
 
 **Não abra o `index.html` com duplo clique.** Os navegadores bloqueiam módulos ES em `file://`: a página aparece, mas nenhum botão funciona. Rode um servidor local na pasta do projeto:
@@ -41,9 +47,10 @@ Todos os caminhos são relativos, então o site funciona em `https://<usuario>.g
 ```
 index.html            página de entrada (criar conta, Google simulado, anônimo)
 jogos.html            página com os jogos disponíveis (exige sessão)
-css/site.css          estilos do site
+css/                  site.css, gamebar.css (barra dos jogos), ranking.css (painel lateral)
 js/                   login.js e hub.js (uma por página), auth.js (contas), games.js (catálogo)
-shared/               rng.js (aleatório com seed), storage.js, session.js (proteção de página), progress.js (níveis e vitórias)
+shared/               rng.js, storage.js, session.js, progress.js (níveis e pontos), regions.js,
+                      scores.js (pontuação e ranking), ranking-panel.js (painel lateral)
 games/<jogo>/
   domain.js           regras, solver e gerador (puro, sem DOM)
   ui.js               renderização e entrada (Pointer Events)
@@ -60,6 +67,9 @@ Fluxo: `index.html` (entrada) → `jogos.html` (lista de jogos) → `games/<jogo
 - Os dois usam um orçamento de nós no solver: fases cuja unicidade não é provada a tempo são descartadas.
 
 ## Limitações conhecidas
+
+- **O ranking ainda é local:** `shared/scores.js` guarda tudo no `localStorage`, então só compara contas criadas no mesmo navegador. Um ranking global e regional de verdade exige um backend: reimplemente `submit` e `leaderboard` desse arquivo (Firebase, Supabase…) e valide as vitórias no servidor, já que pontos no navegador podem ser editados por quem souber como.
+- Contas criadas antes do campo de região não têm região e não aparecem no ranking regional.
 
 - **Contas são um protótipo local:** ficam no `localStorage` do navegador (senha com PBKDF2 + salt) e não sincronizam entre dispositivos. O botão do Google é uma simulação. Para produção, reimplemente os métodos de `js/auth.js` com um provedor real (Firebase Auth, Supabase, Auth0) e leve o progresso para o servidor.
 - A geração dos níveis altos roda na thread principal e pode levar alguns segundos no Zip Genius; um Web Worker resolveria.

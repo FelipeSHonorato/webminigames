@@ -136,7 +136,7 @@ export function generatePuzzle(rand, level) {
       if (candidates.length) walls.add(candidates.pop());
       solutions = countSolutions(waypoints, walls, count);
     }
-    if (solutions === 1) return { waypoints, walls, max: count };
+    if (solutions === 1) return { waypoints, walls, max: count, solution: path };
   }
 }
 

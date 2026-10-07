@@ -1,4 +1,5 @@
 import { store, readJSON } from "../shared/storage.js";
+import { REGIONS } from "../shared/regions.js";
 
 /* ===================== AUTENTICAÇÃO (local, só protótipo) =====================
    Esta interface é o ponto de troca: para um backend real (Firebase Auth, Supabase, Auth0…),
@@ -21,24 +22,25 @@ export const Auth = {
     if (!EMAIL_RE.test(email)) throw new Error("Digite um e-mail válido.");
     if (password.length < 6) throw new Error("A senha precisa ter pelo menos 6 caracteres.");
   },
-  async register({ name, email, password }) {
+  async register({ name, email, password, region }) {
     if (!name.trim()) throw new Error("Digite seu nome.");
+    if (!REGIONS.some(r => r.id === region)) throw new Error("Selecione sua região.");
     this.validate({ email, password });
     const all = users(), key = email.trim().toLowerCase();
     if (all[key]) throw new Error("Já existe uma conta com este e-mail. Use a aba Entrar.");
     const salt = randomHex(16), id = "u-" + randomHex(8);
-    all[key] = { id, name: name.trim(), salt, hash: await hashPassword(password, salt) };
+    all[key] = { id, name: name.trim(), region, salt, hash: await hashPassword(password, salt) };
     store.set("wmg.users", JSON.stringify(all));
-    return this.start({ id, name: name.trim(), provider: "password" });
+    return this.start({ id, name: name.trim(), provider: "password", region });
   },
   async login({ email, password }) {
     this.validate({ email, password });
     const u = users()[email.trim().toLowerCase()];
     if (!u || u.hash !== (await hashPassword(password, u.salt))) throw new Error("E-mail ou senha incorretos.");
-    return this.start({ id: u.id, name: u.name, provider: "password" });
+    return this.start({ id: u.id, name: u.name, provider: "password", region: u.region ?? null });
   },
   loginWithGoogle() {                                  // SIMULAÇÃO: não fala com o Google
-    return this.start({ id: "g-demo", name: "Jogador Google", provider: "google-demo" });
+    return this.start({ id: "g-demo", name: "Jogador Google", provider: "google-demo", region: null });
   },
   loginAnonymous() {
     let id = store.get("wmg.anonId");

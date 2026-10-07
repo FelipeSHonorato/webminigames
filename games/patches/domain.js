@@ -113,7 +113,7 @@ export function generatePuzzle(rand, level) {
         if (big && rand() < level.pAny * f) shape = "any";
         return { cell, area: big && rand() < level.pNull * f ? null : w * h, shape };
       });
-      if (countSolutions(clues) === 1) return { clues };
+      if (countSolutions(clues) === 1) return { clues, solution: rects };
     }
   }
 }
