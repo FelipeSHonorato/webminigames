@@ -57,7 +57,7 @@ export const Auth = {
   loginAnonymous() {
     let id = store.get("wmg.anonId");
     if (!id) { id = "a-" + randomHex(8); store.set("wmg.anonId", id); }
-    return this.start({ id, name: "Visitante", provider: "anonymous" });
+    return this.start({ id, name: "Anônimo", provider: "anonymous" });
   },
   logout() { store.set("wmg.session", "null"); },
 };

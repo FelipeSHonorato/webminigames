@@ -11,7 +11,7 @@ test("pontos por nível: Fácil 5, Médio 10, Difícil 15, Genius 20", () => {
   assert.deepEqual([0, 1, 2, 3].map(pointsFor), [5, 10, 15, 20]);
 });
 test("anônimo não pontua nem entra no ranking", async () => {
-  reset(); login("a1", "Visitante", null, "anonymous");
+  reset(); login("a1", "Anônimo", null, "anonymous");
   assert.equal(Scores.canRank(), false);
   assert.equal(await Scores.submit("zip", 5), null);
   assert.equal((await Scores.leaderboard("zip")).total, 0);

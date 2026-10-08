@@ -52,3 +52,8 @@ test("anônimo e Google (simulação) não trocam senha", async () => {
   reset(); Auth.loginAnonymous();
   await assert.rejects(Auth.changePassword({ current: "x", next: "123456" }), /não usa senha/);
 });
+
+test("anônimo sempre aparece como \"Anônimo\", mesmo em sessão antiga", () => {
+  assert.equal(Profile.displayName({ id: "a1", name: "Visitante", provider: "anonymous" }), "Anônimo");
+  assert.equal(Profile.displayName({ id: "u9", name: "Ana", provider: "password" }), "Ana");
+});

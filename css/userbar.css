@@ -1,12 +1,13 @@
 /* Barra do usuário (avatar, engrenagem, modo escuro, Deslogar). Usa os tokens do site ou, nos jogos, os do jogo. */
-.userbar{display:flex;align-items:center;gap:8px}
+.userbar{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px}
 .userbar .me{display:flex;align-items:center;gap:8px;max-width:170px;color:var(--fg);font-weight:700;text-decoration:none}
 .userbar .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .avatar{display:inline-grid;place-items:center;flex:none;width:36px;height:36px;border-radius:50%;object-fit:cover;overflow:hidden;background:var(--bg);color:var(--muted);border:2px solid var(--line,var(--grid))}
 .avatar svg{width:100%;height:100%}
 .userbar .icon-btn,.userbar .out{display:grid;place-items:center;height:36px;border:2px solid var(--line,var(--grid));border-radius:8px;background:var(--surface,var(--cell));color:var(--fg);font:inherit;font-weight:700;text-decoration:none;cursor:pointer}
 .userbar .icon-btn{width:36px}
-.userbar .out{padding:0 12px}
+.userbar .out{padding:0 12px;white-space:nowrap}
+.userbar .out.primary{background:var(--accent,var(--path));border-color:var(--accent,var(--path));color:var(--accent-fg,#0e1621)}
 .userbar .icon-btn:hover,.userbar .out:hover{border-color:var(--accent,var(--path))}
 @media (max-width:600px){.userbar .nm{display:none}}
 

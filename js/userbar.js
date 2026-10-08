@@ -41,6 +41,16 @@ export function mountUserBar(host, { base = "" } = {}) {
     host.append(gear);
   }
   host.append(themeSwitch());                     // sempre depois da engrenagem (ou do nome, em anônimos) e antes de Deslogar
+  if (!account) {                                 // anônimo: em vez de Deslogar, volta para a entrada já na aba escolhida
+    const link = (label, mode, primary) => {
+      const a = document.createElement("a");
+      a.className = "out" + (primary ? " primary" : ""); a.textContent = label;
+      a.href = `${base}index.html?modo=${mode}`;
+      return a;
+    };
+    host.append(link("Entrar", "entrar"), link("Criar conta", "conta", true));
+    return;
+  }
   const out = document.createElement("button");
   out.type = "button"; out.className = "out"; out.textContent = "Deslogar";
   out.onclick = () => { Auth.logout(); location.assign(base + "index.html"); };

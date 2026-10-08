@@ -15,7 +15,7 @@ Cada jogo tem um painel lateral de ranking, aberto ao entrar (em telas largas) e
 
 ## Perfil
 
-Depois do login, a barra superior mostra a foto do usuário (ou um avatar padrão), um link com engrenagem para as configurações um **switch de modo escuro** (sol e lua) e o botão **Deslogar**. Em `perfil.html` a conta pode definir um **apelido** (único, 3 a 20 caracteres, usado no ranking), enviar uma **foto** (recortada e reduzida no navegador), **trocar a senha** (informando a atual) e ver a lista de jogos com o **último horário jogado** e a **pontuação** de cada um. Anônimos não têm perfil.
+Depois do login, a barra superior mostra a foto do usuário (ou um avatar padrão), um link com engrenagem para as configurações um **switch de modo escuro** (sol e lua) e o botão **Deslogar**. Em `perfil.html` a conta pode definir um **apelido** (único, 3 a 20 caracteres, usado no ranking), enviar uma **foto** (recortada e reduzida no navegador), **trocar a senha** (informando a atual) e ver a lista de jogos com o **último horário jogado** e a **pontuação** de cada um. Anônimos não têm perfil: a barra deles mostra "Anônimo" e, no lugar de Deslogar, os botões **Entrar** e **Criar conta**, que voltam à tela de entrada já na aba escolhida (`index.html?modo=entrar` ou `?modo=conta`), sem perder a sessão anônima até o login.
 
 ## Modo escuro
 

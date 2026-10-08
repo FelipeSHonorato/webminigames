@@ -3,3 +3,4 @@
 .sitebar > a{padding:6px 12px;border:2px solid var(--grid);border-radius:8px;color:var(--fg);font-weight:700;text-decoration:none}
 .sitebar > a:hover{border-color:var(--accent,var(--path))}
 .sitebar strong{color:var(--fg)}
+@media (max-width:600px){.sitebar strong{display:none}}

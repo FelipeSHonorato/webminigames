@@ -7,7 +7,10 @@ const NICK_RE = /^[\p{L}\p{N}_. -]{3,20}$/u;
 export const Profile = {
   get: uid => readJSON(PROFILES, {})[uid] ?? {},
   /** Apelido (se houver) ou o nome do cadastro. É o nome exibido no ranking e na barra. */
-  displayName(session) { return this.get(session.id).nickname || session.name; },
+  displayName(session) {
+    if (session.provider === "anonymous") return "Anônimo";          // vale também para sessões antigas ("Visitante")
+    return this.get(session.id).nickname || session.name;
+  },
 
   /** Define o apelido; texto vazio remove. Único (sem diferenciar maiúsculas) entre as contas deste navegador. */
   setNickname(uid, raw) {

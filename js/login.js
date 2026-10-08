@@ -34,6 +34,10 @@ $("google").onclick = () => { Auth.loginWithGoogle(); goToGames(); };
 $("anon").onclick = () => { Auth.loginAnonymous(); goToGames(); };
 
 
-/* Quem já tem sessão vai direto para a página de jogos; "Deslogar" volta para cá. */
-if (new URLSearchParams(location.search).has("conta")) { Auth.logout(); setMode("register"); }   // vindo do aviso "Criar conta" (anônimo)
+/* ?modo=entrar | ?modo=conta (e o antigo ?conta) abrem a aba pedida, mesmo com sessão anônima ativa;
+   ela só é trocada se o usuário concluir o login ou o cadastro. Sem parâmetro, quem já tem sessão vai direto aos jogos. */
+const query = new URLSearchParams(location.search);
+const wanted = query.get("modo") ?? (query.has("conta") ? "conta" : null);
+if (wanted === "conta") setMode("register");
+else if (wanted === "entrar") setMode("login");
 else if (Auth.current()) location.replace("jogos.html");
