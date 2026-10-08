@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WebMiniGames · Meu perfil</title>
+<script src="shared/theme-init.js"></script>
+<link rel="stylesheet" href="css/site.css">
+<link rel="stylesheet" href="css/userbar.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="logo" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="12" fill="#14213d"/>
+    <rect x="27" y="27" width="13" height="13" rx="4" fill="#f2b134"/>
+    <path d="M10 12H32V24H10V36H24" fill="none" stroke="#2cc4b6" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="10" cy="12" r="3.4" fill="#fff"/>
+  </symbol>
+</svg>
+<div class="topbar">
+  <a class="brand" href="jogos.html"><svg class="logo" width="36" height="36" aria-hidden="true"><use href="#logo"/></svg>WebMiniGames</a>
+  <div id="userbar"></div>
+</div>
+<main class="profile">
+  <h1 id="profile-title" tabindex="-1">Meu perfil</h1>
+
+  <section class="pcard" id="guestNotice" hidden>
+    <h2>Você está jogando como anônimo</h2>
+    <p>Crie uma conta para ter apelido, foto, senha e aparecer no ranking.</p>
+    <a class="btn primary small" href="index.html?conta=1">Criar conta</a>
+  </section>
+
+  <div id="account" hidden>
+    <section class="pcard identity" aria-label="Foto e identificação">
+      <div id="avatarBox"></div>
+      <div class="who">
+        <strong id="shownName"></strong><span id="shownMeta"></span>
+        <div class="row">
+          <button class="btn small" id="changePhoto" type="button">Alterar foto</button>
+          <button class="btn small" id="removePhoto" type="button" hidden>Remover foto</button>
+        </div>
+        <input id="file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+        <p class="fmsg" id="photoMsg" role="status"></p>
+      </div>
+    </section>
+
+    <section class="pcard">
+      <h2>Apelido</h2>
+      <form id="nickForm" novalidate>
+        <label>Como você aparece no ranking<input id="nickname" maxlength="20" autocomplete="nickname" placeholder="Seu apelido"></label>
+        <button class="btn primary small" type="submit">Salvar apelido</button>
+        <p class="fmsg" id="nickMsg" role="status"></p>
+      </form>
+    </section>
+
+    <section class="pcard">
+      <h2>Senha</h2>
+      <p id="pwInfo" hidden>Esta conta não usa senha.</p>
+      <form id="pwForm" novalidate>
+        <label>Senha atual<input id="pwCurrent" type="password" autocomplete="current-password"></label>
+        <label>Nova senha<input id="pwNew" type="password" autocomplete="new-password" minlength="6"></label>
+        <label>Repita a nova senha<input id="pwRepeat" type="password" autocomplete="new-password"></label>
+        <button class="btn primary small" id="pwSubmit" type="submit">Alterar senha</button>
+        <p class="fmsg" id="pwMsg" role="status"></p>
+      </form>
+    </section>
+
+    <section class="pcard">
+      <h2>Meus jogos</h2>
+      <ul class="glist" id="myGames"></ul>
+    </section>
+  </div>
+</main>
+<script src="shared/file-warning.js"></script>
+<script type="module" src="js/perfil.js"></script>
+</body>
+</html>

@@ -1,10 +1,8 @@
 import { Auth } from "./auth.js";
 import { REGIONS } from "../shared/regions.js";
-import { themeSwitch } from "../shared/theme.js";
 
 const $ = id => document.getElementById(id);
 const goToGames = () => location.assign("jogos.html");
-$("themeHost").append(themeSwitch());
 let mode = "login";
 $("region").append(new Option("Selecione…", ""), ...REGIONS.map(r => new Option(r.name, r.id)));
 
@@ -34,6 +32,6 @@ $("google").onclick = () => { Auth.loginWithGoogle(); goToGames(); };
 $("anon").onclick = () => { Auth.loginAnonymous(); goToGames(); };
 
 
-/* Quem já tem sessão vai direto para a página de jogos; "Deslogar" volta para cá. */
+/* Quem já tem sessão vai direto para a página de jogos; "Sair" volta para cá. */
 if (new URLSearchParams(location.search).has("conta")) { Auth.logout(); setMode("register"); }   // vindo do aviso "Criar conta" (anônimo)
 else if (Auth.current()) location.replace("jogos.html");

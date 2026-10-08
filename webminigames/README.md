@@ -13,14 +13,6 @@ Cada partida vencida vale pontos conforme o nível em que a fase foi gerada: **F
 
 Cada jogo tem um painel lateral de ranking, aberto ao entrar (em telas largas) e recolhível pela aba "Ranking". Ele tem duas visões: **Geral** e **Minha região** (a região é escolhida no cadastro). Empates são resolvidos por quem chegou primeiro à pontuação.
 
-## Perfil
-
-Depois do login, a barra superior mostra a foto do usuário (ou um avatar padrão), um link com engrenagem para as configurações um **switch de modo escuro** (sol e lua) e o botão **Deslogar**. Em `perfil.html` a conta pode definir um **apelido** (único, 3 a 20 caracteres, usado no ranking), enviar uma **foto** (recortada e reduzida no navegador), **trocar a senha** (informando a atual) e ver a lista de jogos com o **último horário jogado** e a **pontuação** de cada um. Anônimos não têm perfil.
-
-## Modo escuro
-
-O switch de sol e lua na barra superior (também na tela de entrada) liga e desliga o tema escuro. Sem escolha salva, o site segue o tema do sistema. A preferência fica em `localStorage` (`wmg.theme`) e é aplicada por `shared/theme-init.js` no `<head>`, antes da primeira pintura, para a página não piscar no tema errado.
-
 ## Rodando localmente
 
 **Não abra o `index.html` com duplo clique.** Os navegadores bloqueiam módulos ES em `file://`: a página aparece, mas nenhum botão funciona. Rode um servidor local na pasta do projeto:
@@ -55,12 +47,10 @@ Todos os caminhos são relativos, então o site funciona em `https://<usuario>.g
 ```
 index.html            página de entrada (criar conta, Google simulado, anônimo)
 jogos.html            página com os jogos disponíveis (exige sessão)
-perfil.html           perfil: apelido, foto, senha e meus jogos (exige conta)
 css/                  site.css, gamebar.css (barra dos jogos), ranking.css (painel lateral)
-js/                   login.js, hub.js, perfil.js (uma por página), auth.js (contas), userbar.js, games.js (catálogo)
-shared/               theme.js e theme-init.js (modo escuro), rng.js, storage.js, session.js, progress.js (níveis e pontos), regions.js,
-                      scores.js (pontuação e ranking), ranking-panel.js (painel lateral),
-                      profile.js (apelido, foto, atividade), avatar.js (redimensiona a foto)
+js/                   login.js e hub.js (uma por página), auth.js (contas), games.js (catálogo)
+shared/               rng.js, storage.js, session.js, progress.js (níveis e pontos), regions.js,
+                      scores.js (pontuação e ranking), ranking-panel.js (painel lateral)
 games/<jogo>/
   domain.js           regras, solver e gerador (puro, sem DOM)
   ui.js               renderização e entrada (Pointer Events)

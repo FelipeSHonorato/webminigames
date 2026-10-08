@@ -1,4 +1,4 @@
-import { mountUserBar } from "./userbar.js";
+import { Auth } from "./auth.js";
 import { store } from "../shared/storage.js";
 import { requireSession } from "../shared/session.js";
 import { GAMES } from "./games.js";
@@ -11,8 +11,10 @@ const winsOf = (game, uid) => Math.max(0, parseInt(store.get(winsKey(game.key, u
 const PROVIDER_NOTE = { password: "", "google-demo": "Google (simulação)", anonymous: "Anônimo: o progresso fica só neste navegador" };
 
 function renderHub() {
-  mountUserBar($("userbar"));
-  $("hubSub").textContent = "Os dois jogos estão liberados. Cada um tem o seu próprio nível e progresso." + (user.provider === "anonymous" ? ` ${PROVIDER_NOTE.anonymous}.` : "");
+  $("userLabel").innerHTML = "";
+  const b = document.createElement("b"); b.textContent = user.name;
+  $("userLabel").append(b, PROVIDER_NOTE[user.provider] ? ` · ${PROVIDER_NOTE[user.provider]}` : "");
+  $("hubSub").textContent = "Os dois jogos estão liberados. Cada um tem o seu próprio nível e progresso.";
   $("games").innerHTML = "";
   for (const g of Object.values(GAMES)) {
     const wins = winsOf(g, user.id), lv = Math.min(LEVEL_NAMES.length - 1, Math.floor(wins / WINS_PER_LEVEL));
@@ -26,4 +28,5 @@ function renderHub() {
   }
 }
 
+$("logout").onclick = () => { Auth.logout(); location.assign("index.html"); };
 if (user) { renderHub(); $("hub-title").focus({ preventScroll: true }); }

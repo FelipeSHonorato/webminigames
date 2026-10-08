@@ -1,0 +1,19 @@
+/** Converte a imagem escolhida em um avatar quadrado 192x192 (JPEG) pronto para guardar. */
+export const AVATAR_SIZE = 192;
+const TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+const MAX_BYTES = 5 * 1024 * 1024;
+
+export async function fileToAvatar(file) {
+  if (!TYPES.includes(file.type)) throw new Error("Use uma imagem PNG, JPG, WEBP ou GIF.");
+  if (file.size > MAX_BYTES) throw new Error("A imagem deve ter no máximo 5 MB.");
+  let bitmap;
+  try { bitmap = await createImageBitmap(file); } catch { throw new Error("Não foi possível ler essa imagem."); }
+  const side = Math.min(bitmap.width, bitmap.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = AVATAR_SIZE;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, AVATAR_SIZE, AVATAR_SIZE);          // PNG transparente não vira fundo preto
+  ctx.drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, AVATAR_SIZE, AVATAR_SIZE);
+  bitmap.close?.();
+  return canvas.toDataURL("image/jpeg", 0.85);
+}

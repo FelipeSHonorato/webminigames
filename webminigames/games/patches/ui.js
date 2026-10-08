@@ -1,14 +1,11 @@
 import { Scores } from "../../shared/scores.js";
 import { mountRanking } from "../../shared/ranking-panel.js";
-import { Activity } from "../../shared/profile.js";
-import { mountUserBar } from "../../js/userbar.js";
 import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
 import { WINS_PER_LEVEL, winsKey, pointsFor, pointsLegend } from "../../shared/progress.js";
 import { LEVELS, N, STORE_KEY, TOTAL, generatePuzzle, isSolved, rectCells, validateRect } from "./domain.js";
 
-const sessionUser = requireSession("../../index.html");   // sem sessão, volta para o login
-mountUserBar(document.getElementById("userbar"), { base: "../../" });
+requireSession("../../index.html");   // sem sessão, volta para o login
 const ranking = mountRanking({ gameId: "patches", title: "Patches" });
 document.querySelector(".help")?.append(` ${pointsLegend()}`);   // pontuação junto da explicação do jogo
 
@@ -77,7 +74,6 @@ const formatTime = ms => { const s = Math.floor(ms / 1000); return `${String((s 
 function startTimer() {
   if (timerId || solved) return;
   startedAt = Date.now();
-  if (sessionUser) Activity.played(sessionUser.id, "patches");   // alimenta "último jogo" no perfil
   timerId = setInterval(() => (timerEl.textContent = formatTime(Date.now() - startedAt)), 250);
 }
 function stopTimer() { clearInterval(timerId); timerId = null; }

@@ -3,26 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Patches</title>
-<script src="../../shared/theme-init.js"></script>
+<title>Zip</title>
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="../../css/gamebar.css">
 <link rel="stylesheet" href="../../css/ranking.css">
-<link rel="stylesheet" href="../../css/userbar.css">
 </head>
 <body>
-<nav class="sitebar"><a href="../../jogos.html">← Jogos</a><strong>Patches</strong><div id="userbar"></div></nav>
+<nav class="sitebar"><a href="../../jogos.html">← Jogos</a><strong>Zip</strong></nav>
 <main>
-  <header><h1>Patches</h1><span id="timer">00:00</span></header>
+  <header><h1>Zip</h1><span id="timer">00:00</span></header>
   <div id="level"><b id="levelName"></b><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
-  <div id="board" aria-label="Tabuleiro do Patches"></div>
+  <svg id="board" viewBox="0 0 600 600" tabindex="0" role="application" aria-label="Tabuleiro do Zip"></svg>
   <div id="msg" role="status"></div>
   <div class="actions">
     <button id="undo">Desfazer</button>
     <button id="reset">Reiniciar</button>
     <button id="next">Nova fase</button>
   </div>
-  <p class="help">Arraste para desenhar retângulos que preencham toda a grade. Cada um tem exatamente uma pista: o número é a área e a forma colorida mostra o formato (quadrado, largo, alto ou cruz para qualquer). Toque em um patch para removê-lo.</p>
+  <p class="help">Arraste do 1 até o último número, passando pelos números em ordem e por todas as células. Paredes grossas bloqueiam o caminho. No teclado, use as setas e Backspace.</p>
 </main>
 <script src="../../shared/file-warning.js"></script>
 <script type="module" src="./ui.js"></script>

@@ -18,7 +18,7 @@ h1,h2,h3{margin:0;letter-spacing:-.02em}
 .hero h1{font-size:clamp(2rem,4vw,3rem);line-height:1.05;max-width:12em}
 .hero p{margin:12px 0 0;color:#9fb2c8;max-width:28em;line-height:1.5}
 .hero svg.deco{width:min(100%,340px);height:auto;align-self:flex-start}
-.panel{position:relative;display:flex;align-items:center;justify-content:center;padding:32px 20px}
+.panel{display:flex;align-items:center;justify-content:center;padding:32px 20px}
 .card{width:100%;max-width:400px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:24px}
 .tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--bg);padding:4px;border-radius:10px;margin-bottom:16px}
 .tabs button{border:0;background:none;padding:10px;border-radius:8px;font-weight:700;color:var(--muted)}
@@ -65,28 +65,3 @@ a.game{text-decoration:none;color:inherit}
   .hero{padding:24px 20px}
   .hero svg.deco{display:none}
 }
-
-/* ---------- Perfil ---------- */
-a.brand{color:inherit;text-decoration:none}
-.profile{max-width:640px;margin:0 auto;padding:28px 20px 40px;display:grid;gap:16px}
-.profile h1{font-size:1.7rem}
-#account{display:grid;gap:16px}
-#account[hidden],.pcard[hidden],#pwForm[hidden],#pwInfo[hidden]{display:none}
-.pcard{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px}
-.pcard h2{margin-bottom:12px;font-size:1.1rem}
-.pcard p{margin:0 0 12px;color:var(--muted)}
-.identity{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.identity .avatar{width:88px;height:88px;border-width:3px}
-.identity .who{flex:1;min-width:200px}
-.identity .who strong{display:block;font-size:1.2rem}
-.identity .who span{color:var(--muted);font-size:.9rem}
-.identity .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-.btn.small{width:auto;padding:9px 16px}
-.fmsg{min-height:1.3em;margin:8px 0 0;font-size:.9rem;color:var(--accent)}
-.pcard .fmsg{margin:8px 0 0;color:var(--accent)}
-.fmsg.err,.pcard .fmsg.err{color:var(--err)}
-.glist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
-.glist li{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:12px;border-radius:10px;background:var(--bg)}
-.glist .t{font-weight:700;color:var(--fg);text-decoration:none}
-.glist .pts{font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
-.glist .meta{grid-column:1/-1;color:var(--muted);font-size:.85rem}

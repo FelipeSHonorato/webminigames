@@ -37,7 +37,7 @@ jobs:
       - name: Prepare site
         run: |
           mkdir _site
-          cp -r index.html jogos.html perfil.html css js shared games _site/
+          cp -r index.html jogos.html css js shared games _site/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

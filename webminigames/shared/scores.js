@@ -27,16 +27,12 @@ export const Scores = {
     return { ...g };
   },
 
-  /** Pontos e vitórias do usuário atual, por jogo: { zip: { points, wins, updatedAt }, … }. */
-  mine() { return readJSON(KEY, {})[getSession()?.id]?.games ?? {}; },
-
   /** Ranking de um jogo. scope: "global" ou "region" (a região do usuário atual). Empate: quem chegou primeiro. */
   async leaderboard(gameId, { scope = "global", limit = 10 } = {}) {
     const s = getSession();
-    const profiles = readJSON("wmg.profiles", {});               // o apelido (se houver) vale mais que o nome do cadastro
     let rows = Object.entries(readJSON(KEY, {}))
       .filter(([, r]) => r.games?.[gameId]?.points > 0)
-      .map(([id, r]) => ({ id, name: profiles[id]?.nickname || r.name, region: r.region, ...r.games[gameId], isMe: id === s?.id }));
+      .map(([id, r]) => ({ id, name: r.name, region: r.region, ...r.games[gameId], isMe: id === s?.id }));
     if (scope === "region") rows = rows.filter(r => s?.region && r.region === s.region);
     rows.sort((a, b) => b.points - a.points || a.updatedAt - b.updatedAt);
     rows.forEach((r, i) => (r.rank = i + 1));

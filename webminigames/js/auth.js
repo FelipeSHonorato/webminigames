@@ -39,18 +39,6 @@ export const Auth = {
     if (!u || u.hash !== (await hashPassword(password, u.salt))) throw new Error("E-mail ou senha incorretos.");
     return this.start({ id: u.id, name: u.name, provider: "password", region: u.region ?? null });
   },
-  /** Troca a senha exigindo a atual. Só contas com e-mail e senha. */
-  async changePassword({ current, next }) {
-    const s = this.current();
-    if (s?.provider !== "password") throw new Error("Esta conta não usa senha.");
-    if (next.length < 6) throw new Error("A nova senha precisa ter pelo menos 6 caracteres.");
-    const all = users(), u = Object.values(all).find(x => x.id === s.id);
-    if (!u || u.hash !== (await hashPassword(current, u.salt))) throw new Error("A senha atual está incorreta.");
-    if (next === current) throw new Error("A nova senha deve ser diferente da atual.");
-    u.salt = randomHex(16);
-    u.hash = await hashPassword(next, u.salt);
-    store.set("wmg.users", JSON.stringify(all));
-  },
   loginWithGoogle() {                                  // SIMULAÇÃO: não fala com o Google
     return this.start({ id: "g-demo", name: "Jogador Google", provider: "google-demo", region: null });
   },
