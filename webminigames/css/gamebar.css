@@ -1,5 +1,0 @@
-/* Barra de navegação das páginas de jogo (usa os tokens de cor de cada jogo). */
-.sitebar{box-sizing:border-box;min-height:53px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 16px;border-bottom:1px solid var(--grid)}
-.sitebar a{padding:6px 12px;border:2px solid var(--grid);border-radius:8px;color:var(--fg);font-weight:700;text-decoration:none}
-.sitebar a:hover{border-color:var(--accent,var(--path))}
-.sitebar strong{color:var(--fg)}

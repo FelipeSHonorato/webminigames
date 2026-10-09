@@ -99,6 +99,10 @@ Fluxo: `index.html` (entrada) → `jogos.html` (lista de jogos) → `games/<jogo
 - A geração dos níveis altos roda na thread principal e pode levar alguns segundos no Zip Genius; um Web Worker resolveria.
 - Sem suporte a teclado no Patches.
 
+## Continuando o desenvolvimento
+
+Veja [docs/CONTINUAR.md](docs/CONTINUAR.md): estado atual, decisões, limitações e próximos passos.
+
 ## Licença
 
 MIT. Veja [LICENSE](LICENSE).
