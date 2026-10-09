@@ -31,3 +31,5 @@ button{flex:1;padding:12px 8px;font:inherit;color:var(--fg);background:var(--btn
 button:hover{border-color:var(--path)}
 button:focus-visible,#board:focus-visible{outline:3px solid var(--path);outline-offset:2px}
 p.help{color:var(--muted);font-size:.9rem;line-height:1.4}
+
+button:disabled,button:disabled:hover{opacity:.45;cursor:not-allowed;border-color:var(--grid)}

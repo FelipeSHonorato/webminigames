@@ -1,6 +1,10 @@
 import { Scores } from "../../shared/scores.js";
 import { mountRanking } from "../../shared/ranking-panel.js";
 import { Activity } from "../../shared/profile.js";
+import { Coins } from "../../shared/coins.js";
+import { gameAllowed } from "../../shared/game-switch.js";
+import { Run } from "../../shared/run.js";
+import { coinBadge, fmtDuration } from "../../shared/coin-badge.js";
 import { mountUserBar } from "../../js/userbar.js";
 import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
@@ -8,8 +12,22 @@ import { WINS_PER_LEVEL, winsKey, pointsFor, pointsLegend } from "../../shared/p
 import { LEVELS, N, STORE_KEY, TOTAL, generatePuzzle, isSolved, rectCells, validateRect } from "./domain.js";
 
 const sessionUser = requireSession("../../index.html");   // sem sessão, volta para o login
+if (sessionUser && !gameAllowed("patches", sessionUser)) location.replace("../../jogos.html");   // jogo desligado pelo administrador
 mountUserBar(document.getElementById("userbar"), { base: "../../" });
 const ranking = mountRanking({ gameId: "patches", title: "Patches" });
+const GAME_ID = "patches";
+const uid = sessionUser?.id ?? "guest";
+const coinsEl = document.getElementById("coinBadge");
+
+/* Coins: saldo ao lado do nome do jogo e liberação do botão "Nova fase" (só com fase concluída e coin disponível). */
+function renderCoins() {
+  const balance = Coins.get(uid, GAME_ID), next = document.getElementById("next");
+  coinsEl.replaceChildren(coinBadge(balance));
+  const canNext = solved && balance.coins > 0;
+  next.disabled = !canNext;
+  next.title = canNext ? "" : !solved ? "Conclua a fase atual para liberar a próxima." : `Sem coins por agora: novos em ${fmtDuration(balance.nextRefillAt - Date.now())}.`;
+}
+setInterval(renderCoins, 30000);   // a recarga de 24 h pode chegar com a página aberta
 document.querySelector(".help")?.append(` ${pointsLegend()}`);   // pontuação junto da explicação do jogo
 
 /* ===================== UI ===================== */
@@ -32,21 +50,33 @@ function renderLevel() {
 }
 /** Conta a vitória uma única vez por fase (reiniciar e resolver de novo não conta). */
 function creditWin() {
-  if (credited) return "";
+  if (credited) { renderCoins(); return ""; }          // rejogar a mesma fase não pontua nem gasta coin
   credited = true;
   const before = levelOf(wins), points = pointsFor(puzzle.level ?? before);   // pontos do nível em que a fase foi gerada
   wins++; saveWins(wins); renderLevel();
+  const spent = Coins.spend(uid, GAME_ID);                                   // o coin só é gasto aqui, ao concluir a fase
+  Run.set(uid, GAME_ID, { seed: puzzle.seed, level: puzzle.level, solved: true });
   let note = "";
   if (Scores.canRank()) {
-    Scores.submit("patches", points).then(() => ranking.refresh());              // só aqui, ao concluir o cenário
+    Scores.submit(GAME_ID, points).then(() => ranking.refresh());              // só aqui, ao concluir o cenário
     note = ` +${points} pontos!`;
   } else note = " Crie uma conta para pontuar no ranking.";
+  if (spent) note += " −1 coin.";
+  renderCoins();
+  const left = Coins.get(uid, GAME_ID);
+  if (!left.coins) note += ` Sem coins por agora: novos em ${fmtDuration(left.nextRefillAt - Date.now())}.`;
   return note + (levelOf(wins) > before ? ` Novo nível: ${currentLevel().name}!` : "");
 }
-function newPuzzle() {
-  const level = levelOf(wins), p = generatePuzzle(makeRng((Math.random() * 2 ** 32) >>> 0), LEVELS[level]);
-  p.level = level;
+function buildPuzzle(seed, level) {
+  const p = generatePuzzle(makeRng(seed), LEVELS[level]);
+  p.level = level; p.seed = seed;
   return p;
+}
+/** Nova fase: a seed fica salva, então recarregar a página devolve a mesma fase até ela ser concluída. */
+function freshPuzzle() {
+  const seed = (Math.random() * 2 ** 32) >>> 0, level = levelOf(wins);
+  Run.set(uid, GAME_ID, { seed, level, solved: false });
+  return buildPuzzle(seed, level);
 }
 
 let puzzle, patches = [], drag = null, solved = false, startedAt = 0, timerId = null;
@@ -89,6 +119,7 @@ function loadPuzzle(p) {
   puzzle = p; patches = []; drag = null; solved = false;
   stopTimer(); timerEl.textContent = "00:00"; setMessage("");
   buildBoard();
+  renderCoins();
 }
 function removePatchAt(index) {
   patches.splice(index, 1);
@@ -149,8 +180,26 @@ board.addEventListener("pointercancel", () => { drag = null; ghost.hidden = true
 
 document.getElementById("undo").onclick = () => { if (!solved && patches.length) removePatchAt(patches.length - 1); };
 document.getElementById("reset").onclick = () => loadPuzzle(puzzle);
-document.getElementById("next").onclick = () => loadPuzzle(newPuzzle());
+document.getElementById("next").onclick = () => { if (solved && Coins.get(uid, GAME_ID).coins > 0) loadPuzzle(freshPuzzle()); };
 
-/* Fase inicial: sorteada no nível atual do jogador. */
+/** Fase já concluída (ao recarregar a página): mostra a solução, trava o tabuleiro e não pontua de novo. */
+function restoreSolved() {
+  credited = true; solved = true;
+  patches = puzzle.solution.map(rect => ({ rect, clue: puzzle.clues.findIndex(k => rectCells(...rect).includes(k.cell)) }));
+  renderPatches();
+  setMessage("Fase já concluída. Use “Nova fase” para continuar.");
+  renderCoins();
+}
+/** Sem coins e sem fase salva: tabuleiro travado até a recarga. */
+function lockBoard() {
+  credited = true; solved = true;
+  setMessage(`Sem coins por agora: novos em ${fmtDuration(Coins.get(uid, GAME_ID).nextRefillAt - Date.now())}.`);
+  renderCoins();
+}
+
+/* Fase inicial: volta a fase salva (mesma seed); sem fase salva, sorteia uma no nível atual se houver coin. */
 renderLevel();
-loadPuzzle(newPuzzle());
+const saved = Run.get(uid, GAME_ID);
+if (saved) { loadPuzzle(buildPuzzle(saved.seed, saved.level)); if (saved.solved) restoreSolved(); }
+else if (Coins.get(uid, GAME_ID).coins > 0) loadPuzzle(freshPuzzle());
+else { loadPuzzle(buildPuzzle((Math.random() * 2 ** 32) >>> 0, levelOf(wins))); lockBoard(); }

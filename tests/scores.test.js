@@ -35,3 +35,16 @@ test("ordena por pontos, desempata por quem chegou primeiro e filtra por região
   const regional = await Scores.leaderboard("zip", { scope: "region" });
   assert.deepEqual(regional.top.map(r => r.name), ["Bia"]);                    // só a região "sul"
 });
+
+test("ranking geral soma os pontos de todos os jogos e traz a foto de cada jogador", async () => {
+  reset();
+  login("u1", "Ana", "sul"); await Scores.submit("zip", 20); await Scores.submit("patches", 15);
+  login("u2", "Bia", "sudeste"); await Scores.submit("zip", 30);
+  store.set("wmg.profiles", JSON.stringify({ u1: { avatar: "data:image/png;base64,AAA", nickname: "Aninha" } }));
+  const o = await Scores.overall();
+  assert.deepEqual(o.top.map(r => [r.name, r.points]), [["Aninha", 35], ["Bia", 30]]);
+  assert.ok(o.top[0].avatar.startsWith("data:image/") && o.top[1].avatar === null);
+  assert.equal(o.me.rank, 2);                                                      // usuário atual: Bia
+  assert.deepEqual((await Scores.overall({ scope: "region" })).top.map(r => r.name), ["Bia"]);
+  assert.equal((await Scores.leaderboard("zip")).top[0].avatar, null);             // a foto também vai no ranking de cada jogo (Bia, sem foto)
+});

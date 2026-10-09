@@ -1,5 +1,6 @@
 import { store, readJSON } from "../shared/storage.js";
 import { REGIONS } from "../shared/regions.js";
+import { ADMIN_ID, ADMIN_EMAIL } from "../shared/roles.js";
 
 /* ===================== AUTENTICAÇÃO (local, só protótipo) =====================
    Esta interface é o ponto de troca: para um backend real (Firebase Auth, Supabase, Auth0…),
@@ -15,6 +16,18 @@ async function hashPassword(password, saltHex) {
 const users = () => readJSON("wmg.users", {});
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
+/* Conta administradora semeada automaticamente (nome, e-mail e senha definidos pelo dono do site).
+   ATENÇÃO: como este protótipo roda só no navegador, a senha fica visível no código-fonte. Em produção,
+   crie o administrador no servidor com uma senha própria e forte. */
+const ADMIN_NAME = "administrador", ADMIN_PASSWORD = "administrador";
+async function ensureAdmin() {
+  const all = users();
+  if (all[ADMIN_EMAIL]) return;
+  const salt = randomHex(16);
+  all[ADMIN_EMAIL] = { id: ADMIN_ID, name: ADMIN_NAME, region: null, role: "admin", salt, hash: await hashPassword(ADMIN_PASSWORD, salt) };
+  store.set("wmg.users", JSON.stringify(all));
+}
+
 export const Auth = {
   current: () => readJSON("wmg.session", null),
   start(user) { store.set("wmg.session", JSON.stringify(user)); return user; },
@@ -26,6 +39,7 @@ export const Auth = {
     if (!name.trim()) throw new Error("Digite seu nome.");
     if (!REGIONS.some(r => r.id === region)) throw new Error("Selecione sua região.");
     this.validate({ email, password });
+    await ensureAdmin();                                  // garante que ninguém registre o e-mail do administrador
     const all = users(), key = email.trim().toLowerCase();
     if (all[key]) throw new Error("Já existe uma conta com este e-mail. Use a aba Entrar.");
     const salt = randomHex(16), id = "u-" + randomHex(8);
@@ -35,9 +49,10 @@ export const Auth = {
   },
   async login({ email, password }) {
     this.validate({ email, password });
+    await ensureAdmin();
     const u = users()[email.trim().toLowerCase()];
     if (!u || u.hash !== (await hashPassword(password, u.salt))) throw new Error("E-mail ou senha incorretos.");
-    return this.start({ id: u.id, name: u.name, provider: "password", region: u.region ?? null });
+    return this.start({ id: u.id, name: u.name, provider: "password", region: u.region ?? null, role: u.role ?? "user" });
   },
   /** Troca a senha exigindo a atual. Só contas com e-mail e senha. */
   async changePassword({ current, next }) {

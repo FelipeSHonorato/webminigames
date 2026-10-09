@@ -17,3 +17,17 @@ export async function fileToAvatar(file) {
   bitmap.close?.();
   return canvas.toDataURL("image/jpeg", 0.85);
 }
+
+const DEFAULT_AVATAR = `<svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="15" r="7" fill="currentColor"/><path d="M6 36c1-8 7-12 14-12s13 4 14 12z" fill="currentColor"/></svg>`;
+
+/** Foto do usuário ou, sem foto, o avatar padrão (silhueta). */
+export function avatarNode(dataUrl) {
+  if (typeof dataUrl === "string" && dataUrl.startsWith("data:image/")) {
+    const img = new Image();
+    img.className = "avatar"; img.alt = ""; img.src = dataUrl;
+    return img;
+  }
+  const span = document.createElement("span");
+  span.className = "avatar"; span.innerHTML = DEFAULT_AVATAR;
+  return span;
+}

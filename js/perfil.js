@@ -1,11 +1,13 @@
 import { requireSession } from "../shared/session.js";
 import { Profile, Activity } from "../shared/profile.js";
 import { Scores } from "../shared/scores.js";
-import { fileToAvatar } from "../shared/avatar.js";
+import { fileToAvatar, avatarNode } from "../shared/avatar.js";
 import { regionName } from "../shared/regions.js";
 import { GAMES } from "./games.js";
+import { GameSwitch } from "../shared/game-switch.js";
+import { isAdmin } from "../shared/roles.js";
 import { Auth } from "./auth.js";
-import { mountUserBar, avatarNode } from "./userbar.js";
+import { mountUserBar } from "./userbar.js";
 
 const $ = id => document.getElementById(id);
 const session = requireSession("index.html");
@@ -16,7 +18,7 @@ function renderIdentity() {
   const p = Profile.get(session.id);
   $("avatarBox").replaceChildren(avatarNode(p.avatar));
   $("shownName").textContent = Profile.displayName(session);
-  $("shownMeta").textContent = `${PROVIDERS[session.provider]} · Região: ${regionName(session.region)}`;
+  $("shownMeta").textContent = `${isAdmin(session) ? "Administrador" : PROVIDERS[session.provider]} · Região: ${regionName(session.region)}`;
   $("removePhoto").hidden = !p.avatar;
   $("nickname").value = p.nickname ?? "";
   mountUserBar($("userbar"));                    // a barra superior acompanha foto e apelido
@@ -27,7 +29,7 @@ function renderGames() {
   list.replaceChildren();
   for (const [id, g] of Object.entries(GAMES)) {
     const li = document.createElement("li"), link = document.createElement("a");
-    link.className = "t"; link.href = g.path; link.textContent = g.title;
+    link.className = "t"; link.href = g.path; link.textContent = g.title + (GameSwitch.isOn(id) ? "" : " (desligado)");   // pontos continuam aqui mesmo com o jogo desligado
     const pts = document.createElement("span");
     pts.className = "pts"; pts.textContent = `${mine[id]?.points ?? 0} pts`;
     const meta = document.createElement("span"), last = activity[id]?.lastPlayedAt;

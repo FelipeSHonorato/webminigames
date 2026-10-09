@@ -7,6 +7,8 @@
 <script src="shared/theme-init.js"></script>
 <link rel="stylesheet" href="css/site.css">
 <link rel="stylesheet" href="css/userbar.css">
+<link rel="stylesheet" href="css/ranking-list.css">
+<link rel="stylesheet" href="css/coins.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -26,9 +28,18 @@
     <div id="userbar"></div>
   </div>
   <div class="hub">
+    <div class="hub-main">
     <h2 id="hub-title" tabindex="-1">Escolha um jogo</h2>
     <p class="sub" id="hubSub"></p>
     <div class="games" id="games"></div>
+    </div>
+    <aside class="overall" aria-labelledby="overall-title">
+      <h2 id="overall-title">Ranking geral</h2>
+      <p class="sub">Soma da pontuação de todos os jogos.</p>
+      <div class="ranking-scopes" id="overallScopes"></div>
+      <ol class="ranking-list" id="overallList"></ol>
+      <p class="ranking-note" id="overallNote"></p>
+    </aside>
   </div>
 </section>
 

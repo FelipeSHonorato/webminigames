@@ -32,14 +32,34 @@ export const Scores = {
 
   /** Ranking de um jogo. scope: "global" ou "region" (a região do usuário atual). Empate: quem chegou primeiro. */
   async leaderboard(gameId, { scope = "global", limit = 10 } = {}) {
-    const s = getSession();
-    const profiles = readJSON("wmg.profiles", {});               // o apelido (se houver) vale mais que o nome do cadastro
-    let rows = Object.entries(readJSON(KEY, {}))
+    const profiles = readJSON("wmg.profiles", {});               // apelido e foto (se houver) valem mais que o cadastro
+    const rows = Object.entries(readJSON(KEY, {}))
       .filter(([, r]) => r.games?.[gameId]?.points > 0)
-      .map(([id, r]) => ({ id, name: profiles[id]?.nickname || r.name, region: r.region, ...r.games[gameId], isMe: id === s?.id }));
-    if (scope === "region") rows = rows.filter(r => s?.region && r.region === s.region);
-    rows.sort((a, b) => b.points - a.points || a.updatedAt - b.updatedAt);
-    rows.forEach((r, i) => (r.rank = i + 1));
-    return { top: rows.slice(0, limit), me: rows.find(r => r.isMe) ?? null, total: rows.length };
+      .map(([id, r]) => ({ id, name: profiles[id]?.nickname || r.name, avatar: profiles[id]?.avatar ?? null, region: r.region, ...r.games[gameId] }));
+    return rank(rows, scope, limit);
+  },
+
+  /** Ranking geral: soma dos pontos de todos os jogos de cada jogador. */
+  async overall({ scope = "global", limit = 10 } = {}) {
+    const profiles = readJSON("wmg.profiles", {});
+    const rows = Object.entries(readJSON(KEY, {})).map(([id, r]) => {
+      const games = Object.values(r.games ?? {});
+      return {
+        id, name: profiles[id]?.nickname || r.name, avatar: profiles[id]?.avatar ?? null, region: r.region,
+        points: games.reduce((sum, g) => sum + g.points, 0), wins: games.reduce((sum, g) => sum + g.wins, 0),
+        updatedAt: Math.max(0, ...games.map(g => g.updatedAt)),
+      };
+    }).filter(r => r.points > 0);
+    return rank(rows, scope, limit);
   },
 };
+
+/** Filtra por região, ordena (pontos; empate: quem chegou primeiro), numera e marca o usuário atual. */
+function rank(rows, scope, limit) {
+  const s = getSession();
+  rows = rows.map(r => ({ ...r, isMe: r.id === s?.id }));
+  if (scope === "region") rows = rows.filter(r => s?.region && r.region === s.region);
+  rows.sort((a, b) => b.points - a.points || a.updatedAt - b.updatedAt);
+  rows.forEach((r, i) => (r.rank = i + 1));
+  return { top: rows.slice(0, limit), me: rows.find(r => r.isMe) ?? null, total: rows.length };
+}

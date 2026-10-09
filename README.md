@@ -11,7 +11,21 @@ Os dois têm quatro níveis (Fácil, Médio, Difícil e Genius). O nível sobe a
 
 Cada partida vencida vale pontos conforme o nível em que a fase foi gerada: **Fácil 5, Médio 10, Difícil 15, Genius 20**. Os pontos só são gravados quando o cenário é concluído (reiniciar a fase e vencer de novo não soma outra vez). Só contas pontuam; jogadores anônimos veem o ranking, mas não aparecem nele.
 
-Cada jogo tem um painel lateral de ranking, aberto ao entrar (em telas largas) e recolhível pela aba "Ranking". Ele tem duas visões: **Geral** e **Minha região** (a região é escolhida no cadastro). Empates são resolvidos por quem chegou primeiro à pontuação.
+Cada jogo tem um painel lateral de ranking, aberto ao entrar (em telas largas) e recolhível pela aba "Ranking". Ele tem duas visões: **Geral** e **Minha região** (a região é escolhida no cadastro). Empates são resolvidos por quem chegou primeiro à pontuação. Cada linha mostra a posição, a foto do jogador (ou um avatar padrão), o nome e os pontos. Na página de jogos (`jogos.html`) há também o **Ranking geral**, que soma os pontos de todos os jogos, numa janela fixa ao lado dos jogos (sempre visível, sem opção de ocultar; em telas estreitas ela passa para baixo dos jogos).
+
+## Coins
+
+Cada jogador recebe **2 coins por jogo a cada 24 horas**; não acumulam (o saldo nunca passa de 2). **O coin só é gasto quando a fase é concluída.** O botão **Nova fase** só habilita com a fase atual concluída e pelo menos 1 coin; sem coins, o saldo mostra quando chegam os próximos. O saldo aparece como `[moeda] x 2` ao lado do nome do jogo, nos cards de `jogos.html` e na barra superior de cada jogo.
+
+A fase atual é salva por seed (`shared/run.js`): recarregar a página devolve a mesma fase, e uma fase concluída volta mostrando a solução, sem pontuar nem gastar coin de novo. Os coins ficam em `shared/coins.js` (local, como o restante); num backend real, a recarga e o gasto devem ser calculados no servidor, senão mudar o relógio ou o `localStorage` burla o limite.
+
+## Conta administradora
+
+Existe uma conta administradora, criada automaticamente na primeira tentativa de login ou cadastro: nome `administrador`, e-mail `administrador@administrador.com.br` e senha `administrador`. Ela tem **99999 coins por jogo** (gasta ao concluir fases, como as demais, e a recarga de 24 h devolve o saldo a 99999) e acessa o **Painel** (`admin.html`, link na barra superior), com uma chave liga/desliga para cada jogo.
+
+- **Jogo desligado:** os jogadores não entram nele (o card fica como "Desligado" e a página redireciona); o administrador continua entrando.
+- **Pontos preservados:** desligar não remove nada. Os pontos continuam no ranking do jogo, no ranking geral e no perfil de cada jogador.
+- **Atenção:** a senha está no código-fonte (`js/auth.js`) e a chave fica no `localStorage` de quem a mudou, então só vale neste navegador. Em produção, crie o administrador no servidor com senha forte e guarde o estado dos jogos no servidor.
 
 ## Perfil
 
@@ -58,7 +72,7 @@ jogos.html            página com os jogos disponíveis (exige sessão)
 perfil.html           perfil: apelido, foto, senha e meus jogos (exige conta)
 css/                  site.css, gamebar.css (barra dos jogos), ranking.css (painel lateral)
 js/                   login.js, hub.js, perfil.js (uma por página), auth.js (contas), userbar.js, games.js (catálogo)
-shared/               theme.js e theme-init.js (modo escuro), rng.js, storage.js, session.js, progress.js (níveis e pontos), regions.js,
+shared/               roles.js, game-switch.js (liga/desliga dos jogos), coins.js, run.js, coin-badge.js (coins e fase atual), theme.js e theme-init.js (modo escuro), rng.js, storage.js, session.js, progress.js (níveis e pontos), regions.js, ranking-list.js (linhas e abas do ranking),
                       scores.js (pontuação e ranking), ranking-panel.js (painel lateral),
                       profile.js (apelido, foto, atividade), avatar.js (redimensiona a foto)
 games/<jogo>/
