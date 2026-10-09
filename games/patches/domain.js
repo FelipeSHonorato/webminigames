@@ -3,12 +3,13 @@
 /* ===================== DOMÍNIO ===================== */
 export let N = 6, TOTAL = 36;
 export const setSize = n => { N = n; TOTAL = n * n; };
-/* pAny / pNull: chance de uma pista vir com ícone "qualquer" ou sem número (menos informação = mais difícil). */
+/* pAny / pNull: chance de uma pista vir com ícone "qualquer" ou sem número (menos informação = mais difícil).
+   singles: se a fase pode ter patches de 1 célula (pista "1"); só o Fácil, do Médio em diante não aparecem. */
 export const LEVELS = [
-  { name: "Fácil", n: 5, pAny: 0, pNull: 0 },
-  { name: "Médio", n: 6, pAny: 0.25, pNull: 0.08 },
-  { name: "Difícil", n: 7, pAny: 0.45, pNull: 0.15 },
-  { name: "Genius", n: 8, pAny: 0.65, pNull: 0.3 },
+  { name: "Fácil", n: 5, pAny: 0, pNull: 0, singles: true },
+  { name: "Médio", n: 6, pAny: 0.25, pNull: 0.08, singles: false },
+  { name: "Difícil", n: 7, pAny: 0.45, pNull: 0.15, singles: false },
+  { name: "Genius", n: 8, pAny: 0.65, pNull: 0.3, singles: false },
 ];
 export const STORE_KEY = "patches.wins";
 
@@ -81,16 +82,19 @@ export function countSolutions(clues, limit = 2) {
 }
 
 /* ===================== GERADOR ===================== */
-/** Particiona a grade em retângulos, sempre ancorando na primeira célula livre. */
-export function randomPartition(rand) {
+/** Particiona a grade em retângulos, sempre ancorando na primeira célula livre.
+    Com allowSingles = false não sorteia retângulos de 1 célula; se sobrar uma célula que só cabe sozinha
+    (beco sem saída), devolve null e quem chamou sorteia outra partição. */
+export function randomPartition(rand, allowSingles = true) {
   const owned = new Array(TOTAL).fill(false), rects = [];
   for (let i = 0; i < TOTAL; i++) {
     if (owned[i]) continue;
     const r = (i / N) | 0, c = i % N, opts = [];
     for (let h = 1; h <= Math.min(4, N - r); h++) for (let w = 1; w <= Math.min(5, N - c); w++) {
-      if (w * h > 8 || !rectCells(r, c, r + h - 1, c + w - 1).every(x => !owned[x])) continue;
+      if (w * h > 8 || (!allowSingles && w * h === 1) || !rectCells(r, c, r + h - 1, c + w - 1).every(x => !owned[x])) continue;
       opts.push({ w, h, weight: w * h === 1 ? 0.4 : w * h <= 6 ? 3 : 1 });
     }
+    if (!opts.length) return null;
     let roll = rand() * opts.reduce((s, o) => s + o.weight, 0), pick = opts[0];
     for (const o of opts) { roll -= o.weight; if (roll <= 0) { pick = o; break; } }
     rects.push([r, c, r + pick.h - 1, c + pick.w - 1]);
@@ -103,7 +107,8 @@ export function randomPartition(rand) {
 export function generatePuzzle(rand, level) {
   setSize(level.n);
   for (;;) {
-    const rects = randomPartition(rand);
+    const rects = randomPartition(rand, level.singles !== false);
+    if (!rects) continue;
     for (let attempt = 0; attempt < 28; attempt++) {
       const f = 1 - attempt / 56;                   // a cada tentativa as dicas ficam um pouco mais completas
       const clues = rects.map(([r0, c0, r1, c1]) => {

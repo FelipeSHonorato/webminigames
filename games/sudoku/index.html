@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sudoku</title>
+<script src="../../shared/theme-init.js"></script>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../css/gamebar.css">
+<link rel="stylesheet" href="../../css/ranking-list.css">
+<link rel="stylesheet" href="../../css/ranking.css">
+<link rel="stylesheet" href="../../css/userbar.css">
+<link rel="stylesheet" href="../../css/coins.css">
+</head>
+<body>
+<nav class="sitebar"><a href="../../jogos.html">← Jogos</a><div class="gametitle"><strong>Sudoku</strong><span id="coinBadge"></span></div><div id="userbar"></div></nav>
+<main>
+  <header><h1>Sudoku</h1><span id="timer">00:00</span></header>
+  <div id="level"><b id="levelName"></b><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
+  <div id="board" role="application" tabindex="0" aria-label="Tabuleiro do Sudoku"></div>
+  <div id="msg" role="status"></div>
+  <div id="pad" aria-label="Números">
+    <button data-d="1">1</button><button data-d="2">2</button><button data-d="3">3</button>
+    <button data-d="4">4</button><button data-d="5">5</button><button data-d="6">6</button>
+    <button data-d="7">7</button><button data-d="8">8</button><button data-d="9">9</button>
+  </div>
+  <div class="actions">
+    <button id="undo">Desfazer</button>
+    <button id="erase">Apagar</button>
+    <button id="notes" aria-pressed="false">Anotações</button>
+  </div>
+  <div class="actions">
+    <button id="reset">Reiniciar</button>
+    <button id="next">Nova fase</button>
+  </div>
+  <p class="help">Preencha a grade para que cada linha, coluna e bloco 3×3 tenha os números de 1 a 9, sem repetir. Toque em uma célula e escolha o número; repetidos ficam em vermelho. Com “Anotações” ligado, os números viram rascunhos na célula. No teclado, use as setas, os números de 1 a 9, Backspace para apagar e N para alternar as anotações.</p>
+</main>
+<script src="../../shared/file-warning.js"></script>
+<script type="module" src="./ui.js"></script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#e9eef3;--fg:#14213d;--cell:#fff;--grid:#cfd8e1;--frame:#14213d;--accent:#19a79a;--muted:#5b6b7e;--btn:#fff;
+--peer:#eef3f8;--same:#cdeeea;--sel:#9fdcd5;--bad:#fbd9d6;--badfg:#c0392b;--user:#0f7f75}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1621;--fg:#e8eef5;--cell:#17222f;--grid:#2a3a4c;--frame:#e8eef5;--accent:#2cc4b6;--muted:#8da0b5;--btn:#17222f;
+--peer:#1c2a3a;--same:#1b4846;--sel:#25706b;--bad:#4a2326;--badfg:#ff8a80;--user:#5fe0d3}}
+:root[data-theme="dark"]{--bg:#0e1621;--fg:#e8eef5;--cell:#17222f;--grid:#2a3a4c;--frame:#e8eef5;--accent:#2cc4b6;--muted:#8da0b5;--btn:#17222f;
+--peer:#1c2a3a;--same:#1b4846;--sel:#25706b;--bad:#4a2326;--badfg:#ff8a80;--user:#5fe0d3}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif}
+main{max-width:520px;margin:0 auto;padding:20px 16px 28px}
+header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+h1{margin:0;font-size:2rem;letter-spacing:-.02em}
+#timer{font-variant-numeric:tabular-nums;color:var(--muted);font-size:1.1rem}
+
+/* Tabuleiro: grade 9x9; linhas finas entre células e grossas entre os blocos 3x3 */
+#board{display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr);width:100%;aspect-ratio:1;user-select:none;touch-action:manipulation;
+  background:var(--cell);border:3px solid var(--frame);border-radius:10px;overflow:hidden}
+#board:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.cell{position:relative;display:flex;align-items:center;justify-content:center;min-width:0;cursor:pointer;
+  border-right:1px solid var(--grid);border-bottom:1px solid var(--grid);font-size:clamp(1.1rem,5.6vw,1.95rem);line-height:1}
+.cell.c2,.cell.c5{border-right:2px solid var(--frame)}
+.cell.r2,.cell.r5{border-bottom:2px solid var(--frame)}
+.cell.c8{border-right:0}
+.cell.r8{border-bottom:0}
+.cell.peer{background:var(--peer)}
+.cell.same{background:var(--same)}
+.cell.sel{background:var(--sel);box-shadow:inset 0 0 0 3px var(--accent)}
+.cell.bad{background:var(--bad)}
+.cell.given{font-weight:700}
+.cell.user{color:var(--user)}
+.cell.bad.user,.cell.bad.given{color:var(--badfg)}
+/* Anotações centralizadas na célula (nos dois eixos); quanto mais anotações, menor a fonte, quebrando em linhas centradas */
+.notes{position:absolute;inset:2px;display:flex;flex-wrap:wrap;align-items:center;align-content:center;justify-content:center;gap:0 .2em;
+  color:var(--muted);font-weight:700;line-height:1.1;text-align:center;pointer-events:none}
+.notes.n1{font-size:clamp(1rem,4.6vw,1.5rem)}
+.notes.n2{font-size:clamp(.85rem,3.8vw,1.2rem)}
+.notes.n3,.notes.n4{font-size:clamp(.65rem,3vw,.95rem)}
+.notes.n5,.notes.n6,.notes.n7,.notes.n8,.notes.n9{font-size:clamp(.55rem,2.5vw,.8rem)}
+.notes span.hit{color:var(--accent)}
+#board.locked .cell{cursor:default}
+
+#level{display:flex;align-items:center;gap:10px;margin:0 0 12px;font-size:.95rem}
+#level b{min-width:4.6em}
+#level .bar{flex:1;height:8px;border-radius:4px;background:var(--grid);overflow:hidden}
+#level .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+#level span{color:var(--muted);font-variant-numeric:tabular-nums}
+#msg{min-height:1.6em;margin:12px 0;text-align:center;font-weight:700;color:var(--accent)}
+#msg.err{color:var(--muted);font-weight:400}
+
+#pad{display:grid;grid-template-columns:repeat(9,1fr);gap:6px;margin:0 0 10px}
+#pad button{flex:none;padding:12px 0;font-size:1.25rem;font-weight:700;border-radius:8px}
+#pad button.done{opacity:.35}
+.actions{display:flex;gap:8px;margin-bottom:8px}
+button{flex:1;padding:12px 8px;font:inherit;color:var(--fg);background:var(--btn);border:2px solid var(--grid);border-radius:8px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+button:disabled,button:disabled:hover{opacity:.45;cursor:not-allowed;border-color:var(--grid)}
+p.help{color:var(--muted);font-size:.9rem;line-height:1.4}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

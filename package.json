@@ -1,7 +1,7 @@
 {
   "name": "webminigames",
   "version": "0.1.0",
-  "description": "Mini-games de lógica no navegador: Zip e Patches.",
+  "description": "Mini-games de lógica no navegador: Zip, Patches e Sudoku.",
   "private": true,
   "type": "module",
   "scripts": {

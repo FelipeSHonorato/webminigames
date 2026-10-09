@@ -10,4 +10,9 @@ export const GAMES = {
     desc: "Divida a grade em retângulos: cada um com uma pista de área e formato.",
     preview: `<svg viewBox="0 0 160 100" aria-hidden="true"><rect x="6" y="6" width="68" height="46" rx="8" fill="#8e7cf0" opacity=".55"/><rect x="80" y="6" width="74" height="46" rx="8" fill="#2cc4b6" opacity=".55"/><rect x="6" y="58" width="40" height="36" rx="8" fill="#f2b134" opacity=".6"/><rect x="52" y="58" width="102" height="36" rx="8" fill="#4aa3df" opacity=".55"/><g font-size="15" font-weight="700" fill="#fff" text-anchor="middle" dominant-baseline="central"><text x="40" y="29">6</text><text x="117" y="29">6</text><text x="26" y="76">4</text><text x="103" y="76">6</text></g></svg>`,
   },
+  sudoku: {
+    title: "Sudoku", key: "sudoku.wins", path: "games/sudoku/",
+    desc: "Preencha a grade 9×9 para que cada linha, coluna e bloco tenha de 1 a 9, sem repetir.",
+    preview: `<svg viewBox="0 0 160 100" aria-hidden="true"><rect x="45" y="15" width="10" height="10" fill="#2cc4b6" opacity=".45"/><g fill="none" stroke="currentColor" stroke-opacity=".18" stroke-width="1"><path d="M45 5V95M55 5V95M75 5V95M85 5V95M105 5V95M115 5V95M35 15H125M35 25H125M35 45H125M35 55H125M35 75H125M35 85H125"/></g><g fill="none" stroke="currentColor" stroke-opacity=".55" stroke-width="2"><rect x="35" y="5" width="90" height="90" rx="2"/><path d="M65 5V95M95 5V95M35 35H125M35 65H125"/></g><g font-size="8" font-weight="700" fill="currentColor" text-anchor="middle" dominant-baseline="central"><text x="40" y="10.5">5</text><text x="60" y="10.5">3</text><text x="50" y="20.5">7</text><text x="40" y="30.5">9</text><text x="60" y="30.5">2</text><text x="50" y="40.5">6</text><text x="40" y="50.5">4</text><text x="60" y="50.5">1</text><text x="50" y="60.5">8</text><text x="40" y="70.5">1</text><text x="60" y="80.5">6</text><text x="50" y="90.5">3</text><text x="80" y="10.5">1</text></g></svg>`,
+  },
 };

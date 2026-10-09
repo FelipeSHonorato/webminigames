@@ -18,7 +18,7 @@ const PROVIDER_NOTE = { password: "", "google-demo": "Google (simulação)", ano
 
 function renderHub() {
   mountUserBar($("userbar"));
-  $("hubSub").textContent = "Os dois jogos estão liberados. Cada um tem o seu próprio nível e progresso." + (user.provider === "anonymous" ? ` ${PROVIDER_NOTE.anonymous}.` : "");
+  $("hubSub").textContent = "Os jogos estão liberados. Cada um tem o seu próprio nível e progresso." + (user.provider === "anonymous" ? ` ${PROVIDER_NOTE.anonymous}.` : "");
   $("games").innerHTML = "";
   for (const [id, g] of Object.entries(GAMES)) {
     const wins = winsOf(g, user.id), lv = Math.min(LEVEL_NAMES.length - 1, Math.floor(wins / WINS_PER_LEVEL));

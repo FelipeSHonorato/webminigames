@@ -4,10 +4,11 @@ Resumo do estado do projeto para retomar o trabalho em outro chat (ou com outra 
 
 ## O que existe
 
-Site de mini-games de lógica, em HTML/CSS/JS puro (módulos ES, sem build e sem dependências), com dois jogos inspirados nos puzzles do LinkedIn:
+Site de mini-games de lógica, em HTML/CSS/JS puro (módulos ES, sem build e sem dependências), com três jogos (Zip e Patches, inspirados nos puzzles do LinkedIn, e o clássico Sudoku):
 
 - **Zip:** um único caminho passando pelos números em ordem e por todas as células; paredes bloqueiam.
 - **Patches:** dividir a grade em retângulos; cada um tem uma pista (área e formato: quadrado, largo, alto ou qualquer).
+- **Sudoku:** grade 9×9, sem repetir 1 a 9 em linha, coluna e bloco. Nível = nº de pistas (40/34/30/26). Anotações, desfazer, conflitos em vermelho e teclado (setas, 1-9, Backspace, N). O teclado é tratado no `document` (vale na área `main`) e as células do tabuleiro são criadas uma vez por fase: recriá-las a cada jogada faz o navegador perder o foco no clique.
 
 Funcionalidades prontas: entrada (criar conta, Google **simulado**, anônimo), página de jogos, perfil (apelido, foto, senha, meus jogos), 4 níveis por jogo (sobe a cada 15 vitórias), pontuação (Fácil 5, Médio 10, Difícil 15, Genius 20), ranking por jogo em painel lateral recolhível, ranking geral na página de jogos (soma de todos os jogos, em janela fixa), regiões, modo escuro, coins (2 por jogo a cada 24 h, sem acumular, gastos só ao concluir a fase), fase salva por seed, conta administradora com liga/desliga dos jogos.
 
@@ -15,7 +16,7 @@ Funcionalidades prontas: entrada (criar conta, Google **simulado**, anônimo), p
 
 ```bash
 npm start     # servidor local (usa serve.json); não abra o index.html com duplo clique
-npm test      # 35 testes, Node 20+
+npm test      # 53 testes, Node 20+
 ```
 
 ## Estrutura e decisões importantes
@@ -28,6 +29,8 @@ npm test      # 35 testes, Node 20+
 - Desligar um jogo (admin) **não apaga nada**: pontos, rankings e perfis continuam iguais.
 - Nomes de usuário sempre entram na tela via `textContent` (nunca `innerHTML`).
 - Geração de fases: o solver tem orçamento de nós; fases sem unicidade provada são descartadas.
+- Patches: patch de 1 célula (pista "1") só existe no Fácil (`singles` em `LEVELS`). Do Médio em diante `randomPartition(rand, false)` não sorteia 1x1 e devolve `null` em beco sem saída (o gerador sorteia outra partição). Fases de Médio+ salvas por seed antes dessa regra são regeradas diferentes; o Fácil não muda.
+- Sudoku: anotações aparecem centralizadas na célula (fonte menor conforme a quantidade), não em mini-grade 3×3 fixa.
 
 ## Conta administradora
 
@@ -37,7 +40,7 @@ npm test      # 35 testes, Node 20+
 
 1. **Backend real** (Firebase/Supabase/outro): contas, Google de verdade, ranking global e regional, coins e liga/desliga no servidor, validação das vitórias no servidor (hoje dá para burlar editando o `localStorage` ou o relógio).
 2. Gerar as fases do Zip nos níveis altos num **Web Worker** (pode levar alguns segundos no Genius).
-3. Suporte a **teclado** no Patches.
+3. Suporte a **teclado** no Patches (o Sudoku já tem).
 4. Centralizar as cores (tokens) num `tokens.css` compartilhado (hoje cada jogo repete os seus).
 5. Ideias já levantadas: mostrar pontos nos cards da página de jogos; o administrador ajustar coins e ver a lista de contas; recarga de coins à meia-noite em vez de 24 h depois do primeiro acesso.
 

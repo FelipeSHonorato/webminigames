@@ -1,11 +1,12 @@
 # WebMiniGames
 
-Site de mini-games de lógica que roda direto no navegador, sem build e sem dependências. Reúne dois jogos inspirados nos puzzles diários do LinkedIn:
+Site de mini-games de lógica que roda direto no navegador, sem build e sem dependências. Reúne três jogos: dois inspirados nos puzzles diários do LinkedIn (Zip e Patches) e o clássico Sudoku:
 
 - **Zip:** trace um único caminho passando pelos números em ordem e por todas as células. Paredes bloqueiam a passagem.
 - **Patches:** divida a grade em retângulos; cada um tem exatamente uma pista, com a área (número) e o formato (quadrado, largo, alto ou qualquer).
+- **Sudoku:** preencha a grade 9×9 para que cada linha, coluna e bloco 3×3 tenha os números de 1 a 9, sem repetir. Tem anotações, desfazer, destaque de repetidos e suporte a teclado.
 
-Os dois têm quatro níveis (Fácil, Médio, Difícil e Genius). O nível sobe a cada 15 vitórias, por jogo e por usuário, e as fases são geradas na hora, sempre com solução única.
+Os três têm quatro níveis (Fácil, Médio, Difícil e Genius). O nível sobe a cada 15 vitórias, por jogo e por usuário, e as fases são geradas na hora, sempre com solução única.
 
 ## Pontuação e ranking
 
@@ -54,7 +55,7 @@ Requer Node 20 ou superior. Não há dependências para instalar.
 npm test
 ```
 
-Cobrem regras, solver e gerador dos dois jogos (cada nível precisa gerar fase de solução única) e a progressão de níveis.
+Cobrem regras, solver e gerador dos três jogos (cada nível precisa gerar fase de solução única) e a progressão de níveis.
 
 ## Publicando no GitHub Pages
 
@@ -88,7 +89,9 @@ Fluxo: `index.html` (entrada) → `jogos.html` (lista de jogos) → `games/<jogo
 
 - **Zip:** o solver é um DFS com poda (conectividade das células livres, becos sem saída e ordem dos números). O gerador cria um caminho hamiltoniano aleatório (heurística de Warnsdorff), espalha os números ao longo dele e adiciona paredes até a solução ser única.
 - **Patches:** o solver faz cobertura exata por backtracking, sempre escolhendo a pista com menos retângulos possíveis. O gerador particiona a grade em retângulos, sorteia as pistas e só aceita a fase se a solução for única. Níveis mais altos têm mais pistas incompletas (ícone "qualquer" ou sem número).
-- Os dois usam um orçamento de nós no solver: fases cuja unicidade não é provada a tempo são descartadas.
+- **Sudoku:** o solver é um backtracking com bitmasks que sempre escolhe a célula com menos candidatos. O gerador sorteia uma grade completa e tira pistas em ordem aleatória, mantendo só as retiradas que preservam a solução única. O nível define quantas pistas sobram: Fácil 40, Médio 34, Difícil 30 e Genius 26 (a dificuldade é medida só por esse número, não pelas técnicas necessárias). Gera em poucos milissegundos, sem precisar de Web Worker.
+- **Patches e pista "1":** só o Fácil tem patches de uma célula (pista "1"); do Médio em diante a partição nunca sorteia retângulos 1×1.
+- Os três usam um orçamento de nós no solver: fases cuja unicidade não é provada a tempo são descartadas.
 
 ## Limitações conhecidas
 
