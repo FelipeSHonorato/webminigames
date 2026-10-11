@@ -4,7 +4,7 @@ Resumo do estado do projeto para retomar o trabalho em outro chat (ou com outra 
 
 ## O que existe
 
-Site de mini-games de lógica, em HTML/CSS/JS puro (módulos ES, sem build e sem dependências), com três jogos (Zip e Patches, inspirados nos puzzles do LinkedIn, e o clássico Sudoku):
+Site de mini-games de lógica, em HTML/CSS/JS puro (módulos ES, sem build e sem dependências), com cinco jogos (Zip e Patches, inspirados nos puzzles do LinkedIn, e os clássicos Sudoku, Sopa de Letras e Palavras Cruzadas):
 
 - **Zip:** um único caminho passando pelos números em ordem e por todas as células; paredes bloqueiam.
 - **Patches:** dividir a grade em retângulos; cada um tem uma pista (área e formato: quadrado, largo, alto ou qualquer).
@@ -16,7 +16,7 @@ Funcionalidades prontas: entrada (criar conta, Google **simulado**, anônimo), p
 
 ```bash
 npm start     # servidor local (usa serve.json); não abra o index.html com duplo clique
-npm test      # 53 testes, Node 20+
+npm test      # 108 testes, Node 20+
 ```
 
 ## Estrutura e decisões importantes
@@ -30,6 +30,17 @@ npm test      # 53 testes, Node 20+
 - Nomes de usuário sempre entram na tela via `textContent` (nunca `innerHTML`).
 - Geração de fases: o solver tem orçamento de nós; fases sem unicidade provada são descartadas.
 - Patches: patch de 1 célula (pista "1") só existe no Fácil (`singles` em `LEVELS`). Do Médio em diante `randomPartition(rand, false)` não sorteia 1x1 e devolve `null` em beco sem saída (o gerador sorteia outra partição). Fases de Médio+ salvas por seed antes dessa regra são regeradas diferentes; o Fácil não muda.
+- Palavras Cruzadas (`games/cruzadas/`, id `cruzadas`), cruzadinha brasileira com dicas na grade. Regras decididas a partir do pedido: limite de dicas = pontos do nível − 1 (4/9/14/19, como na Sopa; não foi especificado); a Dica preenche a 1ª letra da resposta selecionada que ainda não está certa (não gasta ponto onde já acertou) e trava a casa; tamanhos 7/9/11/13 e a dificuldade é só o tamanho; sem botão "Verificar" (só avisa quando a grade enche com erros); vence quando toda letra bate com a solução. Não foram implementadas as setas ← e ↑ que aparecem na imagem de referência (só → ↓ ↴ ↳). `Run` guarda `{ seed, level, solved, hints, entries, locked, gen }`.
+- Cruzadas, CASAS DE DUAS LETRAS (a diagonal `\` do jogo real): `ch` de uma casa de letra tem 1 ou 2 letras (dígrafos em `DIGRAPHS`: CH LH NH RR SS QU GU). `cellForms(norm)` dá as formas de uma resposta (uma letra por casa, ou com o dígrafo numa casa); a casa dupla NUNCA é cruzamento (uma só resposta passa por ela, senão a ordem das letras seria ambígua). `answer.cells.length < answer.norm.length` quando há casa dupla. `LEVELS.minDouble/maxDouble` garantem as casas duplas por nível. Digitar: `typeInCell` (a 1ª letra abre a casa, a 2ª fecha e só então o cursor avança), `eraseAt` (uma letra por vez). Dica numa casa dupla revela as duas letras (1 ponto). A casa sem uso (`B`) é só cor: a diagonal é exclusiva das casas duplas. As entradas salvas usam 2 caracteres por casa.
+- Cruzadas, ORDEM DAS DICAS: numa casa com 2 dicas, a de cima (setas R/RD, que saem pela direita) vem ANTES da de baixo (D/DR, saem por baixo). Os dados e o DOM seguem essa ordem; antes, as dicas eram desenhadas na ordem de criação e a seta de uma metade caía sobre a outra. `validatePuzzle` e um teste de regressão cobrem isso.
+- Cruzadas, gerador: `buildGrid` em `domain.js`. Cada resposta tem uma casa de dica (variantes R, DR, D, RD) e uma casa pode ter 2 dicas de metades diferentes (R/RD em cima, D/DR embaixo). A 1ª resposta fica no MIOLO (na borda nenhuma vertical a cruzaria: faltaria casa de dica acima). `maxTwo`/`maxSigla` por nível limitam respostas de 2 letras e siglas (sem isso passavam de 40% da grade). Mexeu no sorteio? Aumente `GEN`. `validatePuzzle` é o árbitro: toda sequência de 2+ letras deve ser exatamente uma resposta com dica.
+- Cruzadas, vocabulário: `words.js` tem linhas `RESPOSTA|dica` (sem acento, a dica não pode conter a resposta; há teste). A qualidade das dicas depende de revisão humana; ampliar o vocabulário melhora a variedade.
+- Cruzadas, UI: casas criadas uma vez por fase (como Sudoku/Sopa); dois toques seguidos na mesma letra trocam o sentido, mas escolher uma dica e tocar na casa do cursor NÃO troca; depois de uma Dica o cursor vai para a próxima casa livre (a revelada fica travada e engoliria a letra). No celular o painel (dica, Dica, teclado) fica fixo embaixo e ‹ › trocam de dica, porque cada metade de uma casa com 2 dicas é pequena para o dedo (13px no Genius). Jogo largo: mesmo ajuste do painel de ranking da Sopa.
+- Sopa de Letras (`games/sopa/`, id `sopa`): regras decididas a partir da especificação — "até 5 sílabas" no Fácil foi lido como **até 5 letras**; dica = mais uma letra de TODAS as palavras que faltam, 1 ponto cada, limite N−1 (Difícil e Genius não foram especificados: 14 e 19 seguindo o padrão); a lista mostra uma casinha por letra (o tamanho é visível). Sem botão "Reiniciar" de propósito: reiniciar zeraria o custo das dicas. `Run` guarda `{ seed, level, solved, hints, found }`.
+- Sopa, diagonais: sortear a posição entre TODAS as opções válidas deixava as diagonais raras (palavra longa tem muito menos posições na diagonal: antes, 82% das fases do Fácil e 52% do Médio não tinham nenhuma). Agora `LEVELS` tem `minDiag` (garantido: palavras marcadas `diag` só aceitam diagonal, de preferência as curtas) e `pDiag` (chance das demais tentarem a diagonal primeiro). O orçamento do backtracking é pequeno (40 nós) de propósito: reiniciar com outras palavras é mais barato que insistir.
+- Sopa, versão do gerador: `GEN` (em `domain.js`) é gravada na fase salva (`Run`). **Sempre que mudar o sorteio do gerador, aumente `GEN`**: a mesma seed passa a gerar outra fase, e o andamento salvo (palavras achadas e dicas são índices da lista) de uma versão antiga é descartado ao carregar.
+- Sopa: a seleção usa Pointer Events com `setPointerCapture` e `touch-action:none` na grade (mouse e dedo); `snapLine` (domínio) imanta o arrasto às 8 direções. A posição do ponteiro usa `clientWidth/clientLeft` (a grade tem borda).
+- Layout largo (Sopa): o painel de ranking abre sozinho em ≥900px e `css/ranking.css` só desloca o `main` 172px, o que não serve para um `main` de 920px; por isso `games/sopa/style.css` faz o `main` ocupar `100vw − 344px` quando `body.ranking-open`. Jogos novos e largos precisam tratar isso.
 - Sudoku: anotações aparecem centralizadas na célula (fonte menor conforme a quantidade), não em mini-grade 3×3 fixa.
 
 ## Conta administradora

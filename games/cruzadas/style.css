@@ -1,0 +1,106 @@
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#e9eef3;--fg:#14213d;--cell:#fff;--grid:#c3ced9;--frame:#14213d;--accent:#19a79a;--muted:#5b6b7e;--btn:#fff;
+--word:#cdeeea;--active:#8fd8cf;--hintc:#b4531a;--block:#dfe6ed;--clue:#ffe45c;--clue-sel:#ffc400;--clue-text:#262626;--clue-line:#c9a800}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1621;--fg:#e8eef5;--cell:#17222f;--grid:#2e4156;--frame:#e8eef5;--accent:#2cc4b6;--muted:#8da0b5;--btn:#17222f;
+--word:#1b4846;--active:#25706b;--hintc:#ffa06b;--block:#1d2b3a;--clue:#9a7b00;--clue-sel:#c99a00;--clue-text:#fff6cf;--clue-line:#6e5800}}
+:root[data-theme="dark"]{--bg:#0e1621;--fg:#e8eef5;--cell:#17222f;--grid:#2e4156;--frame:#e8eef5;--accent:#2cc4b6;--muted:#8da0b5;--btn:#17222f;
+--word:#1b4846;--active:#25706b;--hintc:#ffa06b;--block:#1d2b3a;--clue:#9a7b00;--clue-sel:#c99a00;--clue-text:#fff6cf;--clue-line:#6e5800}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif}
+main{max-width:940px;margin:0 auto;padding:20px 16px 28px}
+/* Jogo largo (grade + painel lado a lado): com o painel de ranking aberto (≥900px, 344px à direita), o deslocamento genérico de
+   css/ranking.css (-172px) só serve para jogos estreitos; aqui o main passa a ocupar a área livre. */
+@media (min-width:900px){html body.ranking-open main{transform:none;width:calc(100vw - 344px);margin:0 auto 0 max(0px,calc((100vw - 344px - 940px) / 2))}}
+header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+h1{margin:0;font-size:2rem;letter-spacing:-.02em}
+#timer{font-variant-numeric:tabular-nums;color:var(--muted);font-size:1.1rem}
+
+#level{display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:.95rem}
+#level b{min-width:4.6em}
+#level .bar{flex:1;height:8px;border-radius:4px;background:var(--grid);overflow:hidden}
+#level .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+#level span{color:var(--muted);font-variant-numeric:tabular-nums}
+
+.layout{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+.boardwrap{flex:1 1 380px;max-width:640px;min-width:0}
+.side{flex:1 1 250px;min-width:230px;position:sticky;top:72px}
+
+/* Grade n x n (--n vem do JS). Fonte e setas acompanham a largura da grade, para caber de 7x7 até 13x13. */
+#board{--n:7;--a:clamp(7px,calc(19cqw / var(--n)),16px);display:grid;grid-template-columns:repeat(var(--n),1fr);grid-template-rows:repeat(var(--n),1fr);
+  width:100%;aspect-ratio:1;container-type:inline-size;user-select:none;-webkit-user-select:none;touch-action:manipulation;
+  background:var(--cell);border:3px solid var(--frame);border-radius:10px;overflow:hidden;outline:none}
+#board:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.cell{position:relative;min-width:0;min-height:0;border-right:1px solid var(--grid);border-bottom:1px solid var(--grid)}
+.cell.letter{display:flex;align-items:center;justify-content:center;background-color:var(--cell);cursor:pointer;font-weight:700;line-height:1;font-size:calc(56cqw / var(--n))}
+.cell.letter.word{background-color:var(--word)}
+.cell.letter.active{background-color:var(--active);box-shadow:inset 0 0 0 2px var(--accent)}
+/* Casa de duas letras: diagonal \ e uma letra em cada triângulo. A 1ª letra fica no triângulo mais perto da casa anterior da resposta
+   (horizontal: à esquerda/embaixo, depois à direita/em cima; vertical: em cima/à direita, depois embaixo/à esquerda). */
+.cell.letter.dbl{background-image:linear-gradient(to top right,transparent calc(50% - 1px),var(--frame) calc(50% - 1px),var(--frame) calc(50% + 1px),transparent calc(50% + 1px))}
+.cell.letter.dbl span{position:absolute;line-height:1;font-size:calc(34cqw / var(--n))}
+.cell.letter.dbl-a .d1{left:11%;bottom:9%}
+.cell.letter.dbl-a .d2{right:11%;top:9%}
+.cell.letter.dbl-d .d1{right:11%;top:9%}
+.cell.letter.dbl-d .d2{left:11%;bottom:9%}
+.cell.letter.hint{color:var(--hintc)}
+.cell.block{background-color:var(--block)}   /* casa sem uso: só cor. A diagonal fica reservada às casas de duas letras */
+
+/* Casas de dica: 1 dica ocupa a casa toda; 2 dicas dividem a casa ao meio (cima: setas que saem pela direita; baixo: setas que saem por baixo) */
+.cell.clue{display:flex;flex-direction:column;background:var(--clue);color:var(--clue-text);z-index:2}   /* z-index: a seta, que invade a casa vizinha, fica por cima dela */
+.cell.clue .c{position:relative;flex:1 1 0;min-height:0;display:flex;align-items:center;justify-content:center;padding:1px 2px;cursor:pointer}
+.cell.clue .c + .c{border-top:1px solid var(--clue-line)}
+.cell.clue .c.sel{background:var(--clue-sel);box-shadow:inset 0 0 0 2px var(--frame)}
+.cell.clue .t{display:block;max-height:100%;overflow:hidden;text-align:center;line-height:1.08;word-break:break-word;font-weight:600;font-size:max(5px,calc(14.5cqw / var(--n)))}
+.arw{position:absolute;width:var(--a);height:var(--a);pointer-events:none;overflow:visible;fill:none;stroke:var(--clue-text);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.arw-R{right:calc(var(--a) * -.6);top:50%;margin-top:calc(var(--a) * -.5)}
+.arw-RD{right:calc(var(--a) * -.6);top:calc(var(--a) * .15)}
+.arw-D{bottom:calc(var(--a) * -.6);left:50%;margin-left:calc(var(--a) * -.5)}
+.arw-DR{bottom:calc(var(--a) * -.6);left:calc(var(--a) * .15)}
+#board.locked .cell.letter,#board.locked .cell.clue .c{cursor:default}
+#msg{min-height:1.6em;margin:12px 0 0;text-align:center;font-weight:700;color:var(--accent)}
+#msg.err{color:var(--muted);font-weight:400}
+
+/* Painel lateral: a dica escolhida por inteiro, o botão Dica e o teclado da tela */
+#clueBox{min-height:7.2em;padding:12px 14px;margin-bottom:10px;border-radius:10px;background:var(--btn);border:2px solid var(--grid)}
+.clueHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;min-height:30px}
+#clueDir{color:var(--muted);font-size:.85rem}
+.nav{display:flex;gap:6px}
+.nav button{flex:none;width:38px;padding:1px 0 3px;font-size:1.3rem;line-height:1;font-weight:700;border-radius:7px}
+#clueText{margin:0;font-size:1.15rem;font-weight:700;line-height:1.3}
+#clueBox.empty #clueText{font-weight:400;font-size:.95rem;color:var(--muted)}
+#hintinfo{margin:8px 0 12px;color:var(--muted);font-size:.9rem;font-variant-numeric:tabular-nums}
+.hintrow{display:block}
+#kbd{display:none;gap:5px;flex-direction:column}
+#kbd .row{display:flex;gap:4px;justify-content:center}
+#kbd button{flex:1 1 0;min-width:0;padding:11px 0;font-size:1.05rem;font-weight:700;border-radius:7px}
+
+.actions{display:flex;gap:8px;margin:18px 0 8px}
+button{flex:1;padding:12px 8px;font:inherit;color:var(--fg);background:var(--btn);border:2px solid var(--grid);border-radius:8px;cursor:pointer;width:100%}
+button small{color:var(--muted);font-size:.8em}
+button:hover{border-color:var(--accent)}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button:disabled,button:disabled:hover{opacity:.45;cursor:not-allowed;border-color:var(--grid)}
+p.help{color:var(--muted);font-size:.9rem;line-height:1.4}
+
+/* Celular: o painel fica fixo embaixo da tela, para a dica escolhida, o botão Dica e o teclado estarem sempre à mão */
+@media (max-width:720px),(pointer:coarse){
+  #kbd{display:flex}
+  .layout{display:block}
+  .boardwrap{max-width:none}
+}
+@media (max-width:720px){
+  main{padding:10px 16px 0}
+  h1{font-size:1.5rem}
+  header{margin-bottom:6px}
+  #level{margin-bottom:8px}
+  .side{position:sticky;bottom:0;top:auto;z-index:20;margin:10px -16px 0;padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px));background:var(--bg);border-top:2px solid var(--grid)}
+  #clueBox{min-height:0;margin-bottom:6px;padding:6px 12px 8px}
+  .clueHead{min-height:26px;margin-bottom:2px}
+  #clueText{font-size:1rem;line-height:1.2}
+  .hintrow{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .hintrow #hint{flex:0 0 42%;width:auto;padding:8px 6px}
+  #hintinfo{margin:0;font-size:.78rem;line-height:1.25}
+  #kbd{gap:4px}
+  #kbd button{padding:9px 0}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

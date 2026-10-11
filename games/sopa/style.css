@@ -1,0 +1,58 @@
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#e9eef3;--fg:#14213d;--cell:#fff;--grid:#dde5ec;--frame:#14213d;--accent:#19a79a;--muted:#5b6b7e;--btn:#fff;--sel:#9fdcd5;--fl:84%}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1621;--fg:#e8eef5;--cell:#17222f;--grid:#26364a;--frame:#e8eef5;--accent:#2cc4b6;--muted:#8da0b5;--btn:#17222f;--sel:#25706b;--fl:30%}}
+:root[data-theme="dark"]{--bg:#0e1621;--fg:#e8eef5;--cell:#17222f;--grid:#26364a;--frame:#e8eef5;--accent:#2cc4b6;--muted:#8da0b5;--btn:#17222f;--sel:#25706b;--fl:30%}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif}
+main{max-width:920px;margin:0 auto;padding:20px 16px 28px}
+/* Este jogo é mais largo que os outros (grade + lista lado a lado). Com o painel de ranking aberto (≥900px, ocupa 344px à direita),
+   o deslocamento genérico de css/ranking.css (-172px) só serve para jogos estreitos: aqui o main passa a ocupar a área livre. */
+@media (min-width:900px){html body.ranking-open main{transform:none;width:calc(100vw - 344px);margin:0 auto 0 max(0px,calc((100vw - 344px - 920px) / 2))}}
+header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+h1{margin:0;font-size:2rem;letter-spacing:-.02em}
+h2{margin:0 0 10px;font-size:1.1rem}
+h2 span{color:var(--muted);font-weight:400;font-size:.9rem}
+#timer{font-variant-numeric:tabular-nums;color:var(--muted);font-size:1.1rem}
+
+#level{display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:.95rem}
+#level b{min-width:4.6em}
+#level .bar{flex:1;height:8px;border-radius:4px;background:var(--grid);overflow:hidden}
+#level .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+#level span{color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* Grade à esquerda e lista de palavras ao lado; no celular a lista fica embaixo */
+.layout{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+.boardwrap{flex:1 1 320px;max-width:560px;min-width:0}
+.side{flex:1 1 240px;min-width:220px}
+
+/* Grade n x n (a variável --n vem do JS). A fonte acompanha a largura da grade, para caber de 5x5 até 20x20. */
+#board{--n:5;display:grid;grid-template-columns:repeat(var(--n),1fr);grid-template-rows:repeat(var(--n),1fr);width:100%;aspect-ratio:1;
+  container-type:inline-size;user-select:none;-webkit-user-select:none;touch-action:none;cursor:pointer;
+  background:var(--cell);border:3px solid var(--frame);border-radius:10px;overflow:hidden}
+.cell{display:flex;align-items:center;justify-content:center;min-width:0;font-weight:700;line-height:1;
+  font-size:calc(58cqw / var(--n));border-right:1px solid var(--grid);border-bottom:1px solid var(--grid)}
+.cell.found{background:hsl(var(--h) 70% var(--fl))}
+.cell.pick{background:var(--sel);box-shadow:inset 0 0 0 2px var(--accent)}
+.f0{--h:0}.f1{--h:38}.f2{--h:90}.f3{--h:165}.f4{--h:205}.f5{--h:262}.f6{--h:300}.f7{--h:335}
+#board.locked{cursor:default}
+#msg{min-height:1.6em;margin:12px 0 0;text-align:center;font-weight:700;color:var(--accent)}
+#msg.err{color:var(--muted);font-weight:400}
+
+/* Lista de palavras: ocultas (uma casinha por letra) até serem achadas */
+#words{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}
+#words li{padding:7px 12px;border-radius:8px;background:var(--btn);box-shadow:inset 6px 0 0 var(--grid)}
+#words li.done{background:hsl(var(--h) 70% var(--fl));box-shadow:inset 6px 0 0 hsl(var(--h) 70% 55%)}
+.mask{display:flex;flex-wrap:wrap;gap:3px}
+.mask i{display:inline-flex;align-items:center;justify-content:center;min-width:1.15em;height:1.45em;font-style:normal;font-weight:700;
+  border-bottom:2px solid var(--muted);color:var(--accent)}
+li.done .mask i{border-bottom-color:transparent;color:var(--fg);min-width:0}
+#hintinfo{margin-top:8px;color:var(--muted);font-size:.9rem;font-variant-numeric:tabular-nums}
+
+.actions{display:flex;gap:8px;margin:18px 0 8px}
+button{flex:1;padding:12px 8px;font:inherit;color:var(--fg);background:var(--btn);border:2px solid var(--grid);border-radius:8px;cursor:pointer;width:100%}
+button small{color:var(--muted);font-size:.8em}
+button:hover{border-color:var(--accent)}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button:disabled,button:disabled:hover{opacity:.45;cursor:not-allowed;border-color:var(--grid)}
+p.help{color:var(--muted);font-size:.9rem;line-height:1.4}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
