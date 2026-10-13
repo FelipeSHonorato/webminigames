@@ -1,14 +1,15 @@
 # WebMiniGames
 
-Site de mini-games de lógica que roda direto no navegador, sem build e sem dependências. Reúne cinco jogos: dois inspirados nos puzzles diários do LinkedIn (Zip e Patches) e os clássicos Sudoku, Sopa de Letras e Palavras Cruzadas:
+Site de mini-games de lógica que roda direto no navegador, sem build e sem dependências. Reúne seis jogos: dois inspirados nos puzzles diários do LinkedIn (Zip e Patches), os clássicos Sudoku, Sopa de Letras e Palavras Cruzadas, e o Conexão de Canos:
 
 - **Zip:** trace um único caminho passando pelos números em ordem e por todas as células. Paredes bloqueiam a passagem.
 - **Patches:** divida a grade em retângulos; cada um tem exatamente uma pista, com a área (número) e o formato (quadrado, largo, alto ou qualquer).
 - **Sudoku:** preencha a grade 9×9 para que cada linha, coluna e bloco 3×3 tenha os números de 1 a 9, sem repetir. Tem anotações, desfazer, destaque de repetidos e suporte a teclado.
 - **Sopa de Letras:** ache todas as palavras da lista, escondidas na horizontal, vertical e diagonal, inclusive de trás para frente. Clique e arraste (ou deslize o dedo) do começo ao fim da palavra. A lista fica ao lado da grade, com as palavras ocultas. O botão **Dica** revela mais uma letra de cada palavra que falta e custa 1 ponto da fase (nunca menos que 1).
 - **Palavras Cruzadas:** cruzadinha no estilo brasileiro, com as dicas dentro da grade, em casas amarelas (uma ou duas por casa) e uma seta que mostra onde a resposta começa (→ ↓ ↴ ↳). Como o texto fica pequeno, tocar na dica mostra o texto inteiro ao lado e destaca a linha da resposta. Com uma dica selecionada, o botão **Dica** preenche a próxima letra daquela resposta (da primeira à última) e custa 1 ponto da fase (nunca menos que 1). Casas divididas por uma diagonal (`\`) recebem **duas letras** (um dígrafo, como CH, LH ou NH), digitadas uma de cada vez. Tem teclado da tela no celular, ‹ › para trocar de dica e andamento salvo.
+- **Conexão de Canos:** cada quadrado tem um cano (reto, curva, T ou cruz) e cada clique o gira 90° (botão direito ou Shift + clique gira para o outro lado). Ligue a entrada à saída, que ficam fora da grade. A contagem regressiva (1, 1,5, 2 e 3 minutos) começa no primeiro giro; quando acaba, a água corre casa por casa. Se uma ponta de cano ficar sem ligação antes de a água chegar à saída, ela vaza e o jogo termina: tenta-se o mesmo cenário de novo, sem gastar coin.
 
-Os cinco têm quatro níveis (Fácil, Médio, Difícil e Genius). O nível sobe a cada 15 vitórias, por jogo e por usuário, e as fases são geradas na hora, sempre com solução única.
+Os seis têm quatro níveis (Fácil, Médio, Difícil e Genius). O nível sobe a cada 15 vitórias, por jogo e por usuário, e as fases são geradas na hora, sempre com solução única.
 
 ## Pontuação e ranking
 
@@ -57,7 +58,7 @@ Requer Node 20 ou superior. Não há dependências para instalar.
 npm test
 ```
 
-Cobrem regras, solver e gerador dos cinco jogos (cada nível precisa gerar fase de solução única) e a progressão de níveis.
+Cobrem regras, solver e gerador dos seis jogos (cada nível precisa gerar fase de solução única) e a progressão de níveis.
 
 ## Publicando no GitHub Pages
 
@@ -95,7 +96,8 @@ Fluxo: `index.html` (entrada) → `jogos.html` (lista de jogos) → `games/<jogo
 - **Patches e pista "1":** só o Fácil tem patches de uma célula (pista "1"); do Médio em diante a partição nunca sorteia retângulos 1×1.
 - **Sopa de Letras:** grades 5×5, 10×10, 15×15 e 20×20 (Fácil a Genius), com 4–5, 6–8, 9–12 e 13–16 palavras; o tamanho máximo de palavra é o lado da grade (Fácil: até 5 letras). O gerador sorteia as palavras de um vocabulário pt-BR (`games/sopa/words.js`, sem acento na grade) e as posiciona por backtracking nas 8 direções, cruzando só onde a letra coincide. **Toda fase tem palavras na diagonal desde o Fácil** (mínimo garantido de 1, 2, 3 e 4 por nível; no total ficam em torno de 25%, 36%, 37% e 39% das palavras), nos dois sentidos de cada diagonal; duas palavras nunca são iguais nem uma está dentro da outra. A grade é preenchida com letras na frequência do português. Qualquer ocorrência de uma palavra na grade vale na seleção. **Dicas:** até N−1 por fase (Fácil 4, Médio 9, Difícil 14, Genius 19), cada uma custa 1 ponto e mostra mais uma letra de cada palavra que falta, sem nunca revelar a palavra inteira; como os pontos são 5/10/15/20, o piso é sempre 1. As dicas gastas e as palavras achadas ficam salvas na fase, então recarregar a página não zera o custo.
 - **Palavras Cruzadas:** grades 7×7, 9×9, 11×11 e 13×13 (Fácil a Genius), com ~9, 13, 18 e 24 respostas. O vocabulário (`games/cruzadas/words.js`, cerca de 590 respostas com dica, escritas sem acento) é a parte a ampliar. O gerador começa por uma resposta no miolo e vai acrescentando as que cruzam, onde cada nova resposta precisa de uma casa de dica livre na posição da seta e não pode criar sequência de letras sem dica; uma casa de dica aceita uma segunda dica da outra metade. **Casas de duas letras:** cada resposta com dígrafo (CH, LH, NH, RR, SS, QU, GU) pode ocupar uma casa a menos, com o dígrafo numa casa só, marcada com a diagonal `\`; toda fase tem ao menos uma (Fácil 1–2, Médio 1–3, Difícil 2–4, Genius 3–6), e elas nunca são cruzamento. A 1ª letra fica no triângulo mais perto da casa anterior da resposta. A dica numa casa dupla revela as duas letras por 1 ponto. Casas sem uso são só cor. Limites por fase de respostas de 2 letras e de siglas evitam grades repetitivas, e o gerador refaz a grade até ter ≥46% de letras (e as casas de duas letras do nível). Um validador independente (`validatePuzzle`) reanalisa cada grade nos testes. Dicas: até pontos-do-nível − 1 por fase (Fácil 4, Médio 9, Difícil 14, Genius 19); a dica preenche a primeira letra da resposta que ainda não está certa, então não gasta ponto onde o jogador já acertou.
-- Os cinco usam um orçamento de nós no solver: fases cuja unicidade não é provada a tempo são descartadas.
+- **Conexão de Canos:** grades 5×5, 10×10, 15×15 e 20×20, com 60, 90, 120 e 180 segundos. O gerador planta um caminho da entrada à saída (só retos e curvas) que serpenteia por pontos de passagem, preenche o resto com retos, curvas, T e cruz (armadilhas) e embaralha os giros, garantindo que a fase não começa resolvida e que, resolvida, a água vence. A água é simulada por ondas (`simulate`): espalha-se por todos os ramos ligados, e vence quem chega à saída antes de qualquer vazamento (empate: vazamento). O tamanho do caminho (7–11, 18–28, 32–46 e 48–68 casas) foi calibrado para sobrar de ~2,2 a ~6 segundos por giro necessário.
+- Os seis usam um orçamento de nós no solver: fases cuja unicidade não é provada a tempo são descartadas.
 
 ## Limitações conhecidas
 

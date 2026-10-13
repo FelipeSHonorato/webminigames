@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Conexão de Canos</title>
+<script src="../../shared/theme-init.js"></script>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../css/gamebar.css">
+<link rel="stylesheet" href="../../css/ranking-list.css">
+<link rel="stylesheet" href="../../css/ranking.css">
+<link rel="stylesheet" href="../../css/userbar.css">
+<link rel="stylesheet" href="../../css/coins.css">
+</head>
+<body>
+<nav class="sitebar"><a href="../../jogos.html">← Jogos</a><div class="gametitle"><strong>Conexão de Canos</strong><span id="coinBadge"></span></div><div id="userbar"></div></nav>
+<main>
+  <header><h1>Conexão de Canos</h1><span id="timer" aria-label="Tempo restante">01:00</span></header>
+  <div id="timeBar" aria-hidden="true"><i id="timeFill"></i></div>
+  <div id="level"><b id="levelName"></b><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
+  <div class="layout">
+    <section class="boardwrap">
+      <svg id="board" role="application" aria-label="Grade de canos"></svg>
+      <div id="msg" role="status"></div>
+    </section>
+    <aside class="side">
+      <div id="phase"></div>
+      <ul class="legend">
+        <li><i class="sw in"></i> Entrada: de onde a água sai</li>
+        <li><i class="sw out"></i> Saída: onde a água precisa chegar</li>
+        <li><i class="sw leak"></i> Vazamento: ponta de cano sem ligação</li>
+      </ul>
+      <div class="actions">
+        <button id="retry">Reiniciar</button>
+        <button id="next">Nova fase</button>
+      </div>
+    </aside>
+  </div>
+  <p class="help">Cada quadrado tem um cano. Toque (ou clique) num quadrado para girá-lo 90°; no computador, o botão direito ou Shift + clique gira para o outro lado. Ligue a entrada à saída: o <b>reto</b> liga lados opostos, a <b>curva</b> liga lados vizinhos e o <b>T</b> e a <b>cruz</b> espalham a água para todos os lados (cuidado: cada ponta aberta sem ligação vaza). Estude a grade à vontade: a contagem regressiva só começa quando você gira o primeiro cano. Quando o tempo acaba, a água começa a correr: se ela chegar à saída antes de vazar, você vence; se vazar, o jogo termina e você tenta o mesmo cenário de novo, sem gastar coin.</p>
+</main>
+<script src="../../shared/file-warning.js"></script>
+<script type="module" src="./ui.js"></script>
+</body>
+</html>

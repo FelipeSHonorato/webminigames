@@ -1,0 +1,74 @@
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#e9eef3;--fg:#14213d;--board:#cfd8e1;--tile:#f4f6f8;--tile2:#e3e8ed;--accent:#19a79a;--muted:#5b6b7e;--btn:#fff;--line:#c3ced9;
+--water:#19a7ea;--out:#f59e0b;--leak:#e5484d}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1621;--fg:#e8eef5;--board:#1a2431;--tile:#2b3544;--tile2:#232c39;--muted:#8da0b5;--btn:#17222f;--line:#2e4156;--accent:#2cc4b6}}
+:root[data-theme="dark"]{--bg:#0e1621;--fg:#e8eef5;--board:#1a2431;--tile:#2b3544;--tile2:#232c39;--muted:#8da0b5;--btn:#17222f;--line:#2e4156;--accent:#2cc4b6}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif}
+main{max-width:940px;margin:0 auto;padding:20px 16px 28px}
+/* Jogo largo (grade + painel lado a lado): com o painel de ranking aberto (≥900px, 344px à direita), o deslocamento genérico de
+   css/ranking.css (-172px) só serve para jogos estreitos; aqui o main passa a ocupar a área livre. */
+@media (min-width:900px){html body.ranking-open main{transform:none;width:calc(100vw - 344px);margin:0 auto 0 max(0px,calc((100vw - 344px - 940px) / 2))}}
+header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+h1{margin:0;font-size:2rem;letter-spacing:-.02em}
+#timer{font-variant-numeric:tabular-nums;font-size:1.7rem;font-weight:700}
+#timer.low{color:var(--leak)}
+#timeBar{height:10px;border-radius:5px;background:var(--line);overflow:hidden;margin-bottom:12px}
+#timeFill{display:block;height:100%;width:100%;background:var(--accent);transition:width .25s linear,background .3s}
+#timeBar.low #timeFill{background:var(--leak)}
+#level{display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:.95rem}
+#level b{min-width:4.6em}
+#level .bar{flex:1;height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+#level .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+#level span{color:var(--muted);font-variant-numeric:tabular-nums}
+
+.layout{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+.boardwrap{flex:1 1 380px;max-width:640px;min-width:0}
+.side{flex:1 1 230px;min-width:210px}
+
+/* Grade: um único SVG (a grade n x n mais uma margem de uma casa em volta, onde ficam a entrada e a saída) */
+#board{display:block;width:100%;aspect-ratio:1;background:var(--board);border-radius:12px;user-select:none;-webkit-user-select:none;touch-action:manipulation;cursor:pointer}
+#board.busy,#board.locked{cursor:default}
+#board .bg{fill:var(--tile)}
+#board .bg2{fill:var(--tile2)}
+#board .pipe{transform-origin:50px 50px;transition:transform .16s ease-out;--w:0}
+#board.instant .pipe{transition:none}
+#board .tile.wet .pipe{--w:1}
+#board .stub .pipe{transform-origin:50px 50px}
+#board .stub.in .pipe,#board .stub.wet .pipe{--w:1}
+#board .cap-in{fill:var(--water)}
+#board .cap-out{fill:var(--out)}
+#board .cap-sym{fill:none;stroke:#fff;stroke-width:5;stroke-linecap:round;stroke-linejoin:round}
+#board .halo{pointer-events:none;opacity:.22}   /* aura em volta da entrada e da saída: nas grades grandes as tampas ficam pequenas e o jogador precisa achá-las logo */
+#board .stub.in .halo{fill:var(--water)}
+#board .stub.out .halo{fill:var(--out);opacity:.3}
+#board .leak{pointer-events:none}
+#board .leak .dot{fill:var(--leak);stroke:#fff;stroke-width:4;animation:pulse .7s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:center}
+#board .leak .ring{fill:var(--leak);opacity:.3;animation:ring 1.1s ease-out infinite;transform-box:fill-box;transform-origin:center}
+#board .leak .x{stroke:#fff;stroke-width:5;stroke-linecap:round}
+@keyframes pulse{from{transform:scale(.85)}to{transform:scale(1.15)}}
+@keyframes ring{from{transform:scale(.6);opacity:.5}to{transform:scale(1.6);opacity:0}}
+#board.lost{outline:3px solid var(--leak);outline-offset:3px}
+#board.won{outline:3px solid var(--accent);outline-offset:3px}
+#msg{min-height:1.6em;margin:12px 0 0;text-align:center;font-weight:700;color:var(--accent)}
+#msg.err{color:var(--leak)}
+
+#phase{padding:12px 14px;margin-bottom:12px;border-radius:10px;background:var(--btn);border:2px solid var(--line);font-weight:700;line-height:1.3}
+.legend{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:7px;font-size:.9rem;color:var(--muted)}
+.legend .sw{display:inline-block;width:14px;height:14px;border-radius:50%;vertical-align:-2px;margin-right:6px}
+.sw.in{background:var(--water)}.sw.out{background:var(--out)}.sw.leak{background:var(--leak)}
+.actions{display:flex;gap:8px;margin:0 0 8px}
+button{flex:1;padding:12px 8px;font:inherit;color:var(--fg);background:var(--btn);border:2px solid var(--line);border-radius:8px;cursor:pointer;width:100%}
+button:hover{border-color:var(--accent)}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button:disabled,button:disabled:hover{opacity:.45;cursor:not-allowed;border-color:var(--line)}
+p.help{color:var(--muted);font-size:.9rem;line-height:1.4}
+
+@media (max-width:720px){
+  main{padding:10px 16px 20px}
+  h1{font-size:1.5rem}
+  #timer{font-size:1.4rem}
+  .layout{display:block}
+  .boardwrap{max-width:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
