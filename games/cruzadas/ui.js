@@ -10,7 +10,7 @@ import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
 import { WINS_PER_LEVEL, winsKey, pointsFor, pointsLegend } from "../../shared/progress.js";
 import {
-  GEN, LEVELS, STORE_KEY, answersAt, canHint, decodeEntries, encodeEntries, firstOpenCell, generatePuzzle, isComplete, isFilled, jumpTarget,
+  GEN, LEVELS, STORE_KEY, answersAt, canHint, hintValue, isAnswerCorrect, isDouble, decodeEntries, encodeEntries, firstOpenCell, generatePuzzle, isComplete, isFilled, jumpTarget,
   letterCells, maxHints, newEntries, nextHintCell, normalizeLetter, pickAnswerAt, pointsAfterHints, setLetter, stepInAnswer, toggleAnswerAt, neighborAnswer, typeInCell, eraseAt,
 } from "./domain.js";
 
@@ -153,7 +153,8 @@ function renderPanel() {
   const max = maxHints(puzzle.level), can = !solved && canHint(puzzle, entries, selected, hints, puzzle.level);
   hintBtn.disabled = !can;
   hintBtn.title = can || solved ? "" : selected < 0 ? "Escolha uma dica (casa amarela) ou uma casa da grade primeiro."
-    : hints >= max ? `Limite de ${plural(max, "dica", "dicas")} neste nível.` : "Essa palavra já está certa.";
+    : hints >= max ? `Limite de ${plural(max, "dica", "dicas")} neste nível.`
+    : isAnswerCorrect(puzzle, entries, selected) ? "Essa palavra já está certa." : "Só falta a 2ª letra de uma casa de duas letras: a dica revela só uma das duas, digite a outra.";
   document.getElementById("hintinfo").textContent = `Dicas: ${hints} de ${max} · Esta fase vale ${plural(phasePoints(), "ponto", "pontos")}`;
 }
 const render = () => { renderBoard(); renderPanel(); };
@@ -245,15 +246,19 @@ function move(dr, dc) {
 function useHint() {
   if (solved || !canHint(puzzle, entries, selected, hints, puzzle.level)) return;
   startTimer();
-  const idx = nextHintCell(puzzle, entries, selected);
-  locked.add(idx);
+  const idx = nextHintCell(puzzle, entries, selected), cell = puzzle.cells[idx], half = isDouble(cell);
   hints++;
   const cells = puzzle.answers[selected].cells;
-  active = cells.slice(cells.indexOf(idx) + 1).find(i => !locked.has(i)) ?? idx;   // o cursor segue para a próxima casa livre: a letra revelada fica travada e engoliria o que o jogador digitar
-  const next = setLetter(puzzle, entries, new Set(), idx, puzzle.cells[idx].ch);
-  entries = next; persist(); render();
+  if (half) active = idx;   // casa de duas letras (C\H, R\R…): só a 1ª é revelada e a casa NÃO trava; o cursor fica nela para o jogador digitar a outra
+  else {
+    locked.add(idx);
+    active = cells.slice(cells.indexOf(idx) + 1).find(i => !locked.has(i)) ?? idx;   // o cursor segue para a próxima casa livre: a letra revelada fica travada e engoliria o que o jogador digitar
+  }
+  entries = setLetter(puzzle, entries, new Set(), idx, hintValue(cell));
+  persist(); render();
   if (isComplete(puzzle, entries)) { win(); return; }
-  setMessage(`Dica ${hints}: ${puzzle.cells[idx].ch.length === 2 ? "casa de duas letras revelada" : "letra revelada"}. A fase agora vale ${plural(phasePoints(), "ponto", "pontos")}.`);
+  const what = half ? `uma das duas letras (${cell.ch[0]}) foi revelada: digite a outra` : "letra revelada";
+  setMessage(`Dica ${hints}: ${what}. A fase agora vale ${plural(phasePoints(), "ponto", "pontos")}.`);
 }
 
 /* ----- Entrada: toque/mouse na grade, teclado da tela e teclado físico ----- */

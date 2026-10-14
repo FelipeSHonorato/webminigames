@@ -296,9 +296,18 @@ export const isComplete = (puzzle, entries) => puzzle.cells.every((c, i) => c.t 
 /** Todas as casas de letra preenchidas por inteiro (certas ou não; numa casa de duas letras, as duas). */
 export const isFilled = (puzzle, entries) => puzzle.cells.every((c, i) => c.t !== "L" || entries[i].length === c.ch.length);
 
-/** Casa que a próxima dica revela: a primeira da resposta que ainda não está certa (assim a dica não gasta ponto onde já está certo). -1 se a resposta já está certa. */
-export const nextHintCell = (puzzle, entries, id) => puzzle.answers[id].cells.find(i => entries[i] !== puzzle.cells[i].ch) ?? -1;
-/** Há dica a pedir: uma resposta escolhida, ainda com letra errada ou faltando, e dentro do limite de dicas do nível. */
+/** Casa de duas letras (a diagonal `\\`: CH, LH, NH, QU, GU, RR, SS). */
+export const isDouble = c => c?.t === "L" && c.ch.length === 2;
+/** O que a dica escreve na casa: a letra, ou só a 1ª das duas numa casa de duas letras. A dica NUNCA preenche as duas letras de uma casa:
+    a outra o jogador digita (qualquer que seja o par, igual como RR ou diferente como CH). */
+export const hintValue = c => (isDouble(c) ? c.ch[0] : c.ch);
+/** Casa que a próxima dica revela: a primeira da resposta que ainda não está certa (assim a dica não gasta ponto onde já está certo).
+    Casa de duas letras que já tem a 1ª letra certa é pulada: a dica não revela a 2ª (o jogador digita). -1 se não há o que revelar. */
+export const nextHintCell = (puzzle, entries, id) => puzzle.answers[id].cells.find(i => {
+  const c = puzzle.cells[i];
+  return entries[i] !== c.ch && !(isDouble(c) && entries[i] === c.ch[0]);
+}) ?? -1;
+/** Há dica a pedir: uma resposta escolhida com letra errada ou faltando que a dica possa revelar, e dentro do limite de dicas do nível. */
 export const canHint = (puzzle, entries, id, hints, levelIdx) => id >= 0 && hints < maxHints(levelIdx) && nextHintCell(puzzle, entries, id) >= 0;
 
 /* ----- Seleção ----- */

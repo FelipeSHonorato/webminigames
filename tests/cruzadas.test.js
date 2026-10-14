@@ -1,11 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { makeRng } from "../shared/rng.js";
 import { ENTRIES, WORDS, normalize } from "../games/cruzadas/words.js";
 import {
   DIGRAPHS, GEN, LEVELS, VARIANTS, answerOrder, answersAt, neighborAnswer, canHint, cellForms, decodeEntries, encodeEntries, eraseAt, firstOpenCell, typeInCell, generatePuzzle, isAnswerCorrect, isComplete,
   isFilled, isSigla, jumpTarget, letterCells, maxHints, newEntries, nextHintCell, normalizeLetter, pickAnswerAt, pointsAfterHints, setLetter,
-  stepInAnswer, toggleAnswerAt, validatePuzzle,
+  stepInAnswer, toggleAnswerAt, validatePuzzle, isDouble, hintValue,
 } from "../games/cruzadas/domain.js";
 
 test("normalizeLetter aceita acento e cedilha e rejeita o resto", () => {
@@ -325,10 +326,11 @@ test("casa de duas letras só vale completa: isFilled, firstOpenCell e dica", ()
   e[dbl] = dblCh[0];                                                // só a 1ª letra da casa dupla
   assert.equal(isAnswerCorrect(PD, e, a.id), false);
   assert.equal(firstOpenCell(PD, e, a.id), dbl, "a casa meio preenchida continua aberta");
-  assert.equal(nextHintCell(PD, e, a.id), dbl);
+  assert.equal(nextHintCell(PD, e, a.id), -1, "a dica não revela a 2ª letra: com a 1ª já certa, só resta digitar");
+  assert.equal(canHint(PD, e, a.id, 0, 0), false);
   const full = PD.cells.map(c => (c.t === "L" ? c.ch : "")), half = [...full]; half[dbl] = dblCh[0];
   assert.equal(isFilled(PD, full), true); assert.equal(isFilled(PD, half), false); assert.equal(isComplete(PD, half), false);
-  const hinted = setLetter(PD, half, new Set(), dbl, dblCh);        // a dica revela a casa inteira (as duas letras) por 1 ponto
+  const hinted = setLetter(PD, half, new Set(), dbl, dblCh);        // digitar a 2ª letra completa a casa (a dica nunca escreve as duas)
   assert.equal(hinted[dbl], dblCh); assert.equal(isComplete(PD, hinted), true);
   assert.equal(setLetter(PD, newEntries(PD), new Set(), dbl, "ABC")[dbl], "", "mais letras que a casa comporta é ignorado");
 });
@@ -359,4 +361,101 @@ test("o validador pega casa dupla que cruza, dígrafo falso, dicas fora de ordem
   if (c1 >= 0) { wrongSlot.cells[c1].clues[0].slot = "bottom"; assert.ok(validatePuzzle(wrongSlot).length > 0, "dica na metade errada"); }
   const broken = fresh(); broken.cells[dbl].ch = DIGRAPHS.find(d => d !== dblCh);
   assert.ok(validatePuzzle(broken).length > 0, "letras da casa não formam a resposta");
+});
+
+/* ----- Dica em casa de duas letras (CH, LH, NH, QU, GU, RR, SS): revela só UMA das duas, sempre ----- */
+const fakeAnswer = chs => ({ cells: chs.map(ch => ({ t: "L", ch })), answers: [{ cells: chs.map((_, i) => i) }] });
+const PAIRS = ["CH", "LH", "NH", "QU", "GU", "RR", "SS"];
+
+test("isDouble: casa de letra com 2 letras (iguais ou diferentes); 1 letra e casa sem uso não", () => {
+  for (const ch of PAIRS) assert.equal(isDouble({ t: "L", ch }), true, ch);
+  for (const ch of ["R", "A"]) assert.equal(isDouble({ t: "L", ch }), false, ch);
+  assert.equal(isDouble({ t: "B" }), false);
+  assert.equal(isDouble(undefined), false);
+});
+
+test("hintValue: casa de duas letras vira só a 1ª letra, qualquer que seja o par; casa de uma letra sai inteira", () => {
+  for (const ch of PAIRS) assert.equal(hintValue({ t: "L", ch }), ch[0], ch);
+  assert.equal(hintValue({ t: "L", ch: "A" }), "A");
+});
+
+test("nextHintCell: casa de duas letras recebe a 1ª; com a 1ª certa a casa é pulada (a 2ª é do jogador)", () => {
+  for (const ch of PAIRS) {
+    const p = fakeAnswer(["C", ch, "O"]);
+    assert.equal(nextHintCell(p, ["", "", ""], 0), 0, ch);
+    assert.equal(nextHintCell(p, ["C", "", ""], 0), 1, ch);                    // casa vazia: a dica revela a 1ª letra
+    assert.equal(nextHintCell(p, ["C", ch[0] + "X", "O"], 0), 1, ch);          // 2ª letra errada: volta a ser hintável (regrava só a 1ª)
+    assert.equal(nextHintCell(p, ["C", ch[0], ""], 0), 2, ch);                 // 1ª já lá: pula, a 2ª o jogador digita
+    assert.equal(nextHintCell(p, ["C", ch, ""], 0), 2, ch);                    // casa completa e certa
+    assert.equal(nextHintCell(p, ["X", ch, "O"], 0), 0, ch);                   // letra errada antes: revela essa
+  }
+});
+
+test("só falta a 2ª letra de uma casa de duas letras: não há dica (e não gasta ponto); com outra letra faltando, há", () => {
+  for (const ch of PAIRS) {
+    const p = fakeAnswer(["C", ch, "O"]);
+    const only = ["C", ch[0], "O"];
+    assert.equal(nextHintCell(p, only, 0), -1, ch);
+    assert.equal(canHint(p, only, 0, 0, 0), false, ch);
+    assert.equal(canHint(p, ["", ch[0], "O"], 0, 0, 0), true, ch);
+    assert.equal(canHint(p, ["C", ch, "O"], 0, 0, 0), false, `${ch}: resposta certa`);
+  }
+});
+
+test("a dica nunca escreve as duas letras: aplicando hintValue, a casa de duas letras nunca fica com 2 letras", () => {
+  for (const ch of PAIRS) {
+    const p = fakeAnswer([ch]);
+    for (const start of ["", ch[0], ch[0] + "X", "X" + ch[1], "XX"]) {
+      const i = nextHintCell(p, [start], 0);
+      if (i < 0) { assert.equal(start, ch[0], `${ch}/${start}: só é pulada com a 1ª certa`); continue; }
+      const entries = setLetter(p, [start], new Set(), i, hintValue(p.cells[i]));
+      assert.equal(entries[0], ch[0], `${ch} a partir de "${start}"`);
+      assert.equal(entries[0].length, 1);
+    }
+  }
+});
+
+test("em fases geradas, a dica nunca completa uma casa de duas letras: deixa só a 1ª e revela todo o resto", () => {
+  let withDouble = 0, withDigraph = 0, withSame = 0;
+  for (let lv = 0; lv < LEVELS.length; lv++) for (let s = 1; s <= 12; s++) {
+    const p = generatePuzzle(makeRng(s * 977 + lv), LEVELS[lv]);
+    for (let id = 0; id < p.answers.length; id++) {
+      let entries = [...newEntries(p)];
+      const used = [];
+      for (let idx; (idx = nextHintCell(p, entries, id)) >= 0;) {
+        used.push(idx);
+        entries = setLetter(p, entries, new Set(), idx, hintValue(p.cells[idx]));
+        assert.ok(used.length <= p.answers[id].cells.length, "a dica não pode repetir sem fim");
+      }
+      for (const i of p.answers[id].cells) {
+        const c = p.cells[i];
+        if (isDouble(c)) {
+          assert.equal(entries[i], c.ch[0], "casa de duas letras: só a 1ª");
+          withDouble++; c.ch[0] === c.ch[1] ? withSame++ : withDigraph++;
+        } else assert.equal(entries[i], c.ch, "as demais casas ficam certas");
+      }
+      assert.equal(isAnswerCorrect(p, entries, id), !p.answers[id].cells.some(i => isDouble(p.cells[i])));
+    }
+  }
+  assert.ok(withDouble > 5 && withSame > 0 && withDigraph > 0, `o teste precisa ver RR/SS e dígrafos (${withDouble}/${withSame}/${withDigraph})`);
+});
+
+test("depois da dica, digitar a 2ª letra completa a casa (typeInCell, casa destravada), igual ou diferente", () => {
+  for (const ch of PAIRS) {
+    const p = fakeAnswer([ch]);
+    const entries = setLetter(p, [""], new Set(), 0, hintValue(p.cells[0]));   // dica: só a 1ª letra
+    assert.deepEqual(entries, [ch[0]], ch);
+    const r = typeInCell(p, entries, new Set(), 0, ch[1]);
+    assert.deepEqual(r.entries, [ch], ch);
+    assert.equal(r.advance, true, ch);
+  }
+});
+
+/* ----- Casas sem uso são pretas (#000000) ----- */
+test("css: a cor das casas sem uso é #000000 no tema claro e no escuro", () => {
+  const css = readFileSync(new URL("../games/cruzadas/style.css", import.meta.url), "utf8");
+  const defs = css.match(/--block:\s*[^;}]+/g);
+  assert.equal(defs.length, 3, "claro, escuro do sistema e escuro escolhido");
+  for (const d of defs) assert.match(d, /--block:\s*#000000$/i);
+  assert.match(css, /\.cell\.block\{background-color:var\(--block\)\}/);
 });
