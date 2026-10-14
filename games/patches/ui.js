@@ -26,6 +26,9 @@ function renderCoins() {
   const canNext = solved && balance.coins > 0;
   next.disabled = !canNext;
   next.title = canNext ? "" : !solved ? "Conclua a fase atual para liberar a próxima." : `Sem coins por agora: novos em ${fmtDuration(balance.nextRefillAt - Date.now())}.`;
+  const reset = document.getElementById("reset");
+  reset.disabled = solved;                       // cenário concluído: não dá para reiniciar
+  reset.title = solved ? "Reiniciar só está disponível enquanto a fase não é concluída." : "";
 }
 setInterval(renderCoins, 30000);   // a recarga de 24 h pode chegar com a página aberta
 document.querySelector(".help")?.append(` ${pointsLegend()}`);   // pontuação junto da explicação do jogo
@@ -114,10 +117,12 @@ function stopTimer() { clearInterval(timerId); timerId = null; }
 
 function setMessage(text, isError = false) { msg.textContent = text; msg.classList.toggle("err", isError); }
 
-function loadPuzzle(p) {
+/** keepTimer: o Reiniciar limpa o tabuleiro, mas o cronômetro segue de onde está (e só começa no primeiro movimento, como sempre). */
+function loadPuzzle(p, { keepTimer = false } = {}) {
   if (p !== puzzle) credited = false;
   puzzle = p; patches = []; drag = null; solved = false;
-  stopTimer(); timerEl.textContent = "00:00"; setMessage("");
+  if (!keepTimer) { stopTimer(); timerEl.textContent = "00:00"; }
+  setMessage("");
   buildBoard();
   renderCoins();
 }
@@ -179,7 +184,7 @@ board.addEventListener("pointerup", e => {
 board.addEventListener("pointercancel", () => { drag = null; ghost.hidden = true; });
 
 document.getElementById("undo").onclick = () => { if (!solved && patches.length) removePatchAt(patches.length - 1); };
-document.getElementById("reset").onclick = () => loadPuzzle(puzzle);
+document.getElementById("reset").onclick = () => { if (!solved) loadPuzzle(puzzle, { keepTimer: true }); };
 document.getElementById("next").onclick = () => { if (solved && Coins.get(uid, GAME_ID).coins > 0) loadPuzzle(freshPuzzle()); };
 
 /** Fase já concluída (ao recarregar a página): mostra a solução, trava o tabuleiro e não pontua de novo. */

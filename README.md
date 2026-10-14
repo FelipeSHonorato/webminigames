@@ -13,9 +13,13 @@ Os seis têm quatro níveis (Fácil, Médio, Difícil e Genius). O nível sobe a
 
 ## Pontuação e ranking
 
-Cada partida vencida vale pontos conforme o nível em que a fase foi gerada: **Fácil 5, Médio 10, Difícil 15, Genius 20**. Os pontos só são gravados quando o cenário é concluído (reiniciar a fase e vencer de novo não soma outra vez). Só contas pontuam; jogadores anônimos veem o ranking, mas não aparecem nele.
+Cada partida vencida vale pontos conforme o nível em que a fase foi gerada: **Fácil 5, Médio 10, Difícil 15, Genius 20**. Os pontos só são gravados quando o cenário é concluído. Só contas pontuam; jogadores anônimos veem o ranking, mas não aparecem nele.
 
 Cada jogo tem um painel lateral de ranking, aberto ao entrar (em telas largas) e recolhível pela aba "Ranking". Ele tem duas visões: **Geral** e **Minha região** (a região é escolhida no cadastro). Empates são resolvidos por quem chegou primeiro à pontuação. Cada linha mostra a posição, a foto do jogador (ou um avatar padrão), o nome e os pontos. Na página de jogos (`jogos.html`) há também o **Ranking geral**, que soma os pontos de todos os jogos, numa janela fixa ao lado dos jogos (sempre visível, sem opção de ocultar; em telas estreitas ela passa para baixo dos jogos).
+
+## Reiniciar
+
+Zip, Patches, Sudoku e Conexão de Canos têm o botão **Reiniciar**. Ele só funciona enquanto o cenário **não foi concluído**: com a fase vencida (ou ao recarregar uma fase já concluída) o botão fica desabilitado e só resta **Nova fase**. Reiniciar limpa o tabuleiro **sem zerar o cronômetro**: nos três jogos de contagem crescente o tempo segue de onde estava; no Canos, com a contagem regressiva em andamento, os canos voltam à posição inicial e o relógio continua correndo. No Canos, depois que a água vaza, o botão vira **Tentar de novo** e abre uma tentativa nova, com o relógio cheio (a contagem recomeça no primeiro giro). Sopa de Letras e Palavras Cruzadas não têm Reiniciar.
 
 ## Coins
 

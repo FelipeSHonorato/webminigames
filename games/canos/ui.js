@@ -171,13 +171,20 @@ function renderPhase() {
   phaseEl.textContent = text;
   svg.classList.toggle("busy", phase === "flowing" || phase === "won" || phase === "lost");
   svg.classList.toggle("locked", phase === "locked");
-  retryBtn.disabled = phase === "flowing" || phase === "locked" || (phase === "ready" && moves === 0 && !svg.querySelector(".wet"));
+  retryBtn.disabled = phase === "flowing" || phase === "won" || phase === "locked"      // concluído, água correndo ou travado: não reinicia
+    || ((phase === "ready" || phase === "counting") && moves === 0 && !svg.querySelector(".wet"));   // nada para desfazer
   retryBtn.textContent = phase === "lost" ? "Tentar de novo" : "Reiniciar";
+  retryBtn.title = phase === "won" ? "Reiniciar só está disponível enquanto a fase não é concluída." : "";
   renderCoins();
 }
 function stopTimers() { clearInterval(clockId); clearTimeout(flowId); clockId = flowId = null; }
 
-/** Volta o cenário ao começo (os mesmos giros do início), sem gastar nada: falhar não custa coin. */
+/** Devolve os canos aos giros do começo SEM tocar no relógio: é o que o Reiniciar faz com a contagem em andamento. */
+function restoreRots() {
+  rots = initialRots(puzzle); angles = rots.map(r => r * 90); moves = 0;
+  applyAngles();
+}
+/** Volta o cenário ao começo (os mesmos giros do início), sem gastar nada: falhar não custa coin. Zera o relógio: só vale para uma tentativa nova (ao abrir a fase ou depois de vazar). */
 function reset() {
   stopTimers();
   rots = initialRots(puzzle); angles = rots.map(r => r * 90); moves = 0; sim = null;
@@ -251,7 +258,10 @@ svg.addEventListener("pointerdown", e => {
   rotate(row * n + col, e.pointerType === "mouse" && (e.button === 2 || e.shiftKey) ? -1 : 1);
 });
 svg.addEventListener("contextmenu", e => e.preventDefault());
-retryBtn.onclick = () => { if (phase !== "flowing" && phase !== "locked") reset(); };
+retryBtn.onclick = () => {
+  if (phase === "counting") { restoreRots(); renderPhase(); }   // contagem em andamento: os giros voltam ao começo, o tempo segue correndo
+  else if (phase === "ready" || phase === "lost") reset();      // tentativa nova (a água já correu, ou ainda nem começou): relógio cheio, volta a contar no 1º giro
+};   // "won", "flowing" e "locked": não reinicia
 document.getElementById("next").onclick = () => { if (phase === "won" && Coins.get(uid, GAME_ID).coins > 0) loadPuzzle(freshPuzzle()); };
 
 /** Fase já concluída (ao recarregar a página): mostra a solução com a água correndo e não pontua de novo. */

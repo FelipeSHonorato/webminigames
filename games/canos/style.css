@@ -1,14 +1,17 @@
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
 --bg:#e9eef3;--fg:#14213d;--board:#cfd8e1;--tile:#f4f6f8;--tile2:#e3e8ed;--accent:#19a79a;--muted:#5b6b7e;--btn:#fff;--line:#c3ced9;
---water:#19a7ea;--out:#f59e0b;--leak:#e5484d}
+--water:#19a7ea;--out:#f59e0b;--leak:#e5484d;
+/* Nomes usados por css/ranking.css, ranking-list.css e gamebar.css (os outros jogos já os têm); aqui são aliases dos tokens próprios, então o modo escuro acompanha. */
+--cell:var(--btn);--grid:var(--line)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1621;--fg:#e8eef5;--board:#1a2431;--tile:#2b3544;--tile2:#232c39;--muted:#8da0b5;--btn:#17222f;--line:#2e4156;--accent:#2cc4b6}}
 :root[data-theme="dark"]{--bg:#0e1621;--fg:#e8eef5;--board:#1a2431;--tile:#2b3544;--tile2:#232c39;--muted:#8da0b5;--btn:#17222f;--line:#2e4156;--accent:#2cc4b6}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--fg);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif}
 main{max-width:940px;margin:0 auto;padding:20px 16px 28px}
-/* Jogo largo (grade + painel lado a lado): com o painel de ranking aberto (≥900px, 344px à direita), o deslocamento genérico de
-   css/ranking.css (-172px) só serve para jogos estreitos; aqui o main passa a ocupar a área livre. */
-@media (min-width:900px){html body.ranking-open main{transform:none;width:calc(100vw - 344px);margin:0 auto 0 max(0px,calc((100vw - 344px - 940px) / 2))}}
+/* Jogo largo (grade + painel lado a lado): com o painel de ranking aberto (≥900px), o deslocamento genérico de
+   css/ranking.css (-172px) só serve para jogos estreitos; aqui o main passa a ocupar a área livre. Reserva 380px à direita:
+   320 do painel + 12 de margem + 44 da aba do troféu, que avança para a esquerda do painel (com 344 ela cobria o cronômetro). */
+@media (min-width:900px){html body.ranking-open main{transform:none;width:calc(100vw - 380px);margin:0 auto 0 max(0px,calc((100vw - 380px - 940px) / 2))}}
 header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
 h1{margin:0;font-size:2rem;letter-spacing:-.02em}
 #timer{font-variant-numeric:tabular-nums;font-size:1.7rem;font-weight:700}
