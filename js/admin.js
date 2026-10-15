@@ -1,6 +1,7 @@
 import { requireSession } from "../shared/session.js";
 import { isAdmin } from "../shared/roles.js";
 import { GameSwitch } from "../shared/game-switch.js";
+import { AdminLevel } from "../shared/admin-level.js";
 import { Scores } from "../shared/scores.js";
 import { GAMES } from "./games.js";
 import { mountUserBar } from "./userbar.js";
@@ -28,9 +29,31 @@ async function render() {
     };
     const right = document.createElement("span");
     right.className = "swrow"; right.append(status, sw);
-    li.append(name, right, meta);
+    li.append(name, right, meta, levelRow(id, g));
     list.append(li);
   }
+}
+
+/** Linha "Nível para testar": o administrador escolhe o nível do jogo sem precisar jogar até ele. */
+function levelRow(id, g) {
+  const row = document.createElement("div"), label = document.createElement("span"), group = document.createElement("div");
+  const current = AdminLevel.get(session, g.key);
+  row.className = "lvlrow"; label.className = "lvllabel"; label.textContent = "Nível para testar:";
+  group.className = "lvls"; group.setAttribute("role", "group"); group.setAttribute("aria-label", `Nível do ${g.title} para o administrador`);
+  AdminLevel.levels.forEach((levelName, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = levelName; b.dataset.game = id; b.dataset.level = String(i);
+    b.setAttribute("aria-pressed", String(i === current));
+    b.onclick = async () => {
+      AdminLevel.set(session, id, g.key, i);
+      $("adminMsg").textContent = `${g.title}: nível ${levelName}. A fase salva do administrador foi descartada; ao abrir o jogo, nasce uma fase nova nesse nível.`;
+      await render();
+      document.querySelector(`.lvls button[data-game="${id}"][data-level="${i}"]`)?.focus();   // o foco volta ao botão clicado
+    };
+    group.append(b);
+  });
+  row.append(label, group);
+  return row;
 }
 
 if (session && !isAdmin(session)) location.replace("jogos.html");        // só o administrador

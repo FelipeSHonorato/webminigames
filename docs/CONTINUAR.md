@@ -51,6 +51,8 @@ npm test      # 125 testes, Node 20+
 
 `administrador@administrador.com.br` / `administrador` (criada automaticamente). A senha está no código-fonte: serve só para o protótipo.
 
+- Nível por jogo (painel do administrador, `js/admin.js` + `shared/admin-level.js`): `AdminLevel.set(session, gameId, gameKey, nível)` grava `winsForLevel(nível)` (= nível × 15) em `<jogo>.wins:u-admin` e chama `Run.clear` (a fase salva é descartada; sem isso a fase em andamento ficaria no nível antigo). Só aceita a sessão do administrador e nível 0 a 3. O Genius (último nível) mostra "45 vitórias" em vez de 0/15. Um teste confere que a `key` de `js/games.js` é igual à `STORE_KEY` de cada jogo: jogo novo precisa das duas iguais e de 4 níveis para aparecer certo no painel.
+
 ## Limitações e próximos passos sugeridos
 
 1. **Backend real** (Firebase/Supabase/outro): contas, Google de verdade, ranking global e regional, coins e liga/desliga no servidor, validação das vitórias no servidor (hoje dá para burlar editando o `localStorage` ou o relógio).

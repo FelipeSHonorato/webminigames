@@ -11,4 +11,11 @@ export const Run = {
     (all[uid] ??= {})[gameId] = run;
     store.set(KEY, JSON.stringify(all));
   },
+  /** Descarta a fase salva: a próxima abertura do jogo sorteia uma fase nova (no nível atual do jogador). */
+  clear(uid, gameId) {
+    const all = readJSON(KEY, {});
+    if (!all[uid] || !(gameId in all[uid])) return;
+    delete all[uid][gameId];
+    store.set(KEY, JSON.stringify(all));
+  },
 };

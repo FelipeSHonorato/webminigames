@@ -33,6 +33,7 @@ Existe uma conta administradora, criada automaticamente na primeira tentativa de
 
 - **Jogo desligado:** os jogadores não entram nele (o card fica como "Desligado" e a página redireciona); o administrador continua entrando.
 - **Pontos preservados:** desligar não remove nada. Os pontos continuam no ranking do jogo, no ranking geral e no perfil de cada jogador.
+- **Nível para testar:** em cada jogo da lista há os botões Fácil · Médio · Difícil · Genius. Escolher um nível coloca o jogo, **só para a conta do administrador**, no início desse nível (0/15) e descarta a fase salva dela; ao abrir o jogo, nasce uma fase nova nesse nível. Assim dá para testar todos os níveis sem jogar até lá. Jogadores, pontos e rankings não mudam (`shared/admin-level.js`).
 - **Atenção:** a senha está no código-fonte (`js/auth.js`) e a chave fica no `localStorage` de quem a mudou, então só vale neste navegador. Em produção, crie o administrador no servidor com senha forte e guarde o estado dos jogos no servidor.
 
 ## Perfil
