@@ -3,6 +3,7 @@ export const WINS_PER_LEVEL = 15;
 export const LEVEL_NAMES = ["Fácil", "Médio", "Difícil", "Genius"];
 
 import { store } from "./storage.js";
+import { Cloud } from "./backend/cloud.js";
 
 /** Id do usuário da sessão atual (gravada pelo site em "wmg.session"); "guest" se o jogo for aberto sozinho. */
 export function currentUserId() {
@@ -13,9 +14,14 @@ export const levelIndex = (wins, levels = LEVEL_NAMES.length) => Math.min(levels
 /** Vitórias que colocam o jogador no INÍCIO do nível idx (0/15 de progresso nele). */
 export const winsForLevel = (idx, levels = LEVEL_NAMES.length) => Math.max(0, Math.min(levels - 1, Math.trunc(idx) || 0)) * WINS_PER_LEVEL;
 
-/** Vitórias e nível salvos de um jogo (gameKey = `key` do catálogo, p. ex. "zip.wins"). Local, como o resto: num backend, vira chamada ao servidor. */
+/** "zip.wins" -> "zip" (a chave do catálogo vira o id do jogo na nuvem). */
+export const gameIdOf = gameKey => gameKey.replace(/\.wins$/, "");
+
+/** Vitórias e nível salvos de um jogo (gameKey = `key` do catálogo, p. ex. "zip.wins"). Contas na nuvem leem do cache do Supabase; anônimos, do navegador. */
 export const Progress = {
-  wins: (gameKey, uid = currentUserId()) => Math.max(0, parseInt(store.get(winsKey(gameKey, uid)), 10) || 0),
+  wins: (gameKey, uid = currentUserId()) => (Cloud.owns(uid) ? Cloud.wins(gameIdOf(gameKey)) : Math.max(0, parseInt(store.get(winsKey(gameKey, uid)), 10) || 0)),
+  /** Guarda as vitórias. Na nuvem só atualiza a tela: quem soma vitória de verdade é o servidor (Scores.submit -> submit_win). */
+  setWins(gameKey, n, uid = currentUserId()) { if (Cloud.owns(uid)) Cloud.setWins(gameIdOf(gameKey), n); else store.set(winsKey(gameKey, uid), String(n)); },
   level: (gameKey, uid = currentUserId()) => levelIndex(Progress.wins(gameKey, uid)),
 };
 

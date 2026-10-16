@@ -49,6 +49,6 @@ export function mountUserBar(host, { base = "" } = {}) {
   }
   const out = document.createElement("button");
   out.type = "button"; out.className = "out"; out.textContent = "Deslogar";
-  out.onclick = () => { Auth.logout(); location.assign(base + "index.html"); };
+  out.onclick = async () => { out.disabled = true; await Auth.logout(); location.assign(base + "index.html"); };
   host.append(out);
 }

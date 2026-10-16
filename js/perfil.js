@@ -1,3 +1,4 @@
+import "../shared/backend/boot.js";
 import { requireSession } from "../shared/session.js";
 import { Profile, Activity } from "../shared/profile.js";
 import { Scores } from "../shared/scores.js";
@@ -11,7 +12,7 @@ import { mountUserBar } from "./userbar.js";
 
 const $ = id => document.getElementById(id);
 const session = requireSession("index.html");
-const PROVIDERS = { password: "Conta com e-mail e senha", "google-demo": "Google (simulação)", anonymous: "Anônimo" };
+const PROVIDERS = { password: "Conta com e-mail e senha", "google-demo": "Google (simulação)", google: "Conta Google", anonymous: "Anônimo" };
 const say = (el, text, isError = false) => { el.textContent = text; el.classList.toggle("err", isError); };
 
 function renderIdentity() {
@@ -55,14 +56,17 @@ function init() {
     const file = e.target.files[0];
     e.target.value = "";
     if (!file) return;
-    try { Profile.setAvatar(session.id, await fileToAvatar(file)); say($("photoMsg"), "Foto atualizada."); renderIdentity(); }
+    try { await Profile.setAvatar(session.id, await fileToAvatar(file)); say($("photoMsg"), "Foto atualizada."); renderIdentity(); }
     catch (err) { say($("photoMsg"), err.message, true); }
   };
-  $("removePhoto").onclick = () => { Profile.setAvatar(session.id, null); say($("photoMsg"), "Foto removida."); renderIdentity(); };
+  $("removePhoto").onclick = async () => {
+    try { await Profile.setAvatar(session.id, null); say($("photoMsg"), "Foto removida."); renderIdentity(); }
+    catch (err) { say($("photoMsg"), err.message, true); }
+  };
 
-  $("nickForm").onsubmit = e => {
+  $("nickForm").onsubmit = async e => {
     e.preventDefault();
-    try { const nick = Profile.setNickname(session.id, $("nickname").value); say($("nickMsg"), nick ? `Apelido salvo: ${nick}` : "Apelido removido."); renderIdentity(); }
+    try { const nick = await Profile.setNickname(session.id, $("nickname").value); say($("nickMsg"), nick ? `Apelido salvo: ${nick}` : "Apelido removido."); renderIdentity(); }
     catch (err) { say($("nickMsg"), err.message, true); }
   };
 

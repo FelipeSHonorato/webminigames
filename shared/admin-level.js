@@ -1,6 +1,7 @@
 import { isAdmin } from "./roles.js";
 import { Progress, winsForLevel, winsKey, LEVEL_NAMES } from "./progress.js";
 import { store } from "./storage.js";
+import { Cloud } from "./backend/cloud.js";
 import { Run } from "./run.js";
 
 /* Nível de cada jogo para o ADMINISTRADOR testar sem jogar até lá. Só mexe na conta do próprio administrador:
@@ -14,6 +15,7 @@ export const AdminLevel = {
   set(session, gameId, gameKey, levelIdx) {
     if (!isAdmin(session)) throw new Error("Só o administrador pode escolher o nível.");
     if (!Number.isInteger(levelIdx) || levelIdx < 0 || levelIdx >= LEVEL_NAMES.length) throw new Error("Nível inválido.");
+    if (Cloud.owns(session.id)) return Cloud.adminSetLevel(gameId, levelIdx).then(() => levelIdx);   // na nuvem: função admin_set_level (devolve Promise)
     store.set(winsKey(gameKey, session.id), String(winsForLevel(levelIdx)));
     Run.clear(session.id, gameId);
     return levelIdx;

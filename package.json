@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "npx --yes serve .",
-    "test": "node --test"
+    "test": "node --test",
+    "test:db": "supabase test db"
   },
   "engines": { "node": ">=20" },
   "license": "MIT"

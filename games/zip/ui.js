@@ -1,3 +1,4 @@
+import "../../shared/backend/boot.js";
 import { Scores } from "../../shared/scores.js";
 import { mountRanking } from "../../shared/ranking-panel.js";
 import { Activity } from "../../shared/profile.js";
@@ -8,7 +9,7 @@ import { coinBadge, fmtDuration } from "../../shared/coin-badge.js";
 import { mountUserBar } from "../../js/userbar.js";
 import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
-import { WINS_PER_LEVEL, winsKey, pointsFor, pointsLegend } from "../../shared/progress.js";
+import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/progress.js";
 import { LEVELS, N, STORE_KEY, TOTAL, applyMove, generatePuzzle, isSolved } from "./domain.js";
 
 const sessionUser = requireSession("../../index.html");   // sem sessão, volta para o login
@@ -45,8 +46,8 @@ const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 let puzzle, path = [], dragging = false, startedAt = 0, timerId = null, solved = false;
 /* ----- Progressão: a cada 15 vitórias o nível sobe (salvo no navegador) ----- */
 const levelName = document.getElementById("levelName"), levelCount = document.getElementById("levelCount"), barFill = document.getElementById("barFill");
-function loadWins() { try { return Math.max(0, parseInt(localStorage.getItem(winsKey(STORE_KEY)), 10) || 0); } catch { return 0; } }
-function saveWins(n) { try { localStorage.setItem(winsKey(STORE_KEY), String(n)); } catch { /* sem armazenamento: segue sem salvar */ } }
+const loadWins = () => Progress.wins(STORE_KEY);   // nuvem: cache do Supabase; anônimo: navegador
+const saveWins = n => Progress.setWins(STORE_KEY, n);   // na nuvem só atualiza a tela: o servidor soma a vitória em Scores.submit
 const levelOf = w => Math.min(LEVELS.length - 1, Math.floor(w / WINS_PER_LEVEL));
 let wins = loadWins(), credited = false;
 const currentLevel = () => LEVELS[levelOf(wins)];

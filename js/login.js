@@ -1,4 +1,6 @@
+import "../shared/backend/boot.js";
 import { Auth } from "./auth.js";
+import { Cloud } from "../shared/backend/cloud.js";
 import { REGIONS } from "../shared/regions.js";
 import { themeSwitch } from "../shared/theme.js";
 
@@ -26,12 +28,29 @@ $("form").addEventListener("submit", async e => {
   e.preventDefault();
   const btn = $("submit"), data = { name: $("name").value, email: $("email").value, password: $("password").value, region: $("region").value };
   btn.disabled = true; $("error").textContent = "";
-  try { await (mode === "register" ? Auth.register(data) : Auth.login(data)); goToGames(); }
+  $("info").hidden = true;
+  try {
+    const result = await (mode === "register" ? Auth.register(data) : Auth.login(data));
+    if (result?.needsConfirmation) {                                   // o projeto pede para confirmar o e-mail antes do primeiro acesso
+      $("info").textContent = `Enviamos um e-mail de confirmação para ${result.email}. Abra o link e depois entre pela aba Entrar.`;
+      $("info").hidden = false; setMode("login");
+      return;
+    }
+    goToGames();
+  }
   catch (err) { $("error").textContent = err.message; }
   finally { btn.disabled = false; }
 });
-$("google").onclick = () => { Auth.loginWithGoogle(); goToGames(); };
-$("anon").onclick = () => { Auth.loginAnonymous(); goToGames(); };
+$("google").onclick = async () => {
+  try { if (await Auth.loginWithGoogle()) goToGames(); }               // com Supabase a página sai para o Google e volta sozinha
+  catch (err) { $("error").textContent = err.message; }
+};
+$("anon").onclick = async () => { await Auth.loginAnonymous(); goToGames(); };
+for (const id of ["submit", "google", "anon"]) $(id).disabled = false;   // só liberados depois do boot: sem isso, um Enter antes da hora enviaria o formulário (e a senha) pela URL
+$("modeNote").hidden = false;
+$("modeNote").textContent = Cloud.active
+  ? "Suas contas e registros ficam salvos na nuvem. Quem joga como anônimo não pontua e o progresso fica só neste navegador."
+  : "Protótipo: as contas ficam salvas só neste navegador e o botão do Google é uma simulação, sem conexão real com o Google.";
 
 
 /* ?modo=entrar | ?modo=conta (e o antigo ?conta) abrem a aba pedida, mesmo com sessão anônima ativa;

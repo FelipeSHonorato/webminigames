@@ -1,14 +1,17 @@
 import { readJSON, store } from "./storage.js";
 import { isAdmin } from "./roles.js";
+import { Cloud } from "./backend/cloud.js";
 
 /* Liga/desliga de cada jogo, controlado pelo administrador. Desligar NÃO apaga nada: pontos, rankings, coins
    e progresso continuam salvos e contando (a chave só controla o acesso ao jogo).
-   Implementação LOCAL: vale só para este navegador; num backend real, o estado fica no servidor. */
+   Local: vale só para este navegador. Com Supabase, o estado fica na tabela games e vale para todos (só o administrador altera). */
 const KEY = "wmg.games";   // { [gameId]: false } — ausente = ligado
 
 export const GameSwitch = {
-  isOn: gameId => readJSON(KEY, {})[gameId] !== false,
+  isOn: gameId => (Cloud.active ? Cloud.gameOn(gameId) : readJSON(KEY, {})[gameId] !== false),
+  /** Na nuvem devolve uma Promise (use `await`). */
   set(gameId, on) {
+    if (Cloud.active) return Cloud.setGameEnabled(gameId, on);
     const all = readJSON(KEY, {});
     if (on) delete all[gameId]; else all[gameId] = false;
     store.set(KEY, JSON.stringify(all));

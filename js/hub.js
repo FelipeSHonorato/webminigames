@@ -1,3 +1,4 @@
+import "../shared/backend/boot.js";
 import { mountUserBar } from "./userbar.js";
 import { Scores } from "../shared/scores.js";
 import { Coins } from "../shared/coins.js";
@@ -5,16 +6,15 @@ import { GameSwitch } from "../shared/game-switch.js";
 import { isAdmin } from "../shared/roles.js";
 import { coinBadge } from "../shared/coin-badge.js";
 import { scopeTabs, renderLeaderboard } from "../shared/ranking-list.js";
-import { store } from "../shared/storage.js";
 import { requireSession } from "../shared/session.js";
 import { GAMES } from "./games.js";
-import { LEVEL_NAMES, WINS_PER_LEVEL, winsKey } from "../shared/progress.js";
+import { LEVEL_NAMES, WINS_PER_LEVEL, Progress } from "../shared/progress.js";
 
 const $ = id => document.getElementById(id);
 const user = requireSession("index.html");
 
-const winsOf = (game, uid) => Math.max(0, parseInt(store.get(winsKey(game.key, uid)), 10) || 0);
-const PROVIDER_NOTE = { password: "", "google-demo": "Google (simulação)", anonymous: "Anônimo: o progresso fica só neste navegador" };
+const winsOf = (game, uid) => Progress.wins(game.key, uid);
+const PROVIDER_NOTE = { password: "", google: "", "google-demo": "Google (simulação)", anonymous: "Anônimo: o progresso fica só neste navegador" };
 
 function renderHub() {
   mountUserBar($("userbar"));

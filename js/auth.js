@@ -1,10 +1,17 @@
 import { store, readJSON } from "../shared/storage.js";
 import { REGIONS } from "../shared/regions.js";
 import { ADMIN_ID, ADMIN_EMAIL } from "../shared/roles.js";
+import { Cloud, authErrorMessage } from "../shared/backend/cloud.js";
 
-/* ===================== AUTENTICAÇÃO (local, só protótipo) =====================
-   Esta interface é o ponto de troca: para um backend real (Firebase Auth, Supabase, Auth0…),
-   basta reimplementar estes métodos mantendo as mesmas assinaturas. */
+/* ===================== AUTENTICAÇÃO =====================
+   Dois modos, escolhidos por shared/backend/config.js:
+   - Supabase configurado: contas reais no Supabase Auth (e-mail e senha, Google). As senhas nunca passam por aqui.
+   - Vazio: contas locais de protótipo (só neste navegador, senha com PBKDF2).
+   O anônimo é sempre local (nunca cria conta na nuvem). Os métodos assíncronos devem ser usados com `await`. */
+const needClient = () => {
+  if (!Cloud.client()) throw new Error("Sem conexão com o servidor. Verifique a internet e tente de novo.");
+  return Cloud.client();
+};
 const toHex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
 const randomHex = n => toHex(crypto.getRandomValues(new Uint8Array(n)));
 async function hashPassword(password, saltHex) {
@@ -39,6 +46,13 @@ export const Auth = {
     if (!name.trim()) throw new Error("Digite seu nome.");
     if (!REGIONS.some(r => r.id === region)) throw new Error("Selecione sua região.");
     this.validate({ email, password });
+    if (Cloud.active) {
+      const { data, error } = await needClient().auth.signUp({ email: email.trim(), password, options: { data: { name: name.trim(), region } } });
+      if (error) throw new Error(authErrorMessage(error));
+      if (data.user && data.user.identities?.length === 0) throw new Error(authErrorMessage({ code: "user_already_exists" }));   // e-mail já cadastrado (o Supabase não avisa de outro jeito)
+      if (!data.session) return { needsConfirmation: true, email: email.trim() };                                            // o projeto exige confirmar o e-mail antes do primeiro acesso
+      return Cloud.adopt(data.user);
+    }
     await ensureAdmin();                                  // garante que ninguém registre o e-mail do administrador
     const all = users(), key = email.trim().toLowerCase();
     if (all[key]) throw new Error("Já existe uma conta com este e-mail. Use a aba Entrar.");
@@ -49,6 +63,11 @@ export const Auth = {
   },
   async login({ email, password }) {
     this.validate({ email, password });
+    if (Cloud.active) {
+      const { data, error } = await needClient().auth.signInWithPassword({ email: email.trim(), password });
+      if (error) throw new Error(authErrorMessage(error));
+      return Cloud.adopt(data.user);
+    }
     await ensureAdmin();
     const u = users()[email.trim().toLowerCase()];
     if (!u || u.hash !== (await hashPassword(password, u.salt))) throw new Error("E-mail ou senha incorretos.");
@@ -59,6 +78,16 @@ export const Auth = {
     const s = this.current();
     if (s?.provider !== "password") throw new Error("Esta conta não usa senha.");
     if (next.length < 6) throw new Error("A nova senha precisa ter pelo menos 6 caracteres.");
+    if (Cloud.active) {
+      const sb = needClient();
+      if (!s.email) throw new Error("Entre de novo para trocar a senha.");
+      if (next === current) throw new Error("A nova senha deve ser diferente da atual.");
+      const check = await sb.auth.signInWithPassword({ email: s.email, password: current });          // confirma a senha atual
+      if (check.error) throw new Error(check.error.code === "invalid_credentials" ? "A senha atual está incorreta." : authErrorMessage(check.error));
+      const { error } = await sb.auth.updateUser({ password: next });
+      if (error) throw new Error(authErrorMessage(error));
+      return;
+    }
     const all = users(), u = Object.values(all).find(x => x.id === s.id);
     if (!u || u.hash !== (await hashPassword(current, u.salt))) throw new Error("A senha atual está incorreta.");
     if (next === current) throw new Error("A nova senha deve ser diferente da atual.");
@@ -66,13 +95,23 @@ export const Auth = {
     u.hash = await hashPassword(next, u.salt);
     store.set("wmg.users", JSON.stringify(all));
   },
-  loginWithGoogle() {                                  // SIMULAÇÃO: não fala com o Google
+  /** Com Supabase: abre o login do Google e a página recarrega ao voltar (devolve null). Sem Supabase: SIMULAÇÃO, não fala com o Google. */
+  async loginWithGoogle() {
+    if (Cloud.active) {
+      const { error } = await needClient().auth.signInWithOAuth({ provider: "google", options: { redirectTo: new URL("index.html", location.href).href } });
+      if (error) throw new Error(authErrorMessage(error));
+      return null;
+    }
     return this.start({ id: "g-demo", name: "Jogador Google", provider: "google-demo", region: null });
   },
-  loginAnonymous() {
+  async loginAnonymous() {
+    if (Cloud.active) await Cloud.dropSession();     // se havia uma conta da nuvem neste navegador, ela sai: o anônimo é local
     let id = store.get("wmg.anonId");
     if (!id) { id = "a-" + randomHex(8); store.set("wmg.anonId", id); }
     return this.start({ id, name: "Anônimo", provider: "anonymous" });
   },
-  logout() { store.set("wmg.session", "null"); },
+  async logout() {
+    if (Cloud.active && Cloud.uid) await Cloud.signOut();    // envia o que faltar e encerra a sessão no Supabase
+    else store.set("wmg.session", "null");
+  },
 };

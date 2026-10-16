@@ -47,6 +47,13 @@ npm test      # 125 testes, Node 20+
 - Layout largo (Sopa): o painel de ranking abre sozinho em ≥900px e `css/ranking.css` só desloca o `main` 172px, o que não serve para um `main` de 920px; por isso `games/sopa/style.css` faz o `main` ocupar `100vw − 344px` quando `body.ranking-open`. Jogos novos e largos precisam tratar isso.
 - Sudoku: anotações aparecem centralizadas na célula (fonte menor conforme a quantidade), não em mini-grade 3×3 fixa.
 
+## Backend (Supabase) e modo local
+- Dois modos pelo `shared/backend/config.js` (vazio = local). Os serviços de `shared/` e `js/auth.js` escolhem sozinhos: `Cloud.owns(uid)` (dono dos dados na nuvem) e `Cloud.active` (jogos e rankings). **Anônimo é sempre local.**
+- **Toda página nova e todo `ui.js` de jogo importam `shared/backend/boot.js` como primeira linha** (o `await` carrega a conta antes de qualquer leitura síncrona). Vitórias: `Progress.wins/setWins` (nunca `localStorage` direto); na nuvem `setWins` só atualiza a tela e quem soma é `Scores.submit` -> `submit_win`.
+- Métodos que na nuvem devolvem Promise (use `await` sempre): `Profile.setNickname/setAvatar`, `GameSwitch.set`, `AdminLevel.set`, `Auth.*`. No modo local continuam síncronos.
+- `supabase/migrations` é a fonte do esquema; mudanças futuras vão em arquivos novos (nunca editar o que já foi aplicado). As constantes (15 vitórias por nível, pontos 5/10/15/20, 2 coins, 99999, regiões, jogos) estão no SQL **e** no JS; `tests/supabase.test.js` falha se divergirem.
+- Testes de banco em `supabase/tests/database` (pgTAP, `npm run test:db` com a CLI do Supabase).
+
 ## Conta administradora
 
 `administrador@administrador.com.br` / `administrador` (criada automaticamente). A senha está no código-fonte: serve só para o protótipo.
@@ -55,7 +62,7 @@ npm test      # 125 testes, Node 20+
 
 ## Limitações e próximos passos sugeridos
 
-1. **Backend real** (Firebase/Supabase/outro): contas, Google de verdade, ranking global e regional, coins e liga/desliga no servidor, validação das vitórias no servidor (hoje dá para burlar editando o `localStorage` ou o relógio).
+1. **Backend**: já existe a integração com o **Supabase** (contas, ranking, coins, progresso, fases e liga/desliga no servidor; ver `docs/SUPABASE.md`). Falta validar a vitória de verdade no servidor (hoje ele só limita os pontos ao teto do nível), foto no Storage, região para contas Google, "esqueci a senha" e excluir conta.
 2. Gerar as fases do Zip nos níveis altos num **Web Worker** (pode levar alguns segundos no Genius).
 3. Suporte a **teclado** no Patches (o Sudoku já tem).
 4. Centralizar as cores (tokens) num `tokens.css` compartilhado (hoje cada jogo repete os seus).

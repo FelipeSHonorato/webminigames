@@ -1,3 +1,4 @@
+import "../shared/backend/boot.js";
 import { requireSession } from "../shared/session.js";
 import { isAdmin } from "../shared/roles.js";
 import { GameSwitch } from "../shared/game-switch.js";
@@ -22,9 +23,11 @@ async function render() {
     sw.type = "button"; sw.className = "onoff"; sw.setAttribute("role", "switch");
     sw.setAttribute("aria-checked", String(on)); sw.setAttribute("aria-label", `${g.title}: ${on ? "ligado" : "desligado"}`);
     sw.innerHTML = '<span class="knob" aria-hidden="true"></span>';
-    sw.onclick = () => {
-      GameSwitch.set(id, !on);
-      $("adminMsg").textContent = on ? `${g.title} desligado. Os pontos continuam salvos e nos rankings.` : `${g.title} ligado.`;
+    sw.onclick = async () => {
+      try {
+        await GameSwitch.set(id, !on);
+        $("adminMsg").textContent = on ? `${g.title} desligado. Os pontos continuam salvos e nos rankings.` : `${g.title} ligado.`;
+      } catch (err) { $("adminMsg").textContent = err.message; }
       render();
     };
     const right = document.createElement("span");
@@ -45,8 +48,10 @@ function levelRow(id, g) {
     b.type = "button"; b.textContent = levelName; b.dataset.game = id; b.dataset.level = String(i);
     b.setAttribute("aria-pressed", String(i === current));
     b.onclick = async () => {
-      AdminLevel.set(session, id, g.key, i);
-      $("adminMsg").textContent = `${g.title}: nível ${levelName}. A fase salva do administrador foi descartada; ao abrir o jogo, nasce uma fase nova nesse nível.`;
+      try {
+        await AdminLevel.set(session, id, g.key, i);
+        $("adminMsg").textContent = `${g.title}: nível ${levelName}. A fase salva do administrador foi descartada; ao abrir o jogo, nasce uma fase nova nesse nível.`;
+      } catch (err) { $("adminMsg").textContent = err.message; }
       await render();
       document.querySelector(`.lvls button[data-game="${id}"][data-level="${i}"]`)?.focus();   // o foco volta ao botão clicado
     };

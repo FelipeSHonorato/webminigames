@@ -36,6 +36,10 @@ Existe uma conta administradora, criada automaticamente na primeira tentativa de
 - **Nível para testar:** em cada jogo da lista há os botões Fácil · Médio · Difícil · Genius. Escolher um nível coloca o jogo, **só para a conta do administrador**, no início desse nível (0/15) e descarta a fase salva dela; ao abrir o jogo, nasce uma fase nova nesse nível. Assim dá para testar todos os níveis sem jogar até lá. Jogadores, pontos e rankings não mudam (`shared/admin-level.js`).
 - **Atenção:** a senha está no código-fonte (`js/auth.js`) e a chave fica no `localStorage` de quem a mudou, então só vale neste navegador. Em produção, crie o administrador no servidor com senha forte e guarde o estado dos jogos no servidor.
 
+## Backend (Supabase)
+
+As contas e os registros podem ficar no **Supabase** (Postgres + login): preencha `SUPABASE_URL` e `SUPABASE_ANON_KEY` em `shared/backend/config.js` e rode `supabase/migrations/20261014000000_init.sql` no SQL Editor. Vazio, o site continua no **modo local** (tudo no navegador). Com a nuvem ligada: contas reais (e-mail/senha e Google), progresso, pontos, coins, fases salvas, rankings e liga/desliga de jogos compartilhados por todos, e o **servidor** decide pontos, nível e coins. Passo a passo e funcionamento: [docs/SUPABASE.md](docs/SUPABASE.md).
+
 ## Perfil
 
 Depois do login, a barra superior mostra a foto do usuário (ou um avatar padrão), um link com engrenagem para as configurações um **switch de modo escuro** (sol e lua) e o botão **Deslogar**. Em `perfil.html` a conta pode definir um **apelido** (único, 3 a 20 caracteres, usado no ranking), enviar uma **foto** (recortada e reduzida no navegador), **trocar a senha** (informando a atual) e ver a lista de jogos com o **último horário jogado** e a **pontuação** de cada um. Anônimos não têm perfil: a barra deles mostra "Anônimo" e, no lugar de Deslogar, os botões **Entrar** e **Criar conta**, que voltam à tela de entrada já na aba escolhida (`index.html?modo=entrar` ou `?modo=conta`), sem perder a sessão anônima até o login.

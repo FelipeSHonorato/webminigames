@@ -1,5 +1,6 @@
 import { readJSON, store } from "./storage.js";
 import { getSession } from "./session.js";
+import { Cloud } from "./backend/cloud.js";
 
 /* Serviço de pontuação. Esta implementação é LOCAL (localStorage): só compara contas criadas neste navegador.
    Para um ranking real entre usuários, reimplemente estes três métodos com um backend (Firebase, Supabase…)
@@ -17,6 +18,7 @@ export const Scores = {
   async submit(gameId, points) {
     const s = getSession();
     if (!this.canRank() || !(points > 0)) return null;
+    if (Cloud.owns(s.id)) return Cloud.submitWin(gameId, points);        // o servidor valida, pontua, sobe a progressão e gasta o coin
     const all = readJSON(KEY, {});
     const row = (all[s.id] ??= { name: s.name, region: s.region ?? null, games: {} });
     row.name = s.name;
@@ -28,10 +30,11 @@ export const Scores = {
   },
 
   /** Pontos e vitórias do usuário atual, por jogo: { zip: { points, wins, updatedAt }, … }. */
-  mine() { return readJSON(KEY, {})[getSession()?.id]?.games ?? {}; },
+  mine() { const id = getSession()?.id; return Cloud.owns(id) ? Cloud.scores() : readJSON(KEY, {})[id]?.games ?? {}; },
 
   /** Ranking de um jogo. scope: "global" ou "region" (a região do usuário atual). Empate: quem chegou primeiro. */
   async leaderboard(gameId, { scope = "global", limit = 10 } = {}) {
+    if (Cloud.active) return Cloud.ranking(gameId, scope, limit);        // o servidor ordena e numera (supabase: função ranking)
     const profiles = readJSON("wmg.profiles", {});               // apelido e foto (se houver) valem mais que o cadastro
     const rows = Object.entries(readJSON(KEY, {}))
       .filter(([, r]) => r.games?.[gameId]?.points > 0)
@@ -41,6 +44,7 @@ export const Scores = {
 
   /** Ranking geral: soma dos pontos de todos os jogos de cada jogador. */
   async overall({ scope = "global", limit = 10 } = {}) {
+    if (Cloud.active) return Cloud.ranking(null, scope, limit);
     const profiles = readJSON("wmg.profiles", {});
     const rows = Object.entries(readJSON(KEY, {})).map(([id, r]) => {
       const games = Object.values(r.games ?? {});

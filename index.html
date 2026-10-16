@@ -50,14 +50,15 @@
         <label>E-mail<input id="email" type="email" autocomplete="email" inputmode="email"></label>
         <label>Senha<input id="password" type="password" autocomplete="current-password" minlength="6"></label>
         <p id="error" role="alert"></p>
-        <button class="btn primary" id="submit" type="submit">Entrar</button>
+        <p id="info" class="note" role="status" hidden></p>
+        <button class="btn primary" id="submit" type="submit" disabled>Entrar</button>
       </form>
       <div class="divider">ou</div>
       <div class="stack">
-        <button class="btn" id="google" type="button"><span class="gmark" aria-hidden="true">G</span>Continuar com Google</button>
-        <button class="btn" id="anon" type="button">Entrar como anônimo</button>
+        <button class="btn" id="google" type="button" disabled><span class="gmark" aria-hidden="true">G</span>Continuar com Google</button>
+        <button class="btn" id="anon" type="button" disabled>Entrar como anônimo</button>
       </div>
-      <p class="note">Protótipo: as contas ficam salvas só neste navegador e o botão do Google é uma simulação, sem conexão real com o Google.</p>
+      <p class="note" id="modeNote" hidden></p>
     </div>
   </div>
 </section>
