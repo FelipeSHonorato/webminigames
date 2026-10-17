@@ -68,7 +68,7 @@ O arquivo `supabase/templates/confirmacao.html` é o e-mail em português, com a
 3. *Message body*: apague o conteúdo e cole o arquivo inteiro. Salve.
 4. Publique o site (o modelo usa o logotipo `assets/email-logo.png`, servido pelo seu próprio site).
 
-O link do botão é `{{ .SiteURL }}/confirmar.html?token_hash=...&type=email`. A página `confirmar.html` mostra um botão **Confirmar meu e-mail**, e só o clique valida o código. Isso evita um problema comum: antivírus e leitores de e-mail (Outlook, Gmail com verificação de links) abrem os links sozinhos para checá-los e "gastam" o código antes da pessoa clicar, que então vê "link expirado". Com o clique, esses robôs não confirmam nada. Se o link vencer (por padrão vale 1 hora) ou já tiver sido usado, a própria página explica e pede outro e-mail.
+O link do botão é `{{ .SiteURL }}/confirmar.html?token_hash=...&type=email`. A página `confirmar.html` valida o código **automaticamente ao abrir** (a validação é feita por JavaScript, então robôs que só baixam a página para checar o link não "gastam" o código), abre a sessão e mostra **"E-mail confirmado!"** com o botão **Ir para os jogos**, que entra já logado. Se o link vencer (por padrão vale 1 hora) ou já tiver sido usado, a própria página explica e pede outro e-mail.
 
 Qualquer e-mail enviado **antes** de trocar o modelo continua com o link antigo (passa pelo Supabase e volta para o site): a página `confirmar.html` também sabe tratar esse formato, desde que a *Site URL* e as *Redirect URLs* da seção 3 estejam corretas.
 

@@ -10,7 +10,8 @@
 -- função só consegue apagar a PRÓPRIA conta (auth.uid()), nunca a de outra pessoa.
 -- =====================================================================================================
 
-create function public.delete_my_account() returns void
+-- create or replace: rodar de novo não quebra (aplica os grants abaixo mesmo que a função já exista).
+create or replace function public.delete_my_account() returns void
 language plpgsql security definer set search_path = '' as $$
 declare
   v_uid uuid := auth.uid();

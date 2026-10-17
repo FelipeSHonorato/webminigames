@@ -3,16 +3,16 @@ import { Auth } from "./auth.js";
 import { Cloud } from "../shared/backend/cloud.js";
 import { readAuthRedirect, linkErrorMessage } from "../shared/backend/auth-redirect.js";
 
-/* Página para onde o link do e-mail de confirmação leva. Quatro situações:
-   - link novo (?token_hash=...): mostra o botão "Confirmar meu e-mail" (o clique valida e abre a sessão);
+/* Página para onde o link do e-mail de confirmação leva. Ao abrir, confirma sozinho (sem um segundo clique):
+   - link novo (?token_hash=...): valida o código e abre a sessão; em seguida mostra "E-mail confirmado!"
+     com o botão "Ir para os jogos" (que entra já logado);
    - link antigo (tokens depois do #): o Supabase já abriu a sessão sozinho (boot.js);
    - erro (link expirado ou já usado): mensagem clara + pedido de novo e-mail;
    - nada: quem abriu a página sem link. */
 const $ = id => document.getElementById(id);
 const show = id => { for (const s of document.querySelectorAll(".state")) s.hidden = s.id !== id; $(id).querySelector("h1")?.focus({ preventScroll: true }); };
-const goToGames = () => location.replace("jogos.html");
 const showError = message => { $("errorText").textContent = message; show("s-error"); };
-const showDone = () => { show("s-ok"); setTimeout(goToGames, 2500); };
+const showDone = () => show("s-ok");
 
 $("resendForm").onsubmit = async e => {
   e.preventDefault();
@@ -29,14 +29,11 @@ history.replaceState(null, "", location.pathname);                      // tira 
 
 if (!Cloud.active) location.replace("index.html");                     // modo local: não há e-mail de confirmação
 else if (link.kind === "error") showError(link.message);
-else if (link.kind === "confirm") {
-  show("s-confirm");
-  $("confirmBtn").onclick = async () => {
-    const btn = $("confirmBtn"); btn.disabled = true; $("confirmError").textContent = "";
-    try { await Auth.confirmEmail(link); showDone(); }
-    catch (err) { showError(linkErrorMessage(err.code)); }
-  };
-}
 else if (link.kind === "session") showDone();                           // link antigo: o Supabase já abriu a sessão sozinho
-else if (Cloud.uid) goToGames();                                        // abriu a página já logado, sem link
+else if (link.kind === "confirm") {
+  show("s-wait");
+  try { await Auth.confirmEmail(link); showDone(); }                    // confirma na hora e abre a sessão: o botão só leva aos jogos
+  catch (err) { showError(linkErrorMessage(err.code)); }
+}
+else if (Cloud.uid) showDone();                                         // abriu a página já logado, sem link
 else showError("Não encontramos um link de confirmação válido. Se você acabou de criar a conta, peça um novo e-mail abaixo; se já confirmou, volte e entre.");

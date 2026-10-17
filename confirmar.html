@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>Confirmar e-mail · WebMiniGames</title>
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="assets/email-logo.png" type="image/png" sizes="96x96">
+<link rel="apple-touch-icon" href="assets/email-logo.png">
 <script src="shared/theme-init.js"></script>
 <script src="shared/capture-auth-hash.js"></script>
 <link rel="stylesheet" href="css/site.css">
@@ -24,21 +27,14 @@
   <div class="card" aria-live="polite">
 
     <div class="state" id="s-wait">
-      <h1 tabindex="-1">Verificando…</h1>
+      <h1 tabindex="-1">Confirmando seu e-mail…</h1>
       <p>Só um instante.</p>
     </div>
 
-    <!-- link novo do e-mail: o clique no botão é que confirma (antivírus e leitores de e-mail não "gastam" o link) -->
-    <div class="state" id="s-confirm" hidden>
-      <h1 tabindex="-1">Confirme seu e-mail</h1>
-      <p>Toque no botão para ativar sua conta e entrar nos jogos.</p>
-      <button class="btn primary" id="confirmBtn" type="button">Confirmar meu e-mail</button>
-      <p id="confirmError" role="alert" class="err"></p>
-    </div>
-
+    <!-- link novo do e-mail: o código é confirmado automaticamente ao abrir a página -->
     <div class="state" id="s-ok" hidden>
       <h1 tabindex="-1">E-mail confirmado!</h1>
-      <p>Sua conta está pronta. Entrando nos jogos…</p>
+      <p>Sua conta está pronta. Toque no botão para entrar nos jogos.</p>
       <a class="btn primary" href="jogos.html">Ir para os jogos</a>
     </div>
 
