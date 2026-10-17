@@ -17,6 +17,8 @@ Quem joga como **anônimo** continua local nos dois modos (não cria conta, não
 ### 2. Criar as tabelas
 **SQL Editor → New query** → cole **todo** o conteúdo de `supabase/migrations/20261014000000_init.sql` → **Run**. Deve terminar com "Success". Isso cria tabelas, regras de segurança (RLS) e as funções que decidem pontos, nível e coins. **Rode uma vez só** (rodar de novo dá erro de "já existe", sem estragar nada).
 
+Depois rode, também no SQL Editor, `supabase/migrations/20261017000000_delete_account.sql`: cria a função `delete_my_account`, que apaga a própria conta (LGPD). (Se você usa a CLI do Supabase, `supabase db push` aplica os dois arquivos na ordem.)
+
 ### 3. Configurar o login (Authentication)
 - **URL Configuration**
   - *Site URL*: `https://webminigames.vercel.app` (exatamente o endereço do site publicado, sem barra no fim e sem caminho). **É daqui que o link do e-mail de confirmação é montado**: se ficar o valor padrão (`http://localhost:3000`), o link leva a uma página que não existe.
@@ -70,6 +72,15 @@ O link do botão é `{{ .SiteURL }}/confirmar.html?token_hash=...&type=email`. A
 
 Qualquer e-mail enviado **antes** de trocar o modelo continua com o link antigo (passa pelo Supabase e volta para o site): a página `confirmar.html` também sabe tratar esse formato, desde que a *Site URL* e as *Redirect URLs* da seção 3 estejam corretas.
 
+### Modelo do e-mail de redefinição de senha
+O arquivo `supabase/templates/redefinicao.html` é a versão em português do e-mail do "Esqueceu a senha?".
+
+1. **Authentication → Emails → Templates → Reset password**.
+2. *Subject*: `Crie uma nova senha no WebMiniGames`.
+3. *Message body*: apague o conteúdo e cole o arquivo inteiro. Salve.
+
+O link do botão é `{{ .SiteURL }}/redefinir.html?token_hash=...&type=recovery`, e a página `redefinir.html` abre a sessão e grava a nova senha. O `redirectTo` enviado pelo site também aponta para `redefinir.html`; como ele tem o formato `https://seu-site/redefinir.html`, a *Redirect URL* `https://webminigames.vercel.app/**` da seção 3 já cobre. Sem o modelo próprio, o e-mail padrão do Supabase (em inglês) também funciona, porque a página entende os dois formatos de link.
+
 ### Nome do remetente ("Supabase Auth")
 O remetente padrão (`Supabase Auth`) **só muda com SMTP próprio**: o envio embutido do Supabase não deixa personalizar o nome, e além disso tem limite baixíssimo de e-mails por hora (serve só para testes).
 
@@ -109,7 +120,7 @@ on conflict do nothing;
 | `runs` | a fase atual de cada jogo | o próprio dono |
 | `activity` | último jogo e fases abertas | só `record_play` |
 
-O navegador **não consegue** escrever pontos, vitórias ou coins: só chama funções, que validam tudo (`submit_win` confere o jogo, limita os pontos ao teto do nível, gasta 1 coin e ignora uma vitória reenviada). `ranking(...)` monta os rankings no servidor e nunca expõe e-mail.
+O navegador **não consegue** escrever pontos, vitórias ou coins: só chama funções, que validam tudo (`submit_win` confere o jogo, limita os pontos ao teto do nível, gasta 1 coin e ignora uma vitória reenviada). `ranking(...)` monta os rankings no servidor e nunca expõe e-mail. `delete_my_account()` (migração `20261017000000_delete_account.sql`) apaga a própria conta em `auth.users`; o `on delete cascade` leva embora, junto, todo o rastro do jogador.
 
 **Site** (`shared/backend/`; a biblioteca do Supabase vem do próprio repositório, `vendor/supabase-js.mjs`, sem CDN):
 - `boot.js` é importado como **primeira linha de cada página**. Ele carrega os dados da conta de uma vez para um cache em memória; os jogos continuam lendo coins, fase e nível de forma síncrona, e as escritas vão para o servidor em segundo plano.
@@ -128,5 +139,5 @@ O navegador **não consegue** escrever pontos, vitórias ou coins: só chama fun
 2. **Foto de perfil** é guardada como imagem `data:` no próprio perfil (até 100 mil caracteres). Para muitos usuários, migrar para o **Storage** e guardar só a URL.
 3. **Dados do protótipo local não migram** (contas e senhas locais ficam só no navegador antigo). Ao ligar a nuvem, a sessão local é descartada e a pessoa cria a conta de novo.
 4. **Contas Google não têm região** (não há tela para escolher): ficam fora do ranking regional. A coluna `profiles.region` já permite gravar; falta o seletor no perfil.
-5. Falta: excluir a própria conta (LGPD), recuperar senha ("esqueci a senha"), personalizar os e-mails do Supabase, listar contas no painel do administrador.
+5. Falta: listar contas no painel do administrador (a exclusão da própria conta já existe: `delete_my_account`, no fim do perfil).
 6. Índices extras no ranking só valem a pena com muitos jogadores.

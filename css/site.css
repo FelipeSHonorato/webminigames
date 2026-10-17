@@ -129,6 +129,25 @@ div.game.off:hover{border-color:var(--line)}
 .pwrules li::before{content:"○";display:inline-block;width:1.4em}
 .pwrules li[data-ok="true"]{color:var(--ok);font-weight:600}
 .pwrules li[data-ok="true"]::before{content:"✓"}
+/* Recuperar senha (tela de entrada) */
+.forgot{margin:-4px 0 12px;text-align:right}
+.linklike{border:0;background:none;padding:0;color:var(--accent);font-size:.85rem;font-weight:700;text-decoration:underline;cursor:pointer}
+#forgotPanel h2{margin-bottom:8px;font-size:1.1rem}
+#forgotPanel .note{margin:0 0 12px}
+
+/* Excluir conta (perfil) */
+.pcard.danger{border-color:var(--err)}
+.btn.danger{border-color:var(--err);color:var(--err)}
+.btn.danger.primary{background:var(--err);border-color:var(--err);color:#fff}
+.modal{border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--fg);max-width:420px;width:calc(100% - 32px);padding:0}
+.modal::backdrop{background:rgba(0,0,0,.5)}
+.modal form{padding:22px}
+.modal h2{margin:0 0 10px;font-size:1.15rem}
+.modal p{margin:0 0 14px;color:var(--muted);font-size:.9rem;line-height:1.45}
+.modal .fmsg{margin:0 0 12px;min-height:1.3em;font-size:.9rem;color:var(--accent)}
+.modal .fmsg.err{color:var(--err)}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+
 /* Página de confirmação do e-mail (link enviado pelo Supabase) */
 .confirm{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px}
 .confirm .card{text-align:center}

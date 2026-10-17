@@ -70,8 +70,27 @@
       <h2>Meus jogos</h2>
       <ul class="glist" id="myGames"></ul>
     </section>
+
+    <section class="pcard danger">
+      <h2>Excluir conta</h2>
+      <p>Ao excluir, sua conta e todos os seus dados (apelido, foto, pontos, progresso e coins) são apagados para sempre. Esta ação não pode ser desfeita.</p>
+      <button class="btn danger small" id="deleteAccount" type="button">Excluir minha conta</button>
+    </section>
   </div>
 </main>
+
+<dialog id="deleteDialog" class="modal" aria-labelledby="deleteTitle">
+  <form id="deleteForm" novalidate>
+    <h2 id="deleteTitle">Excluir conta</h2>
+    <p>Todos os seus dados serão apagados para sempre. Digite sua senha atual para confirmar.</p>
+    <label id="deletePwField">Senha atual<input id="deletePassword" type="password" autocomplete="current-password"></label>
+    <p class="fmsg" id="deleteMsg" role="alert"></p>
+    <div class="modal-actions">
+      <button class="btn small" id="deleteCancel" type="button">Cancelar</button>
+      <button class="btn danger primary small" id="deleteConfirm" type="submit">Excluir definitivamente</button>
+    </div>
+  </form>
+</dialog>
 <script src="shared/file-warning.js"></script>
 <script type="module" src="js/perfil.js"></script>
 </body>

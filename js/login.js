@@ -13,6 +13,7 @@ let mode = "login";
 $("region").append(new Option("Selecione…", ""), ...REGIONS.map(r => new Option(r.name, r.id)));
 mountPasswordRules($("password"), $("pwRules"));
 
+const showForgot = show => { $("authMain").hidden = show; $("forgotPanel").hidden = !show; };
 function setMode(next) {
   mode = next;
   const reg = mode === "register";
@@ -22,12 +23,37 @@ function setMode(next) {
   $("regionField").hidden = !reg;
   $("password").autocomplete = reg ? "new-password" : "current-password";
   $("pwRules").hidden = !reg;                       // os requisitos só valem para criar conta (quem entra pode ter senha antiga)
+  $("forgotRow").hidden = reg;                      // "Esqueceu a senha?" só faz sentido ao entrar (contas novas nem têm senha ainda)
   $("submit").textContent = reg ? "Criar conta" : "Entrar";
   $("error").textContent = "";
   $("resend").hidden = true;
+  showForgot(false);
 }
 $("tab-login").onclick = () => setMode("login");
 $("tab-register").onclick = () => setMode("register");
+
+/* "Esqueceu a senha?": pede o e-mail e o Supabase envia um link para criar uma nova senha (redefinir.html).
+   No modo local não há e-mail: em vez de prometer o envio, a tela explica a limitação. */
+$("forgot").onclick = () => {
+  $("forgotMsg").textContent = "";
+  $("forgotEmail").value = $("email").value;
+  $("forgotSend").disabled = !Cloud.active;
+  $("forgotHint").textContent = Cloud.active
+    ? "Vamos enviar para o seu e-mail um link para criar uma nova senha."
+    : "A recuperação de senha por e-mail só existe com a conta na nuvem. Neste navegador (protótipo) a conta fica só aqui, sem e-mail.";
+  showForgot(true);
+  $("forgotEmail").focus();
+};
+$("forgotBack").onclick = () => showForgot(false);
+$("forgotSend").onclick = async () => {
+  const btn = $("forgotSend"), email = $("forgotEmail").value;
+  btn.disabled = true; $("forgotMsg").textContent = "";
+  try {
+    await Auth.resetPassword(email);
+    $("forgotMsg").textContent = `Se existir uma conta com ${email.trim()}, enviamos um link para criar uma nova senha. Confira a caixa de entrada e o spam.`;
+  } catch (err) { $("forgotMsg").textContent = err.message; }
+  finally { btn.disabled = false; }
+};
 
 $("form").addEventListener("submit", async e => {
   e.preventDefault();

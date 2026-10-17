@@ -230,5 +230,15 @@ select public.tap_super();
 delete from auth.users where id = '44444444-4444-4444-4444-444444444444';
 select is((select count(*) from public.scores where user_id = '44444444-4444-4444-4444-444444444444'), 0::bigint, 'apagar a conta apaga os dados do jogador');
 
+-- delete_my_account (migração 20261017000000): o jogador apaga a própria conta e todo o rastro dela
+select public.tap_as('22222222-2222-2222-2222-222222222222');
+select lives_ok($$select public.delete_my_account()$$, 'o jogador exclui a própria conta');
+select public.tap_anon();
+select throws_ok($$select public.delete_my_account()$$, '42501', null, 'visitante não exclui conta');
+select public.tap_super();
+select is((select count(*) from auth.users where id = '22222222-2222-2222-2222-222222222222'), 0::bigint, 'a conta foi apagada de auth.users');
+select is((select count(*) from public.profiles where id = '22222222-2222-2222-2222-222222222222'), 0::bigint, 'o perfil foi apagado em cascata');
+select is((select count(*) from public.scores where user_id = '22222222-2222-2222-2222-222222222222'), 0::bigint, 'os pontos foram apagados em cascata');
+
 select * from finish();
 rollback;

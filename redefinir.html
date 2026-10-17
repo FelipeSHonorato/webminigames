@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Nova senha · WebMiniGames</title>
+<script src="shared/theme-init.js"></script>
+<script src="shared/capture-auth-hash.js"></script>
+<link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="logo" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="12" fill="#14213d"/>
+    <rect x="27" y="27" width="13" height="13" rx="4" fill="#f2b134"/>
+    <path d="M10 12H32V24H10V36H24" fill="none" stroke="#2cc4b6" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="10" cy="12" r="3.4" fill="#fff"/>
+  </symbol>
+</svg>
+
+<main class="confirm">
+  <a class="brand" href="index.html"><svg class="logo" width="44" height="44" aria-hidden="true"><use href="#logo"/></svg>WebMiniGames</a>
+  <div class="card" aria-live="polite">
+
+    <div class="state" id="s-wait">
+      <h1 tabindex="-1">Verificando…</h1>
+      <p>Só um instante.</p>
+    </div>
+
+    <!-- link novo do e-mail (?token_hash=...&type=recovery): a nova senha é definida aqui -->
+    <div class="state" id="s-form" hidden>
+      <h1 tabindex="-1">Crie uma nova senha</h1>
+      <p>Defina a nova senha da sua conta para voltar a jogar.</p>
+      <form id="resetForm" novalidate>
+        <label>Nova senha<input id="novaSenha" type="password" autocomplete="new-password"></label>
+        <ul class="pwrules" id="pwRules" aria-label="Requisitos da senha"></ul>
+        <label>Repita a nova senha<input id="repete" type="password" autocomplete="new-password"></label>
+        <p id="formMsg" role="alert" class="err"></p>
+        <button class="btn primary" id="resetBtn" type="submit">Salvar nova senha</button>
+      </form>
+    </div>
+
+    <div class="state" id="s-ok" hidden>
+      <h1 tabindex="-1">Senha alterada!</h1>
+      <p>Sua senha foi atualizada. Entrando nos jogos…</p>
+      <a class="btn primary" href="jogos.html">Ir para os jogos</a>
+    </div>
+
+    <div class="state" id="s-error" hidden>
+      <h1 tabindex="-1">Não foi possível redefinir</h1>
+      <p id="errorText"></p>
+      <p class="note"><a href="index.html">Voltar e pedir um novo link</a></p>
+    </div>
+
+  </div>
+</main>
+<script src="shared/file-warning.js"></script>
+<script type="module" src="js/redefinir.js"></script>
+</body>
+</html>

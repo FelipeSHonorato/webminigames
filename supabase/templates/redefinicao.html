@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>Crie uma nova senha no WebMiniGames</title>
+<style>
+  body { margin: 0; padding: 0; }
+  a { color: #0f766e; }
+  @media (max-width: 480px) { .px { padding-left: 20px !important; padding-right: 20px !important; } .h1 { font-size: 22px !important; } }
+  @media (prefers-color-scheme: dark) {
+    .bg { background-color: #0e1621 !important; }
+    .card { background-color: #17222f !important; border-color: #2a3a4c !important; }
+    .txt { color: #e8eef5 !important; }
+    .muted { color: #8da0b5 !important; }
+    .box { background-color: #0e1621 !important; border-color: #2a3a4c !important; }
+    a.link { color: #2cc4b6 !important; }
+  }
+</style>
+</head>
+<body class="bg" style="margin:0;padding:0;background-color:#e9eef3;">
+<!-- Texto de prévia (aparece ao lado do assunto na caixa de entrada) -->
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">Recebemos um pedido para criar uma nova senha na sua conta.&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;</div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="bg" style="background-color:#e9eef3;">
+  <tr><td align="center" style="padding:32px 16px;">
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
+      <!-- Marca -->
+      <tr><td align="center" style="padding:0 0 20px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td style="padding-right:12px;vertical-align:middle;"><img src="{{ .SiteURL }}/assets/email-logo.png" width="44" height="44" alt="" style="display:block;border:0;border-radius:12px;"></td>
+          <td class="txt" style="vertical-align:middle;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;font-weight:700;color:#14213d;">WebMiniGames</td>
+        </tr></table>
+      </td></tr>
+
+      <!-- Cartão -->
+      <tr><td class="card px" style="background-color:#ffffff;border:1px solid #cfd8e1;border-radius:16px;padding:32px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+        <h1 class="h1 txt" style="margin:0 0 16px;font-size:26px;line-height:1.25;font-weight:700;color:#14213d;">Crie uma nova senha</h1>
+
+        <p class="txt" style="margin:0 0 12px;font-size:16px;line-height:1.6;color:#14213d;">Olá!</p>
+        <p class="txt" style="margin:0 0 24px;font-size:16px;line-height:1.6;color:#14213d;">Recebemos um pedido para redefinir a senha da sua conta no WebMiniGames. Toque no botão abaixo para escolher uma nova senha.</p>
+
+        <!-- Botão -->
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px;"><tr>
+          <td align="center" bgcolor="#0f766e" style="border-radius:10px;">
+            <a href="{{ .SiteURL }}/redefinir.html?token_hash={{ .TokenHash }}&amp;type=recovery" target="_blank"
+               style="display:inline-block;padding:14px 28px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:10px;">Criar nova senha</a>
+          </td>
+        </tr></table>
+
+        <!-- Plano B: o endereço por extenso -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+          <td class="box" style="background-color:#f4f7fa;border:1px solid #e1e8ef;border-radius:10px;padding:14px 16px;">
+            <p class="muted" style="margin:0 0 6px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;color:#5b6b7e;">O botão não funciona? Copie este endereço e cole no navegador:</p>
+            <p style="margin:0;font-family:Consolas,Menlo,monospace;font-size:12px;line-height:1.5;word-break:break-all;"><a class="link" href="{{ .SiteURL }}/redefinir.html?token_hash={{ .TokenHash }}&amp;type=recovery" target="_blank" style="color:#0f766e;">{{ .SiteURL }}/redefinir.html?token_hash={{ .TokenHash }}&amp;type=recovery</a></p>
+          </td>
+        </tr></table>
+
+        <p class="muted" style="margin:24px 0 0;font-size:13px;line-height:1.6;color:#5b6b7e;">Por segurança, este link tem validade limitada e funciona uma única vez. Se ele expirar, é só pedir outro na página de entrada.</p>
+      </td></tr>
+
+      <!-- Rodapé -->
+      <tr><td align="center" class="muted px" style="padding:20px 24px 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#5b6b7e;">
+        Você recebeu este e-mail porque alguém pediu para redefinir a senha da conta {{ .Email }} no WebMiniGames.<br>
+        Se não foi você, ignore esta mensagem: sua senha continua a mesma.<br><br>
+        <a class="link" href="{{ .SiteURL }}" style="color:#0f766e;">WebMiniGames</a> · Quebra-cabeças rápidos para jogar agora
+      </td></tr>
+    </table>
+
+  </td></tr>
+</table>
+</body>
+</html>

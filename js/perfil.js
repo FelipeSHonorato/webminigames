@@ -82,5 +82,23 @@ function init() {
     catch (err) { say($("pwMsg"), err.message, true); }
     finally { btn.disabled = false; }
   };
+
+  /* Excluir conta (LGPD): o popup pede a senha atual e apaga a conta e todos os dados dela. Contas sem
+     senha (Google) confirmam só no popup: a sessão já autentica. */
+  $("deleteAccount").onclick = () => {
+    $("deleteForm").reset(); say($("deleteMsg"), "");
+    $("deletePwField").hidden = !hasPassword;
+    $("deleteDialog").showModal();
+  };
+  $("deleteCancel").onclick = () => $("deleteDialog").close();
+  $("deleteForm").onsubmit = async e => {
+    e.preventDefault();
+    const btn = $("deleteConfirm"); btn.disabled = true; say($("deleteMsg"), "");
+    try {
+      await Auth.deleteAccount({ password: hasPassword ? $("deletePassword").value : undefined });
+      $("deleteDialog").close();
+      location.replace("index.html");
+    } catch (err) { say($("deleteMsg"), err.message, true); btn.disabled = false; }
+  };
 }
 if (session) { init(); $("profile-title").focus({ preventScroll: true }); }

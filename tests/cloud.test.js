@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Cloud, authErrorMessage, isPermanent, isConfigured } from "../shared/backend/cloud.js";
+import { Auth } from "../js/auth.js";
 import { Coins, settle, DAY_MS } from "../shared/coins.js";
 import { Run } from "../shared/run.js";
 import { Scores } from "../shared/scores.js";
@@ -19,12 +20,20 @@ const SNAP = {
 };
 
 /** Cliente Supabase de mentira: registra as chamadas e devolve o que o teste mandar. */
-function fakeClient({ session = { user: { id: UID, email: "ana@t.com", app_metadata: { provider: "email" } } }, snapshot = SNAP, rpc = {}, tables = {} } = {}) {
+function fakeClient({ session = { user: { id: UID, email: "ana@t.com", app_metadata: { provider: "email" } } }, snapshot = SNAP, rpc = {}, tables = {}, auth = {} } = {}) {
   const calls = [];
   const chain = result => { const o = { eq: () => o, select: () => o, then: (ok, no) => Promise.resolve(result).then(ok, no) }; return o; };
   return {
     calls,
-    auth: { getSession: async () => ({ data: { session }, error: null }), signOut: async () => ({ error: null }), onAuthStateChange() {} },
+    auth: {
+      getSession: async () => ({ data: { session }, error: null }),
+      signOut: async () => ({ error: null }),
+      onAuthStateChange() {},
+      signInWithPassword: async args => { calls.push(["signInWithPassword", args]); return auth.signInWithPassword?.(args) ?? { data: { user: session?.user }, error: null }; },
+      resetPasswordForEmail: async (email, opts) => { calls.push(["resetPasswordForEmail", email, opts]); return auth.resetPasswordForEmail?.(email, opts) ?? { data: {}, error: null }; },
+      updateUser: async args => { calls.push(["updateUser", args]); return auth.updateUser?.(args) ?? { data: { user: session?.user }, error: null }; },
+      verifyOtp: async args => { calls.push(["verifyOtp", args]); return auth.verifyOtp?.(args) ?? { data: { user: session?.user }, error: null }; },
+    },
     from: table => ({
       select: () => chain(tables.select?.(table) ?? { data: [{ id: "zip", enabled: true }, { id: "canos", enabled: false }], error: null }),
       upsert: (row, opts) => { calls.push(["upsert", table, row, opts]); return chain(tables.upsert?.(row) ?? { error: null }); },
@@ -211,4 +220,30 @@ test("mensagens de erro de login/cadastro em português", () => {
   assert.match(m({ message: "TypeError: Failed to fetch" }), /Sem conexão/);
   assert.match(m({ code: "algo_novo" }), /Tente de novo/);
   assert.doesNotMatch(m({ code: "algo_novo", message: "segredo interno" }), /segredo/);
+});
+
+test("recuperar senha na nuvem: pede o e-mail de redefinição e conclui com verifyOtp + nova senha", async () => {
+  const c = await boot();
+  await Auth.resetPassword("ana@t.com");
+  assert.equal(c.calls.find(x => x[0] === "resetPasswordForEmail")[1], "ana@t.com");
+  await Auth.completeReset({ tokenHash: "xyz", password: "NovaSenha1" });
+  assert.deepEqual(c.calls.find(x => x[0] === "verifyOtp")[1], { token_hash: "xyz", type: "recovery" });
+  assert.equal(c.calls.find(x => x[0] === "updateUser")[1].password, "NovaSenha1");
+  await assert.rejects(Auth.completeReset({ tokenHash: "xyz", password: "123" }), /pelo menos 8/);
+  await assert.rejects(Auth.resetPassword("sem-arroba"), /e-mail válido/);
+});
+
+test("excluir conta na nuvem: confirma a senha atual e chama delete_my_account", async () => {
+  const c = await boot({ rpc: { delete_my_account: () => ({ data: null, error: null }) } });
+  await Auth.deleteAccount({ password: "Segredo1" });
+  const sign = c.calls.find(x => x[0] === "signInWithPassword");
+  assert.equal(sign[1].email, "ana@t.com"); assert.equal(sign[1].password, "Segredo1");
+  assert.ok(c.calls.some(x => x[0] === "rpc" && x[1] === "delete_my_account"));
+  assert.equal(store.get("wmg.session"), "null");
+});
+
+test("excluir conta na nuvem: senha errada não apaga nada", async () => {
+  const c = await boot({ auth: { signInWithPassword: () => ({ data: null, error: { code: "invalid_credentials" } }) } });
+  await assert.rejects(Auth.deleteAccount({ password: "errada" }), /Senha incorreta/);
+  assert.equal(c.calls.some(x => x[1] === "delete_my_account"), false);
 });

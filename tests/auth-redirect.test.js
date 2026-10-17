@@ -12,10 +12,11 @@ test("erro do Supabase (link expirado/usado): mensagem fixa em português, sem r
   assert.equal(readAuthRedirect("?error=access_denied").code, "access_denied", "também vale no ?");
 });
 
-test("link novo do e-mail: ?token_hash e type=email|signup viram um pedido de clique", () => {
+test("link novo do e-mail: ?token_hash e type=email|signup|recovery viram um pedido de clique", () => {
   assert.deepEqual(readAuthRedirect("?token_hash=abc123&type=email"), { kind: "confirm", tokenHash: "abc123", type: "email" });
   assert.deepEqual(readAuthRedirect("#token_hash=abc123&type=signup"), { kind: "confirm", tokenHash: "abc123", type: "signup" });
-  for (const bad of ["?token_hash=abc&type=recovery", "?token_hash=abc&type=magiclink", "?token_hash=abc", "?type=email", "?token_hash=&type=email"]) assert.equal(readAuthRedirect(bad).kind, "none", bad);
+  assert.deepEqual(readAuthRedirect("?token_hash=abc123&type=recovery"), { kind: "confirm", tokenHash: "abc123", type: "recovery" });
+  for (const bad of ["?token_hash=abc&type=magiclink", "?token_hash=abc", "?type=email", "?token_hash=&type=email"]) assert.equal(readAuthRedirect(bad).kind, "none", bad);
 });
 
 test("link antigo (tokens no #) e página aberta sem link", () => {
@@ -53,4 +54,28 @@ test("modelo de e-mail: só usa variáveis do Supabase conhecidas, sem script, c
   assert.deepEqual(imgs, ["{{ .SiteURL }}/assets/email-logo.png"]);
   assert.ok(existsSync(new URL("../assets/email-logo.png", import.meta.url)), "o logotipo precisa estar publicado em /assets");
   assert.match(tpl, /prefers-color-scheme: dark/);
+});
+
+/* ---------- modelo do e-mail de redefinição de senha ---------- */
+const resetTpl = readFileSync(new URL("../supabase/templates/redefinicao.html", import.meta.url), "utf8");
+
+test("modelo de redefinição: o botão leva à página redefinir.html no formato que ela lê", () => {
+  assert.ok(existsSync(new URL("../redefinir.html", import.meta.url)) && existsSync(new URL("../js/redefinir.js", import.meta.url)));
+  const hrefs = [...resetTpl.matchAll(/href="([^"]*redefinir\.html[^"]*)"/g)].map(m => m[1].replaceAll("&amp;", "&"));
+  assert.equal(hrefs.length, 2, "botão + endereço por extenso");
+  for (const h of hrefs) {
+    const url = new URL(h.replace("{{ .SiteURL }}", "https://webminigames.vercel.app").replace("{{ .TokenHash }}", "HASH123"));
+    assert.equal(url.pathname, "/redefinir.html");
+    assert.deepEqual(readAuthRedirect(url.search), { kind: "confirm", tokenHash: "HASH123", type: "recovery" });
+  }
+});
+
+test("modelo de redefinição: sem script, com logotipo do próprio site e só variáveis conhecidas", () => {
+  const vars = new Set([...resetTpl.matchAll(/\{\{\s*([^}]*?)\s*\}\}/g)].map(m => m[1]));
+  const allowed = new Set([".SiteURL", ".TokenHash", ".Email"]);
+  for (const v of vars) assert.ok(allowed.has(v), `variável inesperada: ${v}`);
+  assert.doesNotMatch(resetTpl, /<script|javascript:|<form|<iframe/i);
+  const imgs = [...resetTpl.matchAll(/<img[^>]*src="([^"]+)"/g)].map(m => m[1]);
+  assert.deepEqual(imgs, ["{{ .SiteURL }}/assets/email-logo.png"]);
+  assert.match(resetTpl, /prefers-color-scheme: dark/);
 });

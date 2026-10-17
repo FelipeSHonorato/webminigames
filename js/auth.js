@@ -36,8 +36,19 @@ async function ensureAdmin() {
   store.set("wmg.users", JSON.stringify(all));
 }
 
-/** Página para onde o link do e-mail leva (precisa estar na lista "Redirect URLs" do Supabase; veja docs/SUPABASE.md). */
+/** Página para onde o link do e-mail de confirmação leva (precisa estar em "Redirect URLs" do Supabase; veja docs/SUPABASE.md). */
 const confirmUrl = () => (typeof location === "undefined" ? undefined : new URL("confirmar.html", location.href).href);
+/** Página do link de redefinição de senha ("Esqueceu a senha?"). */
+const resetUrl = () => (typeof location === "undefined" ? undefined : new URL("redefinir.html", location.href).href);
+
+/** Ao excluir a conta local, apaga tudo que é dela no navegador (perfil, atividade, coins, fase, pontos e progressão). */
+function purgeLocalUser(uid) {
+  for (const k of ["wmg.profiles", "wmg.activity", "wmg.coins", "wmg.run", "wmg.scores"]) {
+    const data = readJSON(k, {});
+    if (data && typeof data === "object" && uid in data) { delete data[uid]; store.set(k, JSON.stringify(data)); }
+  }
+  for (const k of store.keys()) if (k.endsWith(":" + uid)) store.remove(k);   // "<jogo>.wins:<uid>"
+}
 
 export const Auth = {
   current: () => readJSON("wmg.session", null),
@@ -112,6 +123,55 @@ export const Auth = {
     this.validateEmail(email);
     const { error } = await needClient().auth.resend({ type: "signup", email: email.trim(), options: { emailRedirectTo: confirmUrl() } });
     if (error) throw new Error(authErrorMessage(error));
+  },
+  /** "Esqueceu a senha?": envia o e-mail com o link para criar uma nova senha (redefinir.html). Só existe com a conta na nuvem. */
+  async resetPassword(email) {
+    this.validateEmail(email);
+    if (!Cloud.active) throw new Error("A recuperação de senha por e-mail só está disponível com a conta na nuvem.");
+    const { error } = await needClient().auth.resetPasswordForEmail(email.trim(), { redirectTo: resetUrl() });
+    if (error) throw new Error(authErrorMessage(error));
+  },
+  /** Conclui a redefinição: o link (?token_hash=…&type=recovery) abre a sessão e a nova senha é gravada. */
+  async completeReset({ tokenHash, password }) {
+    const weak = passwordError(password);
+    if (weak) throw new Error(weak.replace("A senha", "A nova senha"));
+    const sb = needClient();
+    if (tokenHash) {
+      const { error } = await sb.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" });
+      if (error) throw Object.assign(new Error(authErrorMessage(error)), { code: error.code });
+    }
+    const { error } = await sb.auth.updateUser({ password });
+    if (error) throw new Error(authErrorMessage(error));
+    const { data } = await sb.auth.getSession();
+    return Cloud.adopt(data.session.user);
+  },
+  /** Exclui a própria conta e TODOS os dados dela (LGPD). Exige a senha atual quando a conta usa senha. */
+  async deleteAccount({ password } = {}) {
+    const s = this.current();
+    if (!s) throw new Error("Entre na sua conta para excluí-la.");
+    if (s.provider === "anonymous") throw new Error("O anônimo não tem conta para excluir.");
+    if (s.id === ADMIN_ID) throw new Error("A conta administradora não pode ser excluída.");
+    if (Cloud.active) {
+      const sb = needClient();
+      if (s.provider === "password") {
+        if (!password) throw new Error("Digite sua senha.");
+        if (!s.email) throw new Error("Entre de novo para excluir a conta.");
+        const check = await sb.auth.signInWithPassword({ email: s.email, password });   // confirma a senha atual
+        if (check.error) throw new Error(check.error.code === "invalid_credentials" ? "Senha incorreta." : authErrorMessage(check.error));
+      }
+      await Cloud.deleteAccount();
+      return;
+    }
+    await ensureAdmin();
+    const all = users(), key = Object.keys(all).find(k => all[k].id === s.id);
+    if (s.provider === "password") {
+      if (!password) throw new Error("Digite sua senha.");
+      const u = key && all[key];
+      if (!u || u.hash !== (await hashPassword(password, u.salt))) throw new Error("Senha incorreta.");
+    }
+    if (key) { delete all[key]; store.set("wmg.users", JSON.stringify(all)); }
+    purgeLocalUser(s.id);
+    store.set("wmg.session", "null");
   },
   /** Com Supabase: abre o login do Google e a página recarrega ao voltar (devolve null). Sem Supabase: SIMULAÇÃO, não fala com o Google. */
   async loginWithGoogle() {

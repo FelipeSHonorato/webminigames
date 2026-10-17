@@ -6,13 +6,13 @@ const MESSAGES = {
   identity_already_exists: "Esta conta Google já está ligada a outro usuário.",
 };
 const GENERIC = "Não foi possível validar o link. Peça um novo e-mail de confirmação abaixo e tente de novo.";
-const TYPES = ["signup", "email"];     // os únicos tipos de link que esta página confirma
+const TYPES = ["signup", "email", "recovery"];   // tipos de link que pedem um clique: confirmação de conta e redefinição de senha
 
 export const linkErrorMessage = code => MESSAGES[code] ?? GENERIC;
 
 /** raw: o `location.hash` (ou `location.search`) da página. Devolve:
     { kind: "error", code, message }   o Supabase mandou um erro (link expirado, usado…)
-    { kind: "confirm", tokenHash, type }   link do e-mail novo (?token_hash=...&type=email): falta o clique para confirmar
+    { kind: "confirm", tokenHash, type }   link do e-mail novo (?token_hash=...&type=email|signup|recovery): falta o clique
     { kind: "session", type }   o Supabase já abriu a sessão (link antigo, tokens no #)
     { kind: "none" }            nada de link */
 export function readAuthRedirect(raw) {

@@ -41,27 +41,40 @@
   <div class="panel">
     <div class="theme-corner" id="themeHost"></div>
     <div class="card">
-      <form id="form" novalidate>
-        <div class="tabs" role="tablist" aria-label="Acesso">
-          <button type="button" role="tab" id="tab-login" aria-selected="true">Entrar</button>
-          <button type="button" role="tab" id="tab-register" aria-selected="false">Criar conta</button>
+      <div id="authMain">
+        <form id="form" novalidate>
+          <div class="tabs" role="tablist" aria-label="Acesso">
+            <button type="button" role="tab" id="tab-login" aria-selected="true">Entrar</button>
+            <button type="button" role="tab" id="tab-register" aria-selected="false">Criar conta</button>
+          </div>
+          <label id="nameField" hidden>Nome<input id="name" autocomplete="name" maxlength="40"></label>
+          <label id="regionField" hidden>Região<select id="region"></select></label>
+          <label>E-mail<input id="email" type="email" autocomplete="email" inputmode="email"></label>
+          <label>Senha<input id="password" type="password" autocomplete="current-password"></label>
+          <p class="forgot" id="forgotRow"><button type="button" class="linklike" id="forgot">Esqueceu a senha?</button></p>
+          <ul class="pwrules" id="pwRules" aria-label="Requisitos da senha" hidden></ul>
+          <p id="error" role="alert"></p>
+          <p id="info" class="note" role="status" hidden></p>
+          <button class="btn small" id="resend" type="button" hidden>Reenviar e-mail de confirmação</button>
+          <button class="btn primary" id="submit" type="submit" disabled>Entrar</button>
+        </form>
+        <div class="divider">ou</div>
+        <div class="stack">
+          <button class="btn" id="google" type="button" disabled><span class="gmark" aria-hidden="true">G</span>Continuar com Google</button>
+          <button class="btn" id="anon" type="button" disabled>Entrar como anônimo</button>
         </div>
-        <label id="nameField" hidden>Nome<input id="name" autocomplete="name" maxlength="40"></label>
-        <label id="regionField" hidden>Região<select id="region"></select></label>
-        <label>E-mail<input id="email" type="email" autocomplete="email" inputmode="email"></label>
-        <label>Senha<input id="password" type="password" autocomplete="current-password"></label>
-        <ul class="pwrules" id="pwRules" aria-label="Requisitos da senha" hidden></ul>
-        <p id="error" role="alert"></p>
-        <p id="info" class="note" role="status" hidden></p>
-        <button class="btn small" id="resend" type="button" hidden>Reenviar e-mail de confirmação</button>
-        <button class="btn primary" id="submit" type="submit" disabled>Entrar</button>
-      </form>
-      <div class="divider">ou</div>
-      <div class="stack">
-        <button class="btn" id="google" type="button" disabled><span class="gmark" aria-hidden="true">G</span>Continuar com Google</button>
-        <button class="btn" id="anon" type="button" disabled>Entrar como anônimo</button>
+        <p class="note" id="modeNote" hidden></p>
       </div>
-      <p class="note" id="modeNote" hidden></p>
+      <div id="forgotPanel" hidden>
+        <h2>Recuperar senha</h2>
+        <p class="note" id="forgotHint">Vamos enviar para o seu e-mail um link para criar uma nova senha.</p>
+        <label>E-mail da conta<input id="forgotEmail" type="email" autocomplete="email" inputmode="email"></label>
+        <p id="forgotMsg" role="status" class="note"></p>
+        <div class="stack">
+          <button class="btn primary" id="forgotSend" type="button">Enviar link</button>
+          <button class="btn" id="forgotBack" type="button">Voltar</button>
+        </div>
+      </div>
     </div>
   </div>
 </section>

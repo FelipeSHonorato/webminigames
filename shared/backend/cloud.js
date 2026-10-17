@@ -170,6 +170,16 @@ export const Cloud = {
   },
   /** Entrar como anônimo: o anônimo é local, então a sessão da nuvem (se houver) é descartada neste navegador. */
   async dropSession() { const c = S.client; resetUser(); await c?.auth.signOut({ scope: "local" }); },
+  /** Exclui a própria conta no servidor: apaga a conta e, por cascata, todos os dados dela (LGPD). */
+  async deleteAccount() {
+    const uid = S.uid;
+    const { error } = await S.client.rpc("delete_my_account");
+    if (error) throw new Error("Não foi possível excluir a conta agora. Tente de novo.");
+    const c = S.client;
+    if (uid !== null) writeOutbox(readOutbox().filter(i => i.uid !== uid));   // vitórias pendentes desta conta não têm mais para onde ir
+    resetUser(); store.set(SESSION_KEY, "null");
+    try { await c?.auth.signOut({ scope: "local" }); } catch { /* a conta já não existe; só limpa a sessão local */ }
+  },
 
   /* ----- leitura (síncrona, do cache) ----- */
   profile: () => S.cache.profile ?? {},

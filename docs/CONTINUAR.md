@@ -10,7 +10,7 @@ Site de mini-games de lógica, em HTML/CSS/JS puro (módulos ES, sem build e sem
 - **Patches:** dividir a grade em retângulos; cada um tem uma pista (área e formato: quadrado, largo, alto ou qualquer).
 - **Sudoku:** grade 9×9, sem repetir 1 a 9 em linha, coluna e bloco. Nível = nº de pistas (40/34/30/26). Anotações, desfazer, conflitos em vermelho e teclado (setas, 1-9, Backspace, N). O teclado é tratado no `document` (vale na área `main`) e as células do tabuleiro são criadas uma vez por fase: recriá-las a cada jogada faz o navegador perder o foco no clique.
 
-Funcionalidades prontas: entrada (criar conta, Google **simulado**, anônimo), página de jogos, perfil (apelido, foto, senha, meus jogos), 4 níveis por jogo (sobe a cada 15 vitórias), pontuação (Fácil 5, Médio 10, Difícil 15, Genius 20), ranking por jogo em painel lateral recolhível, ranking geral na página de jogos (soma de todos os jogos, em janela fixa), regiões, modo escuro, coins (2 por jogo a cada 24 h, sem acumular, gastos só ao concluir a fase), fase salva por seed, conta administradora com liga/desliga dos jogos.
+Funcionalidades prontas: entrada (criar conta, Google **simulado**, anônimo, "Esqueceu a senha?"), página de jogos, perfil (apelido, foto, senha, meus jogos, excluir conta), 4 níveis por jogo (sobe a cada 15 vitórias), pontuação (Fácil 5, Médio 10, Difícil 15, Genius 20), ranking por jogo em painel lateral recolhível, ranking geral na página de jogos (soma de todos os jogos, em janela fixa), regiões, modo escuro, coins (2 por jogo a cada 24 h, sem acumular, gastos só ao concluir a fase), fase salva por seed, conta administradora com liga/desliga dos jogos.
 
 ## Como rodar e testar
 
@@ -54,6 +54,8 @@ npm test      # 125 testes, Node 20+
 - `supabase/migrations` é a fonte do esquema; mudanças futuras vão em arquivos novos (nunca editar o que já foi aplicado). As constantes (15 vitórias por nível, pontos 5/10/15/20, 2 coins, 99999, regiões, jogos) estão no SQL **e** no JS; `tests/supabase.test.js` falha se divergirem.
 - **Senha** (conta nova: 8+ caracteres, 1 número, 1 maiúscula): uma só regra em `shared/password.js`, usada no cadastro, na troca de senha, na lista de requisitos (`js/password-rules.js`) e na mensagem do erro `weak_password`. O **login nunca** aplica essa regra (contas antigas entram).
 - **Link do e-mail**: `confirmar.html` + `js/confirmar.js` leem o link com `shared/backend/auth-redirect.js` (só mensagens fixas; nunca repetem texto da URL). O modelo `supabase/templates/confirmacao.html` aponta para `{{ .SiteURL }}/confirmar.html?token_hash=…&type=email` e o clique no botão chama `Auth.confirmEmail` (`verifyOtp`); formatos antigos (tokens no `#`, erro no `#`) também funcionam. Páginas que podem receber link precisam carregar `shared/capture-auth-hash.js` no `<head>` (guarda o `#` antes de a biblioteca limpar o endereço). Há teste que cruza o modelo com a página.
+- **Recuperar senha**: o link "Esqueceu a senha?" em `index.html` chama `Auth.resetPassword` (`resetPasswordForEmail`, redireciona para `redefinir.html`); a página `redefinir.html` + `js/redefinir.js` conclui com `Auth.completeReset` (`verifyOtp` + `updateUser`). `shared/backend/auth-redirect.js` agora aceita `type=recovery`. Modelo pt-BR em `supabase/templates/redefinicao.html`. No modo local a tela avisa que a recuperação por e-mail não existe.
+- **Excluir conta (LGPD)**: `perfil.html` (fim) + `js/perfil.js` abrem um `<dialog>` que pede a senha atual; `Auth.deleteAccount` confirma a senha (`signInWithPassword`) e, na nuvem, chama `Cloud.deleteAccount` (`delete_my_account`, apaga por cascata); no modo local limpa o `localStorage` do usuário. Migração `20261017000000_delete_account.sql` (rodar depois da inicial).
 - CSS: existe uma regra global `[hidden]{display:none!important}` (classes com `display` não podem mais "reexibir" elementos). Os títulos `h1/h2[tabindex="-1"]` recebem foco ao abrir a tela (leitor de tela) e ficam sem contorno.
 - Testes de banco em `supabase/tests/database` (pgTAP, `npm run test:db` com a CLI do Supabase).
 
@@ -65,7 +67,7 @@ npm test      # 125 testes, Node 20+
 
 ## Limitações e próximos passos sugeridos
 
-1. **Backend**: já existe a integração com o **Supabase** (contas, ranking, coins, progresso, fases e liga/desliga no servidor; ver `docs/SUPABASE.md`). Falta validar a vitória de verdade no servidor (hoje ele só limita os pontos ao teto do nível), foto no Storage, região para contas Google, "esqueci a senha" e excluir conta.
+1. **Backend**: já existe a integração com o **Supabase** (contas, ranking, coins, progresso, fases e liga/desliga no servidor; ver `docs/SUPABASE.md`). Falta validar a vitória de verdade no servidor (hoje ele só limita os pontos ao teto do nível), foto no Storage, região para contas Google e listar contas no painel do administrador. Recuperar senha ("Esqueceu a senha?", link do Supabase para `redefinir.html`) e excluir a própria conta (LGPD, popup com a senha atual + `delete_my_account`) já estão prontos.
 2. Gerar as fases do Zip nos níveis altos num **Web Worker** (pode levar alguns segundos no Genius).
 3. Suporte a **teclado** no Patches (o Sudoku já tem).
 4. Centralizar as cores (tokens) num `tokens.css` compartilhado (hoje cada jogo repete os seus).

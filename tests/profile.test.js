@@ -57,3 +57,35 @@ test("anônimo sempre aparece como \"Anônimo\", mesmo em sessão antiga", () =>
   assert.equal(Profile.displayName({ id: "a1", name: "Visitante", provider: "anonymous" }), "Anônimo");
   assert.equal(Profile.displayName({ id: "u9", name: "Ana", provider: "password" }), "Ana");
 });
+
+test("excluir a conta local exige a senha e apaga os dados do jogador", async () => {
+  reset();
+  await Auth.register({ name: "Ana", email: "ana@example.com", password: "Segredo1", region: "sul" });
+  const s = Auth.current();
+  Profile.setNickname(s.id, "Aninha");
+  await Scores.submit("zip", 10);
+  Activity.played(s.id, "zip");
+  store.set(`zip.wins:${s.id}`, "7");
+
+  await assert.rejects(Auth.deleteAccount({ password: "errada" }), /Senha incorreta/);
+  assert.ok(Auth.current(), "com a senha errada, a sessão continua");
+
+  await Auth.deleteAccount({ password: "Segredo1" });
+  assert.equal(Auth.current(), null, "a sessão foi encerrada");
+  assert.equal(JSON.parse(store.get("wmg.users"))["ana@example.com"], undefined, "a conta saiu do cadastro");
+  assert.equal(Profile.get(s.id).nickname, undefined, "o apelido foi apagado");
+  assert.equal(JSON.parse(store.get("wmg.scores"))[s.id], undefined, "os pontos foram apagados");
+  assert.equal(store.get(`zip.wins:${s.id}`), null, "as vitórias foram apagadas");
+  await assert.rejects(Auth.login({ email: "ana@example.com", password: "Segredo1" }), /incorretos/);
+});
+
+test("excluir conta: anônimo não tem conta para excluir", async () => {
+  reset(); await Auth.loginAnonymous();
+  await assert.rejects(Auth.deleteAccount({ password: "x" }), /não tem conta/);
+});
+
+test("recuperar senha: no modo local avisa que só existe na nuvem", async () => {
+  reset();
+  await assert.rejects(Auth.resetPassword("ana@example.com"), /nuvem/);
+  await assert.rejects(Auth.resetPassword("sem-arroba"), /e-mail válido/);
+});

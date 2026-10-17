@@ -38,11 +38,20 @@ Existe uma conta administradora, criada automaticamente na primeira tentativa de
 
 ## Backend (Supabase)
 
-As contas e os registros podem ficar no **Supabase** (Postgres + login): preencha `SUPABASE_URL` e `SUPABASE_ANON_KEY` em `shared/backend/config.js` e rode `supabase/migrations/20261014000000_init.sql` no SQL Editor. Vazio, o site continua no **modo local** (tudo no navegador). Com a nuvem ligada: contas reais (e-mail/senha e Google), progresso, pontos, coins, fases salvas, rankings e liga/desliga de jogos compartilhados por todos, e o **servidor** decide pontos, nível e coins. Passo a passo e funcionamento: [docs/SUPABASE.md](docs/SUPABASE.md). O e-mail de confirmação em português está em `supabase/templates/` (como colar e como trocar o remetente: mesma doc). Senha de conta nova: mínimo de 8 caracteres, com 1 número e 1 letra maiúscula.
+As contas e os registros podem ficar no **Supabase** (Postgres + login): preencha `SUPABASE_URL` e `SUPABASE_ANON_KEY` em `shared/backend/config.js` e rode no SQL Editor os arquivos de `supabase/migrations/` na ordem (`20261014000000_init.sql` e, depois, `20261017000000_delete_account.sql`). Vazio, o site continua no **modo local** (tudo no navegador). Com a nuvem ligada: contas reais (e-mail/senha e Google), progresso, pontos, coins, fases salvas, rankings e liga/desliga de jogos compartilhados por todos, e o **servidor** decide pontos, nível e coins. Passo a passo e funcionamento: [docs/SUPABASE.md](docs/SUPABASE.md). O e-mail de confirmação em português está em `supabase/templates/` (como colar e como trocar o remetente: mesma doc). Senha de conta nova: mínimo de 8 caracteres, com 1 número e 1 letra maiúscula.
 
 ## Perfil
 
-Depois do login, a barra superior mostra a foto do usuário (ou um avatar padrão), um link com engrenagem para as configurações um **switch de modo escuro** (sol e lua) e o botão **Deslogar**. Em `perfil.html` a conta pode definir um **apelido** (único, 3 a 20 caracteres, usado no ranking), enviar uma **foto** (recortada e reduzida no navegador), **trocar a senha** (informando a atual) e ver a lista de jogos com o **último horário jogado** e a **pontuação** de cada um. Anônimos não têm perfil: a barra deles mostra "Anônimo" e, no lugar de Deslogar, os botões **Entrar** e **Criar conta**, que voltam à tela de entrada já na aba escolhida (`index.html?modo=entrar` ou `?modo=conta`), sem perder a sessão anônima até o login.
+Depois do login, a barra superior mostra a foto do usuário (ou um avatar padrão), um link com engrenagem para as configurações um **switch de modo escuro** (sol e lua) e o botão **Deslogar**. Em `perfil.html` a conta pode definir um **apelido** (único, 3 a 20 caracteres, usado no ranking), enviar uma **foto** (recortada e reduzida no navegador), **trocar a senha** (informando a atual) e ver a lista de jogos com o **último horário jogado** e a **pontuação** de cada um. No fim da página fica **Excluir conta**: um popup pede a senha atual e apaga a conta e **todos** os dados dela. Anônimos não têm perfil: a barra deles mostra "Anônimo" e, no lugar de Deslogar, os botões **Entrar** e **Criar conta**, que voltam à tela de entrada já na aba escolhida (`index.html?modo=entrar` ou `?modo=conta`), sem perder a sessão anônima até o login.
+
+## Recuperar senha
+
+Na tela de entrada, o link **Esqueceu a senha?** pede o e-mail e o Supabase envia um link para a pessoa criar uma nova senha (`redefinir.html`). A senha nunca é enviada por e-mail: o sistema guarda só o hash, então o caminho é sempre definir uma nova. Isso depende da conta estar na nuvem (Supabase); no modo local a tela explica que a recuperação por e-mail não existe. Passo a passo do modelo de e-mail e do link: [docs/SUPABASE.md](docs/SUPABASE.md).
+
+## Excluir conta
+
+**Excluir conta** (LGPD), no fim do perfil, abre um popup que pede a **senha atual**; ao confirmar, a conta e todo o seu rastro são apagados. Na nuvem, o navegador confirma a senha e o banco apaga a linha da conta no servidor (função `delete_my_account`, migração `supabase/migrations/20261017000000_delete_account.sql`): o perfil, a progressão, os pontos, as fases, os coins e a atividade caem por cascata. No modo local, a conta sai do `localStorage` e tudo o que era dela é limpo. Contas sem senha (Google) confirmam só no popup — a sessão já autentica — e a conta administradora do protótipo não pode ser excluída.
+
 
 ## Modo escuro
 
@@ -82,7 +91,8 @@ Todos os caminhos são relativos, então o site funciona em `https://<usuario>.g
 ```
 index.html            página de entrada (criar conta, Google simulado, anônimo)
 jogos.html            página com os jogos disponíveis (exige sessão)
-perfil.html           perfil: apelido, foto, senha e meus jogos (exige conta)
+perfil.html           perfil: apelido, foto, senha, meus jogos e excluir conta (exige conta)
+redefinir.html        cria a nova senha, aberto pelo link do "Esqueceu a senha?"
 css/                  site.css, gamebar.css (barra dos jogos), ranking.css (painel lateral)
 js/                   login.js, hub.js, perfil.js (uma por página), auth.js (contas), userbar.js, games.js (catálogo)
 shared/               roles.js, game-switch.js (liga/desliga dos jogos), coins.js, run.js, coin-badge.js (coins e fase atual), theme.js e theme-init.js (modo escuro), rng.js, storage.js, session.js, progress.js (níveis e pontos), regions.js, ranking-list.js (linhas e abas do ranking),
