@@ -21,11 +21,11 @@ test("o administrador entra com o e-mail e a senha definidos e tem o nome 'admin
 });
 test("ninguém consegue cadastrar o e-mail do administrador", async () => {
   reset();
-  await assert.rejects(Auth.register({ name: "Intruso", email: ADMIN_EMAIL, password: "123456", region: "sul" }), /Já existe uma conta/);
+  await assert.rejects(Auth.register({ name: "Intruso", email: ADMIN_EMAIL, password: "Intruso123", region: "sul" }), /Já existe uma conta/);
 });
 test("contas comuns não são administradoras", async () => {
   reset();
-  const s = await Auth.register({ name: "Ana", email: "ana@example.com", password: "segredo1", region: "sul" });
+  const s = await Auth.register({ name: "Ana", email: "ana@example.com", password: "Segredo1", region: "sul" });
   assert.equal(isAdmin(s), false);
   assert.equal(gameAllowed("zip", s), true);
 });

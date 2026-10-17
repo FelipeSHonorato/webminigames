@@ -58,7 +58,8 @@
       <p id="pwInfo" hidden>Esta conta não usa senha.</p>
       <form id="pwForm" novalidate>
         <label>Senha atual<input id="pwCurrent" type="password" autocomplete="current-password"></label>
-        <label>Nova senha<input id="pwNew" type="password" autocomplete="new-password" minlength="6"></label>
+        <label>Nova senha<input id="pwNew" type="password" autocomplete="new-password"></label>
+        <ul class="pwrules" id="pwRules" aria-label="Requisitos da senha"></ul>
         <label>Repita a nova senha<input id="pwRepeat" type="password" autocomplete="new-password"></label>
         <button class="btn primary small" id="pwSubmit" type="submit">Alterar senha</button>
         <p class="fmsg" id="pwMsg" role="status"></p>

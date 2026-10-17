@@ -39,13 +39,13 @@ test("atividade guarda o último horário e a quantidade de partidas por jogo", 
 
 test("troca de senha exige a atual e a nova passa a valer", async () => {
   reset();
-  await Auth.register({ name: "Ana", email: "ana@example.com", password: "segredo1", region: "sul" });
-  await assert.rejects(Auth.changePassword({ current: "errada", next: "novasenha" }), /atual está incorreta/);
-  await assert.rejects(Auth.changePassword({ current: "segredo1", next: "123" }), /pelo menos 6/);
-  await assert.rejects(Auth.changePassword({ current: "segredo1", next: "segredo1" }), /diferente/);
-  await Auth.changePassword({ current: "segredo1", next: "novasenha" });
-  await assert.rejects(Auth.login({ email: "ana@example.com", password: "segredo1" }), /incorretos/);
-  assert.equal((await Auth.login({ email: "ana@example.com", password: "novasenha" })).name, "Ana");
+  await Auth.register({ name: "Ana", email: "ana@example.com", password: "Segredo1", region: "sul" });
+  await assert.rejects(Auth.changePassword({ current: "errada", next: "Novasenha1" }), /atual está incorreta/);
+  await assert.rejects(Auth.changePassword({ current: "Segredo1", next: "123" }), /pelo menos 8/);
+  await assert.rejects(Auth.changePassword({ current: "Segredo1", next: "Segredo1" }), /diferente/);
+  await Auth.changePassword({ current: "Segredo1", next: "Novasenha1" });
+  await assert.rejects(Auth.login({ email: "ana@example.com", password: "Segredo1" }), /incorretos/);
+  assert.equal((await Auth.login({ email: "ana@example.com", password: "Novasenha1" })).name, "Ana");
 });
 
 test("anônimo e Google (simulação) não trocam senha", async () => {

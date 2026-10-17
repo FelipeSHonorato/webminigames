@@ -2,6 +2,7 @@ import { store, readJSON } from "../shared/storage.js";
 import { REGIONS } from "../shared/regions.js";
 import { ADMIN_ID, ADMIN_EMAIL } from "../shared/roles.js";
 import { Cloud, authErrorMessage } from "../shared/backend/cloud.js";
+import { passwordError } from "../shared/password.js";
 
 /* ===================== AUTENTICAÇÃO =====================
    Dois modos, escolhidos por shared/backend/config.js:
@@ -35,19 +36,21 @@ async function ensureAdmin() {
   store.set("wmg.users", JSON.stringify(all));
 }
 
+/** Página para onde o link do e-mail leva (precisa estar na lista "Redirect URLs" do Supabase; veja docs/SUPABASE.md). */
+const confirmUrl = () => (typeof location === "undefined" ? undefined : new URL("confirmar.html", location.href).href);
+
 export const Auth = {
   current: () => readJSON("wmg.session", null),
   start(user) { store.set("wmg.session", JSON.stringify(user)); return user; },
-  validate({ email, password }) {
-    if (!EMAIL_RE.test(email)) throw new Error("Digite um e-mail válido.");
-    if (password.length < 6) throw new Error("A senha precisa ter pelo menos 6 caracteres.");
-  },
+  validateEmail(email) { if (!EMAIL_RE.test(email)) throw new Error("Digite um e-mail válido."); },
   async register({ name, email, password, region }) {
     if (!name.trim()) throw new Error("Digite seu nome.");
     if (!REGIONS.some(r => r.id === region)) throw new Error("Selecione sua região.");
-    this.validate({ email, password });
+    this.validateEmail(email);
+    const weak = passwordError(password);               // regra da conta NOVA: 8+ caracteres, 1 número, 1 maiúscula
+    if (weak) throw new Error(weak);
     if (Cloud.active) {
-      const { data, error } = await needClient().auth.signUp({ email: email.trim(), password, options: { data: { name: name.trim(), region } } });
+      const { data, error } = await needClient().auth.signUp({ email: email.trim(), password, options: { data: { name: name.trim(), region }, emailRedirectTo: confirmUrl() } });
       if (error) throw new Error(authErrorMessage(error));
       if (data.user && data.user.identities?.length === 0) throw new Error(authErrorMessage({ code: "user_already_exists" }));   // e-mail já cadastrado (o Supabase não avisa de outro jeito)
       if (!data.session) return { needsConfirmation: true, email: email.trim() };                                            // o projeto exige confirmar o e-mail antes do primeiro acesso
@@ -62,10 +65,11 @@ export const Auth = {
     return this.start({ id, name: name.trim(), provider: "password", region });
   },
   async login({ email, password }) {
-    this.validate({ email, password });
+    this.validateEmail(email);
+    if (!password) throw new Error("Digite sua senha.");  // login NÃO aplica a regra de senha forte: contas antigas continuam entrando
     if (Cloud.active) {
       const { data, error } = await needClient().auth.signInWithPassword({ email: email.trim(), password });
-      if (error) throw new Error(authErrorMessage(error));
+      if (error) throw Object.assign(new Error(authErrorMessage(error)), { code: error.code });   // o código deixa a tela oferecer "reenviar e-mail"
       return Cloud.adopt(data.user);
     }
     await ensureAdmin();
@@ -77,7 +81,8 @@ export const Auth = {
   async changePassword({ current, next }) {
     const s = this.current();
     if (s?.provider !== "password") throw new Error("Esta conta não usa senha.");
-    if (next.length < 6) throw new Error("A nova senha precisa ter pelo menos 6 caracteres.");
+    const weak = passwordError(next);
+    if (weak) throw new Error(weak.replace("A senha", "A nova senha"));
     if (Cloud.active) {
       const sb = needClient();
       if (!s.email) throw new Error("Entre de novo para trocar a senha.");
@@ -94,6 +99,19 @@ export const Auth = {
     u.salt = randomHex(16);
     u.hash = await hashPassword(next, u.salt);
     store.set("wmg.users", JSON.stringify(all));
+  },
+  /** Link do e-mail de confirmação (?token_hash=...): só vale depois do clique na página confirmar.html, para antivírus e leitores de e-mail não gastarem o link. */
+  async confirmEmail({ tokenHash, type }) {
+    if (!["email", "signup"].includes(type) || !tokenHash) throw new Error("Link inválido.");
+    const { data, error } = await needClient().auth.verifyOtp({ token_hash: tokenHash, type });
+    if (error) throw Object.assign(new Error(authErrorMessage(error)), { code: error.code });
+    return Cloud.adopt(data.user);
+  },
+  /** Pede um novo e-mail de confirmação (link expirado ou perdido). */
+  async resendConfirmation(email) {
+    this.validateEmail(email);
+    const { error } = await needClient().auth.resend({ type: "signup", email: email.trim(), options: { emailRedirectTo: confirmUrl() } });
+    if (error) throw new Error(authErrorMessage(error));
   },
   /** Com Supabase: abre o login do Google e a página recarrega ao voltar (devolve null). Sem Supabase: SIMULAÇÃO, não fala com o Google. */
   async loginWithGoogle() {

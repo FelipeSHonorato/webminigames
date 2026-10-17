@@ -203,7 +203,8 @@ test("mensagens de erro de login/cadastro em português", () => {
   assert.match(m({ code: "invalid_credentials" }), /incorretos/);
   assert.match(m({ code: "user_already_exists" }), /Já existe/);
   assert.match(m({ code: "email_not_confirmed" }), /Confirme seu e-mail/);
-  assert.match(m({ code: "weak_password" }), /Senha fraca/);
+  assert.match(m({ code: "weak_password" }), /8 caracteres, um número e uma letra maiúscula/);
+  assert.match(m({ code: "otp_expired" }), /expirou ou já foi usado/);
   assert.match(m({ code: "over_email_send_rate_limit" }), /Muitas tentativas/);
   assert.match(m({ status: 429 }), /Muitas tentativas/);
   assert.match(m({ name: "AuthRetryableFetchError", message: "x" }), /Sem conexão/);

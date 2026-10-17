@@ -1,5 +1,6 @@
 import { store, readJSON } from "../storage.js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SDK } from "./config.js";
+import { PASSWORD_HINT } from "../password.js";
 
 /* ===================== NUVEM (Supabase) =====================
    Ponto de troca dos serviços de shared/ (Coins, Run, Scores, Profile, GameSwitch, Progress, AdminLevel) e de js/auth.js.
@@ -31,7 +32,8 @@ export function authErrorMessage(error) {
   if (["user_already_exists", "email_exists"].includes(code)) return "Já existe uma conta com este e-mail. Use a aba Entrar.";
   if (code === "invalid_credentials") return "E-mail ou senha incorretos.";
   if (code === "email_not_confirmed") return "Confirme seu e-mail antes de entrar: procure o link na sua caixa de entrada.";
-  if (code === "weak_password") return "Senha fraca: use pelo menos 6 caracteres.";
+  if (code === "weak_password") return PASSWORD_HINT;
+  if (code === "otp_expired") return "Este link expirou ou já foi usado. Peça um novo e-mail de confirmação.";
   if (code === "same_password") return "A nova senha deve ser diferente da atual.";
   if (["over_request_rate_limit", "over_email_send_rate_limit"].includes(code) || error?.status === 429) return "Muitas tentativas. Aguarde alguns minutos e tente de novo.";
   if (code === "signup_disabled") return "Os cadastros estão desativados neste momento.";

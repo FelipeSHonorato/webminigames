@@ -38,7 +38,7 @@ Existe uma conta administradora, criada automaticamente na primeira tentativa de
 
 ## Backend (Supabase)
 
-As contas e os registros podem ficar no **Supabase** (Postgres + login): preencha `SUPABASE_URL` e `SUPABASE_ANON_KEY` em `shared/backend/config.js` e rode `supabase/migrations/20261014000000_init.sql` no SQL Editor. Vazio, o site continua no **modo local** (tudo no navegador). Com a nuvem ligada: contas reais (e-mail/senha e Google), progresso, pontos, coins, fases salvas, rankings e liga/desliga de jogos compartilhados por todos, e o **servidor** decide pontos, nível e coins. Passo a passo e funcionamento: [docs/SUPABASE.md](docs/SUPABASE.md).
+As contas e os registros podem ficar no **Supabase** (Postgres + login): preencha `SUPABASE_URL` e `SUPABASE_ANON_KEY` em `shared/backend/config.js` e rode `supabase/migrations/20261014000000_init.sql` no SQL Editor. Vazio, o site continua no **modo local** (tudo no navegador). Com a nuvem ligada: contas reais (e-mail/senha e Google), progresso, pontos, coins, fases salvas, rankings e liga/desliga de jogos compartilhados por todos, e o **servidor** decide pontos, nível e coins. Passo a passo e funcionamento: [docs/SUPABASE.md](docs/SUPABASE.md). O e-mail de confirmação em português está em `supabase/templates/` (como colar e como trocar o remetente: mesma doc). Senha de conta nova: mínimo de 8 caracteres, com 1 número e 1 letra maiúscula.
 
 ## Perfil
 

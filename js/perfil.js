@@ -1,4 +1,5 @@
 import "../shared/backend/boot.js";
+import { mountPasswordRules } from "./password-rules.js";
 import { requireSession } from "../shared/session.js";
 import { Profile, Activity } from "../shared/profile.js";
 import { Scores } from "../shared/scores.js";
@@ -70,13 +71,14 @@ function init() {
     catch (err) { say($("nickMsg"), err.message, true); }
   };
 
+  const updateRules = mountPasswordRules($("pwNew"), $("pwRules"));
   $("pwForm").onsubmit = async e => {
     e.preventDefault();
     const current = $("pwCurrent").value, next = $("pwNew").value, btn = $("pwSubmit");
     if (!current) return say($("pwMsg"), "Digite a senha atual.", true);
     if (next !== $("pwRepeat").value) return say($("pwMsg"), "As senhas novas não coincidem.", true);
     btn.disabled = true;
-    try { await Auth.changePassword({ current, next }); $("pwForm").reset(); say($("pwMsg"), "Senha alterada com sucesso."); }
+    try { await Auth.changePassword({ current, next }); $("pwForm").reset(); updateRules(); say($("pwMsg"), "Senha alterada com sucesso."); }
     catch (err) { say($("pwMsg"), err.message, true); }
     finally { btn.disabled = false; }
   };
