@@ -1,6 +1,6 @@
 # WebMiniGames
 
-Site de mini-games de lógica que roda direto no navegador, sem build e sem dependências. Reúne seis jogos: dois inspirados nos puzzles diários do LinkedIn (Zip e Patches), os clássicos Sudoku, Sopa de Letras e Palavras Cruzadas, e o Conexão de Canos:
+Site de mini-games de lógica que roda direto no navegador, sem build e sem dependências para instalar (módulos ES puros; a biblioteca do Supabase, quando usada, vem do próprio repositório em `vendor/`). Reúne seis jogos: dois inspirados nos puzzles diários do LinkedIn (Zip e Patches), os clássicos Sudoku, Sopa de Letras e Palavras Cruzadas, e o Conexão de Canos:
 
 - **Zip:** trace um único caminho passando pelos números em ordem e por todas as células. Paredes bloqueiam a passagem.
 - **Patches:** divida a grade em retângulos; cada um tem exatamente uma pista, com a área (número) e o formato (quadrado, largo, alto ou qualquer).
@@ -25,11 +25,11 @@ Zip, Patches, Sudoku e Conexão de Canos têm o botão **Reiniciar**. Ele só fu
 
 Cada jogador recebe **2 coins por jogo a cada 24 horas**; não acumulam (o saldo nunca passa de 2). **O coin só é gasto quando a fase é concluída.** O botão **Nova fase** só habilita com a fase atual concluída e pelo menos 1 coin; sem coins, o saldo mostra quando chegam os próximos. O saldo aparece como `[moeda] x 2` ao lado do nome do jogo, nos cards de `jogos.html` e na barra superior de cada jogo.
 
-A fase atual é salva por seed (`shared/run.js`): recarregar a página devolve a mesma fase, e uma fase concluída volta mostrando a solução, sem pontuar nem gastar coin de novo. Os coins ficam em `shared/coins.js` (local, como o restante); num backend real, a recarga e o gasto devem ser calculados no servidor, senão mudar o relógio ou o `localStorage` burla o limite.
+A fase atual é salva por seed (`shared/run.js`): recarregar a página devolve a mesma fase, e uma fase concluída volta mostrando a solução, sem pontuar nem gastar coin de novo. A lógica fica em `shared/coins.js`. No **modo local** os coins ficam no `localStorage` — mudar o relógio ou o `localStorage` burla o limite; com o **Supabase** ligado, a recarga e o gasto são calculados no servidor.
 
 ## Conta administradora
 
-Existe uma conta administradora, criada automaticamente na primeira tentativa de login ou cadastro: nome `administrador`, e-mail `administrador@administrador.com.br` e senha `administrador`. Ela tem **99999 coins por jogo** (gasta ao concluir fases, como as demais, e a recarga de 24 h devolve o saldo a 99999) e acessa o **Painel** (`admin.html`, link na barra superior), com uma chave liga/desliga para cada jogo.
+No **modo local** existe uma conta administradora, criada automaticamente na primeira tentativa de login ou cadastro: nome `administrador`, e-mail `administrador@administrador.com.br` e senha `administrador`. Ela tem **99999 coins por jogo** (gasta ao concluir fases, como as demais, e a recarga de 24 h devolve o saldo a 99999) e acessa o **Painel** (`admin.html`, link na barra superior), com uma chave liga/desliga para cada jogo. Com o **Supabase** ligado, essa conta de protótipo não vale: crie uma conta normal e rode `select public.promote_admin('seu@email.com');` no SQL Editor ([docs/SUPABASE.md](docs/SUPABASE.md)).
 
 - **Jogo desligado:** os jogadores não entram nele (o card fica como "Desligado" e a página redireciona); o administrador continua entrando.
 - **Pontos preservados:** desligar não remove nada. Os pontos continuam no ranking do jogo, no ranking geral e no perfil de cada jogador.
@@ -73,10 +73,11 @@ python -m http.server 8000      # alternativa com Python (no Mac/Linux: python3)
 Requer Node 20 ou superior. Não há dependências para instalar.
 
 ```bash
-npm test
+npm test                        # roda tudo com o runner nativo do Node
+npm run test:db                 # opcional: pgTAP no Supabase local (precisa da CLI do Supabase e Docker)
 ```
 
-Cobrem regras, solver e gerador dos seis jogos (cada nível precisa gerar fase de solução única) e a progressão de níveis.
+`npm test` cobre as regras, o solver e o gerador dos seis jogos (cada nível precisa gerar fase de solução única), a progressão de níveis, coins, ranking, perfil, regra de senha, painel do administrador e o backend: `tests/supabase.test.js` falha se o SQL de `supabase/migrations` divergir do JavaScript (níveis, pontos, coins, regiões, jogos, RLS e permissões), e `tests/cloud.test.js` exercita o modo nuvem com um cliente simulado (cache, fila de vitórias, reenvio sem contar em dobro e modo degradado).
 
 ## Publicando no GitHub Pages
 
@@ -86,23 +87,33 @@ Cobrem regras, solver e gerador dos seis jogos (cada nível precisa gerar fase d
 
 Todos os caminhos são relativos, então o site funciona em `https://<usuario>.github.io/<repositorio>/`.
 
+Como no modo local não há backend, o site fica totalmente estático. O workflow também publica a pasta `vendor/`, de onde a biblioteca do Supabase é carregada quando a nuvem está ligada.
+
 ## Estrutura
 
 ```
-index.html            página de entrada (criar conta, Google simulado, anônimo)
+index.html            página de entrada (criar conta, Google simulado, anônimo, "Esqueceu a senha?")
 jogos.html            página com os jogos disponíveis (exige sessão)
 perfil.html           perfil: apelido, foto, senha, meus jogos e excluir conta (exige conta)
+admin.html            painel do administrador: liga/desliga de cada jogo e nível de teste
+confirmar.html        confirma o e-mail pelo link enviado e abre a sessão
 redefinir.html        cria a nova senha, aberto pelo link do "Esqueceu a senha?"
-css/                  site.css, gamebar.css (barra dos jogos), ranking.css (painel lateral)
-js/                   login.js, hub.js, perfil.js (uma por página), auth.js (contas), userbar.js, games.js (catálogo)
-shared/               roles.js, game-switch.js (liga/desliga dos jogos), coins.js, run.js, coin-badge.js (coins e fase atual), theme.js e theme-init.js (modo escuro), rng.js, storage.js, session.js, progress.js (níveis e pontos), regions.js, ranking-list.js (linhas e abas do ranking),
+assets/               favicon.svg e email-logo.png (ícones e logotipo dos e-mails)
+css/                  site.css, gamebar.css (barra dos jogos), ranking.css (painel lateral) e ranking-list.css (linhas e abas do ranking), coins.css, userbar.css
+js/                   login.js, hub.js, perfil.js, admin.js, confirmar.js e redefinir.js (uma por página), auth.js (contas), password-rules.js (requisitos da senha), userbar.js, games.js (catálogo)
+shared/               roles.js, game-switch.js (liga/desliga dos jogos), coins.js, run.js, coin-badge.js (coins e fase atual), theme.js e theme-init.js (modo escuro), rng.js, storage.js, session.js, progress.js (níveis e pontos), admin-level.js (nível de teste do administrador), regions.js, ranking-list.js (linhas e abas do ranking),
                       scores.js (pontuação e ranking), ranking-panel.js (painel lateral),
-                      profile.js (apelido, foto, atividade), avatar.js (redimensiona a foto)
+                      profile.js (apelido, foto, atividade), avatar.js (redimensiona a foto), password.js (regra de senha), capture-auth-hash.js (guarda o "#" do link), file-warning.js (aviso no file://)
+  backend/            config.js (URL/chave do Supabase; vazio = modo local), boot.js (carrega a conta), cloud.js (acesso ao Supabase), auth-redirect.js (lê o link do e-mail)
 games/<jogo>/
   domain.js           regras, solver e gerador (puro, sem DOM)
   ui.js               renderização e entrada (Pointer Events)
   index.html, style.css
+  words.js            vocabulário de Sopa de Letras e Palavras Cruzadas
+supabase/             migrations/ (esquema do banco), templates/ (e-mails em pt-BR) e tests/database/ (pgTAP)
+vendor/               supabase-js.mjs (biblioteca do Supabase, versão fixa, sem CDN)
 tests/                testes com o runner nativo do Node
+docs/                 CONTINUAR.md (estado e próximos passos) e SUPABASE.md (passo a passo do backend)
 ```
 
 Fluxo: `index.html` (entrada) → `jogos.html` (lista de jogos) → `games/<jogo>/` (cada jogo é uma página própria, com o botão "← Jogos"). O login grava a sessão em `localStorage` (`wmg.session`); as páginas de jogos e a lista exigem essa sessão e o progresso é gravado por usuário.
@@ -120,10 +131,12 @@ Fluxo: `index.html` (entrada) → `jogos.html` (lista de jogos) → `games/<jogo
 
 ## Limitações conhecidas
 
-- **O ranking ainda é local:** `shared/scores.js` guarda tudo no `localStorage`, então só compara contas criadas no mesmo navegador. Um ranking global e regional de verdade exige um backend: reimplemente `submit` e `leaderboard` desse arquivo (Firebase, Supabase…) e valide as vitórias no servidor, já que pontos no navegador podem ser editados por quem souber como.
-- Contas criadas antes do campo de região não têm região e não aparecem no ranking regional.
+Estas valem para o **modo local** (padrão, com `shared/backend/config.js` vazio). Com o Supabase ligado, contas, progresso, coins, fases e rankings passam a ficar no servidor e são compartilhados entre navegadores.
 
-- **Contas são um protótipo local:** ficam no `localStorage` do navegador (senha com PBKDF2 + salt) e não sincronizam entre dispositivos. O botão do Google é uma simulação. Para produção, reimplemente os métodos de `js/auth.js` com um provedor real (Firebase Auth, Supabase, Auth0) e leve o progresso para o servidor.
+- **No modo local, o ranking é local:** `shared/scores.js` guarda tudo no `localStorage`, então só compara contas criadas no mesmo navegador.
+- **Contas são um protótipo local:** ficam no `localStorage` do navegador (senha com PBKDF2 + salt) e não sincronizam entre dispositivos. O botão do Google é uma simulação neste modo; na nuvem ele usa o OAuth real do Supabase.
+- **Os pontos de cada vitória são pedidos pelo navegador:** mesmo na nuvem, o servidor só limita os pontos ao teto do nível, sem reexecutar a lógica do jogo. Validar a vitória de verdade exigiria rodar as regras de cada jogo no servidor (ex.: Edge Function). Coins e nível, esses só mudam por função no banco.
+- Contas criadas antes do campo de região não têm região e não aparecem no ranking regional; contas Google também ficam sem região (o seletor só aparece no cadastro local).
 - A geração dos níveis altos roda na thread principal e pode levar alguns segundos no Zip Genius; um Web Worker resolveria.
 - Sem suporte a teclado no Patches.
 

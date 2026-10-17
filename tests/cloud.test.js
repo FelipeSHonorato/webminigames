@@ -49,7 +49,7 @@ const winResult = { duplicate: false, wins: 4, score: { points: 17, wins: 4, upd
 test("sem Supabase configurado, a nuvem fica desligada (modo local)", async () => {
   Cloud._reset();
   assert.equal(isConfigured("", ""), false); assert.equal(isConfigured("https://x.supabase.co", ""), false); assert.equal(isConfigured("https://x.supabase.co", "k"), true);
-  assert.equal(await Cloud.start(), null);
+  assert.equal(await Cloud.start({ url: "", key: "" }), null);        // config explícita vazia: local, mesmo com o config.js preenchido
   assert.equal(Cloud.active, false); assert.equal(Cloud.owns(UID), false);
   assert.equal(GameSwitch.isOn("canos"), true);                       // local: tudo ligado
 });

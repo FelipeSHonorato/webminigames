@@ -139,10 +139,11 @@ export const Cloud = {
   client: () => S.client,
   role: () => S.cache.profile?.role ?? "user",
 
-  /** Chamado uma vez por página (shared/backend/boot.js). Sem Supabase configurado, não faz nada. */
-  async start({ client } = {}) {
+  /** Chamado uma vez por página (shared/backend/boot.js). Sem Supabase configurado, não faz nada.
+      `url`/`key` existem para os testes forçarem o modo local sem mexer em shared/backend/config.js. */
+  async start({ client, url = SUPABASE_URL, key = SUPABASE_ANON_KEY } = {}) {
     if (S.active) return S;
-    if (!client && !isConfigured()) return null;
+    if (!client && !isConfigured(url, key)) return null;
     S.active = true;
     try {
       S.client = client ?? await makeClient();

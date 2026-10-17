@@ -59,9 +59,15 @@ test("SQL: pontos, coins e vitórias só mudam por função (nenhuma tabela dess
   assert.deepEqual(writes.sort(), ["public.games", "public.profiles", "public.runs"].sort());   // games só `enabled` (admin via RLS), profiles só colunas seguras, runs é do dono
 });
 
-test("a configuração entregue está vazia (modo local) e não leva chave secreta", () => {
-  assert.equal(SUPABASE_URL, ""); assert.equal(SUPABASE_ANON_KEY, "");
-  assert.doesNotMatch(readFileSync(new URL("../shared/backend/config.js", import.meta.url), "utf8"), /service_role[^"\n]*"[A-Za-z0-9._-]{20,}"/);
+test("a configuração do Supabase é válida quando preenchida (ou vazia, no modo local) e nunca leva chave secreta", () => {
+  const src = readFileSync(new URL("../shared/backend/config.js", import.meta.url), "utf8");
+  assert.equal(Boolean(SUPABASE_URL), Boolean(SUPABASE_ANON_KEY), "SUPABASE_URL e SUPABASE_ANON_KEY devem estar preenchidos juntos");
+  if (SUPABASE_URL || SUPABASE_ANON_KEY) {
+    assert.match(SUPABASE_URL, /^https:\/\/[a-z0-9]+\.supabase\.co$/, "URL do Supabase inesperada");
+    assert.match(SUPABASE_ANON_KEY, /^(eyJ|sb_publishable_)/, "use a chave anon/publishable, nunca a secreta");
+  }
+  assert.doesNotMatch(src, /service_role[^"\n]*"[A-Za-z0-9._-]{20,}"/);
+  assert.doesNotMatch(src, /sb_secret_[A-Za-z0-9_-]{20,}/);
 });
 
 test("a biblioteca do Supabase vem do repositório (vendor/), com versão fixa e a exportação que o site usa", () => {
