@@ -37,7 +37,7 @@ document.querySelector(".help")?.append(` ${pointsLegend()}`);   // pontuação 
 
 /* ===================== UI ===================== */
 const svg = document.getElementById("board"), msg = document.getElementById("msg"), timerEl = document.getElementById("timer");
-const timeBar = document.getElementById("timeBar"), timeFill = document.getElementById("timeFill"), phaseEl = document.getElementById("phase"), retryBtn = document.getElementById("retry");
+const timeBar = document.getElementById("timeBar"), timeFill = document.getElementById("timeFill"), phaseEl = document.getElementById("phase"), retryBtn = document.getElementById("retry"), releaseBtn = document.getElementById("release");
 
 /* ----- Progressão: a cada 15 vitórias o nível sobe (salvo no navegador) ----- */
 const levelName = document.getElementById("levelName"), levelCount = document.getElementById("levelCount"), barFill = document.getElementById("barFill");
@@ -95,7 +95,7 @@ const GEOM = {   // traçado de cada tipo com rotação 0 (N-S, N-L, N-L-O, cruz
   X: { d: "M50 0V100M0 50H100", ends: [N, E, S, W], hub: true },
 };
 const FLANGE = { [N]: "M50 0V10", [E]: "M100 50H90", [S]: "M50 100V90", [W]: "M0 50H10" };
-const WATER_STYLE = 'style="opacity:var(--w,0);transition:opacity .3s"';
+const WATER_STYLE = 'style="opacity:var(--w,0);transition:opacity .6s ease"';   // o enchimento de cada casa é gradual, para a água "correr" e não piscar
 function symbolSvg(type) {
   const g = GEOM[type], stroke = (d, color, w, extra = "") => `<path d="${d}" fill="none" stroke="${color}" stroke-width="${w}" ${extra}/>`;
   return `<symbol id="p-${type}" viewBox="0 0 100 100"><rect width="100" height="100" fill="none"/>`
@@ -176,6 +176,9 @@ function renderPhase() {
     || ((phase === "ready" || phase === "counting") && moves === 0 && !svg.querySelector(".wet"));   // nada para desfazer
   retryBtn.textContent = phase === "lost" ? "Tentar de novo" : "Reiniciar";
   retryBtn.title = phase === "won" ? "Reiniciar só está disponível enquanto a fase não é concluída." : "";
+  releaseBtn.disabled = phase !== "counting";   // só faz sentido com a contagem em andamento; a água corre na hora e o relógio zera
+  releaseBtn.title = phase === "ready" ? "Gire um cano para começar a contagem."
+    : phase === "counting" ? "Faz a água correr agora e zera a contagem, sem esperar o tempo acabar." : "";
   renderCoins();
 }
 function stopTimers() { clearInterval(clockId); clearTimeout(flowId); clockId = flowId = null; }
@@ -225,15 +228,20 @@ function startFlow() {
   sim = simulate(puzzle, rots);
   const byDepth = new Map();
   for (const f of sim.fills) if (f.depth <= sim.endDepth) byDepth.set(f.depth, [...(byDepth.get(f.depth) ?? []), f.cell]);
-  const tick = Math.round(Math.min(420, Math.max(90, 9000 / (sim.endDepth + 2))));   // a animação inteira dura ~9 s, no máximo
+  const tick = Math.round(Math.min(560, Math.max(140, 13000 / (sim.endDepth + 2))));   // cadência de cada onda: a animação inteira dura de ~5 a ~13 s, para a água correr com calma
   let wave = 0;
   const step = () => {
     for (const c of byDepth.get(wave) ?? []) tileEls[c].classList.add("wet");
     if (sim.status === "win" && wave === sim.outletDepth) outletEl.classList.add("wet");
-    if (wave >= sim.endDepth) { flowId = setTimeout(finish, 500); return; }
+    if (wave >= sim.endDepth) { flowId = setTimeout(finish, 650); return; }
     wave++; flowId = setTimeout(step, tick);
   };
-  flowId = setTimeout(step, 350);
+  flowId = setTimeout(step, 400);
+}
+/** Solta a água na hora, sem esperar a contagem: zera o relógio e começa o fluxo. Só vale durante a contagem. */
+function releaseWater() {
+  if (phase !== "counting") return;
+  startFlow();
 }
 function finish() {
   if (sim.status === "win") {
@@ -259,6 +267,7 @@ svg.addEventListener("pointerdown", e => {
   rotate(row * n + col, e.pointerType === "mouse" && (e.button === 2 || e.shiftKey) ? -1 : 1);
 });
 svg.addEventListener("contextmenu", e => e.preventDefault());
+releaseBtn.onclick = releaseWater;
 retryBtn.onclick = () => {
   if (phase === "counting") { restoreRots(); renderPhase(); }   // contagem em andamento: os giros voltam ao começo, o tempo segue correndo
   else if (phase === "ready" || phase === "lost") reset();      // tentativa nova (a água já correu, ou ainda nem começou): relógio cheio, volta a contar no 1º giro
