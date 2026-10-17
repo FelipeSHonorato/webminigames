@@ -34,11 +34,11 @@ h1{margin:0;font-size:2rem;letter-spacing:-.02em}
 #board.busy,#board.locked{cursor:default}
 #board .bg{fill:var(--tile)}
 #board .bg2{fill:var(--tile2)}
-#board .pipe{transform-origin:50px 50px;transition:transform .16s ease-out;--w:0}
+#board .pipe{transform-origin:50px 50px;transition:transform .16s ease-out;--w:0;--f:100px}
 #board.instant .pipe{transition:none}
 #board .tile.wet .pipe{--w:1}
 #board .stub .pipe{transform-origin:50px 50px}
-#board .stub.in .pipe,#board .stub.wet .pipe{--w:1}
+#board .stub.in .pipe,#board .stub.wet .pipe{--w:1;--f:0}   /* os canos de entrada/saída usam o símbolo do reto: revela o traço da água */
 #board .cap-in{fill:var(--water)}
 #board .cap-out{fill:var(--out)}
 #board .cap-sym{fill:none;stroke:#fff;stroke-width:5;stroke-linecap:round;stroke-linejoin:round}

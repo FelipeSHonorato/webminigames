@@ -10,7 +10,7 @@ import { mountUserBar } from "../../js/userbar.js";
 import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
 import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/progress.js";
-import { DELTA, E, GEN, LEVELS, N, S, STORE_KEY, W, firstLeaks, generatePuzzle, initialRots, rotateTile, simulate, solutionRots } from "./domain.js";
+import { BIT, DELTA, E, GEN, LEVELS, N, S, STORE_KEY, W, firstLeaks, generatePuzzle, initialRots, maskOf, opposite, rotateTile, simulate, solutionRots } from "./domain.js";
 
 const GAME_ID = "canos";
 const sessionUser = requireSession("../../index.html");   // sem sessão, volta para o login
@@ -89,19 +89,26 @@ function freshPuzzle() {
    Cada tipo de cano é um <symbol> reutilizado; a água de cada cano é um traço azul cuja opacidade vem da variável CSS --w. */
 const C = { out: "#3f7a10", body: "#8fd62c", hi: "#c9f66f", water: "#19a7ea", fl1: "#4a8f12", fl2: "#76bf22" };
 const GEOM = {   // traçado de cada tipo com rotação 0 (N-S, N-L, N-L-O, cruz) e os lados abertos
-  I: { d: "M50 0V100", ends: [N, S] },
-  L: { d: "M50 0V28A22 22 0 0 0 72 50H100", ends: [N, E] },
+  I: { d: "M50 0V100", wd: ["M50 0V100", "M50 100V0"], ends: [N, S] },
+  L: { d: "M50 0V28A22 22 0 0 0 72 50H100", wd: ["M50 0V28A22 22 0 0 0 72 50H100", "M100 50H72A22 22 0 0 1 50 28V0"], ends: [N, E] },
   T: { d: "M50 0V50M0 50H100", ends: [N, E, W], hub: true },
   X: { d: "M50 0V100M0 50H100", ends: [N, E, S, W], hub: true },
 };
 const FLANGE = { [N]: "M50 0V10", [E]: "M100 50H90", [S]: "M50 100V90", [W]: "M0 50H10" };
-const WATER_STYLE = 'style="opacity:var(--w,0);transition:opacity .6s ease"';   // o enchimento de cada casa é gradual, para a água "correr" e não piscar
-function symbolSvg(type) {
-  const g = GEOM[type], stroke = (d, color, w, extra = "") => `<path d="${d}" fill="none" stroke="${color}" stroke-width="${w}" ${extra}/>`;
-  return `<symbol id="p-${type}" viewBox="0 0 100 100"><rect width="100" height="100" fill="none"/>`
+/* A água é um traço por cima do cano. No reto e na curva ela CORRE: o traço começa escondido (`--f:100px`) e vai aparecendo da entrada
+   para a saída (`--f:0`), via `stroke-dashoffset`. Por isso cada tipo tem uma variante normal e uma reversa (`-r`), escolhida conforme o
+   lado por onde a água entra. No T e na cruz (que espalham a água) ela aparece como um todo, por opacidade (`--w`). */
+const WATER_FADE = 'style="opacity:var(--w,0)"';
+const WATER_FLOW = 'pathLength="100" stroke-dasharray="100" style="stroke-dashoffset:var(--f,100px)"';
+const SYMBOLS = ["I", "I-r", "L", "L-r", "T", "X"];
+function symbolSvg(id) {
+  const [type, rev] = id.split("-"), g = GEOM[type];
+  const stroke = (d, color, w, extra = "") => `<path d="${d}" fill="none" stroke="${color}" stroke-width="${w}" ${extra}/>`;
+  const water = g.hub ? WATER_FADE : WATER_FLOW, wd = g.hub ? g.d : g.wd[rev ? 1 : 0];
+  return `<symbol id="p-${id}" viewBox="0 0 100 100"><rect width="100" height="100" fill="none"/>`
     + stroke(g.d, C.out, 40) + stroke(g.d, C.body, 32) + stroke(g.d, C.hi, 8, 'opacity=".55"')
     + (g.hub ? `<circle cx="50" cy="50" r="21" fill="${C.out}"/><circle cx="50" cy="50" r="17" fill="${C.body}"/>` : "")
-    + stroke(g.d, C.water, 18, WATER_STYLE) + (g.hub ? `<circle cx="50" cy="50" r="10" fill="${C.water}" ${WATER_STYLE}/>` : "")
+    + stroke(wd, C.water, 18, water) + (g.hub ? `<circle cx="50" cy="50" r="10" fill="${C.water}" ${WATER_FADE}/>` : "")
     + g.ends.map(s => stroke(FLANGE[s], C.fl1, 44) + stroke(FLANGE[s], C.fl2, 36)).join("")
     + "</symbol>";
 }
@@ -132,7 +139,7 @@ function buildBoard() {
     return `<g class="tile" data-i="${i}" transform="translate(${x} ${y})"><rect class="bg" x="3" y="3" width="94" height="94" rx="8"/><rect class="bg2" x="10" y="10" width="80" height="80" rx="5"/>`
       + `<g class="pipe" style="transform:rotate(${angles[i]}deg)">${useSvg(t.type)}</g></g>`;
   }).join("");
-  svg.innerHTML = `<defs>${["I", "L", "T", "X"].map(symbolSvg).join("")}</defs>${tiles}${stubSvg(n, puzzle.inlet, "in")}${stubSvg(n, puzzle.outlet, "out")}`;
+  svg.innerHTML = `<defs>${SYMBOLS.map(symbolSvg).join("")}</defs>${tiles}${stubSvg(n, puzzle.inlet, "in")}${stubSvg(n, puzzle.outlet, "out")}`;
   tileEls = [...svg.querySelectorAll(".tile")];
   pipeEls = tileEls.map(el => el.querySelector(".pipe"));
   outletEl = svg.querySelector(".stub.out");
@@ -181,7 +188,7 @@ function renderPhase() {
     : phase === "counting" ? "Faz a água correr agora e zera a contagem, sem esperar o tempo acabar." : "";
   renderCoins();
 }
-function stopTimers() { clearInterval(clockId); clearTimeout(flowId); clockId = flowId = null; }
+function stopTimers() { clearInterval(clockId); cancelAnimationFrame(flowId); clearTimeout(flowId); clockId = flowId = null; }
 
 /** Devolve os canos aos giros do começo SEM tocar no relógio: é o que o Reiniciar faz com a contagem em andamento. */
 function restoreRots() {
@@ -193,7 +200,7 @@ function reset() {
   stopTimers();
   rots = initialRots(puzzle); angles = rots.map(r => r * 90); moves = 0; sim = null;
   total = LEVELS[puzzle.level].seconds * 1000;
-  tileEls.forEach(el => el.classList.remove("wet"));
+  clearWater();
   svg.querySelectorAll(".leak").forEach(el => el.remove());
   outletEl.classList.remove("wet");
   svg.classList.remove("won", "lost");
@@ -221,22 +228,73 @@ function rotate(i, dir) {
   pipeEls[i].style.transform = `rotate(${angles[i]}deg)`;
   renderPhase();
 }
-/** O tempo acabou: a água entra e avança uma casa por onda, por todos os ramos. Vence quem chega à saída antes de vazar. */
+/* ----- A água corre numa frente única e contínua (requestAnimationFrame): a frente anda 1 casa a cada `cellMs` e cada casa leva
+   FILL casas-de-frente para encher, então as casas se sobrepõem e o movimento fica fluido, sem os "pulos" de uma onda por timeout. */
+const FILL = 1.2;
+/** Água de uma casa: no reto/curva revela o traço (`--f`), no T/cruz usa a opacidade (`--w`). `p` vai de 0 (seco) a 1 (cheio). */
+function paintWater(cell, p) {
+  const el = pipeEls[cell], t = puzzle.tiles[cell].type;
+  if (t === "I" || t === "L") { el.style.setProperty("--w", "1"); el.style.setProperty("--f", `${(100 * (1 - p)).toFixed(2)}px`); }
+  else el.style.setProperty("--w", p.toFixed(3));
+  if (p > 0) tileEls[cell].classList.add("wet");
+}
+/** Limpa a água e devolve cada cano à variante normal (ao reiniciar ou abrir a fase). */
+function clearWater() {
+  tileEls.forEach((el, i) => {
+    el.classList.remove("wet");
+    pipeEls[i].style.removeProperty("--w"); pipeEls[i].style.removeProperty("--f");
+    pipeEls[i].querySelector("use")?.setAttribute("href", `#p-${puzzle.tiles[i].type}`);
+  });
+}
+/** Aponta o cano para a variante (normal/reversa) que faz o traço da água nascer do lado por onde ela entra. */
+function orientWater(cell, entrySide) {
+  const t = puzzle.tiles[cell].type;
+  if ((t !== "I" && t !== "L") || entrySide < 0) return;
+  const local = (((entrySide - rots[cell]) % 4) + 4) % 4;
+  const rev = t === "I" ? local === S : local !== N;
+  pipeEls[cell].querySelector("use")?.setAttribute("href", `#p-${t}${rev ? "-r" : ""}`);
+}
+/** Lado (global) por onde a água entra em cada casa: a entrada, pela borda; nas outras, o lado voltado para a casa uma onda antes. */
+function entrySides(wet) {
+  const depthOf = new Map(sim.fills.map(f => [f.cell, f.depth])), sides = new Map(), { n, inlet } = puzzle;
+  for (const f of wet) {
+    if (f.cell === inlet.cell) { sides.set(f.cell, inlet.side); continue; }
+    const r = Math.floor(f.cell / n), c = f.cell % n, m = maskOf(puzzle.tiles[f.cell].type, rots[f.cell]);
+    let side = -1;
+    for (const s of [N, E, S, W]) {
+      if (!(m & BIT[s])) continue;
+      const nr = r + DELTA[s][0], nc = c + DELTA[s][1];
+      if (nr < 0 || nc < 0 || nr >= n || nc >= n) continue;
+      const nb = nr * n + nc;
+      if (depthOf.get(nb) === f.depth - 1 && (maskOf(puzzle.tiles[nb].type, rots[nb]) & BIT[opposite(s)])) { side = s; break; }
+    }
+    sides.set(f.cell, side);
+  }
+  return sides;
+}
+/** O tempo acabou (ou o jogador soltou a água): a água entra e corre por todos os ramos. Vence quem chega à saída antes de vazar. */
 function startFlow() {
-  clearInterval(clockId); clockId = null;
+  clearInterval(clockId); clockId = null; cancelAnimationFrame(flowId); flowId = null;
   phase = "flowing"; renderClock(0); setMessage(""); renderPhase();
   sim = simulate(puzzle, rots);
-  const byDepth = new Map();
-  for (const f of sim.fills) if (f.depth <= sim.endDepth) byDepth.set(f.depth, [...(byDepth.get(f.depth) ?? []), f.cell]);
-  const tick = Math.round(Math.min(560, Math.max(140, 13000 / (sim.endDepth + 2))));   // cadência de cada onda: a animação inteira dura de ~5 a ~13 s, para a água correr com calma
-  let wave = 0;
-  const step = () => {
-    for (const c of byDepth.get(wave) ?? []) tileEls[c].classList.add("wet");
-    if (sim.status === "win" && wave === sim.outletDepth) outletEl.classList.add("wet");
-    if (wave >= sim.endDepth) { flowId = setTimeout(finish, 650); return; }
-    wave++; flowId = setTimeout(step, tick);
+  const wet = sim.fills.filter(f => f.depth <= sim.endDepth), entry = entrySides(wet);
+  for (const f of wet) orientWater(f.cell, entry.get(f.cell));
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {   // sem animação: a água aparece cheia de uma vez
+    for (const f of wet) paintWater(f.cell, 1);
+    if (sim.status === "win") outletEl.classList.add("wet");
+    finish(); return;
+  }
+  const total = Math.max(3500, Math.min(11000, wet.length * 240));   // a animação inteira dura de ~3,5 a ~11 s
+  const cellMs = total / (sim.endDepth + FILL), t0 = performance.now();
+  const frame = now => {
+    if (phase !== "flowing") return;
+    const front = (now - t0) / cellMs;
+    for (const f of wet) paintWater(f.cell, Math.max(0, Math.min(1, (front - f.depth) / FILL)));
+    if (sim.status === "win" && front >= sim.outletDepth + FILL) outletEl.classList.add("wet");
+    if (front >= sim.endDepth + FILL) { finish(); return; }
+    flowId = requestAnimationFrame(frame);
   };
-  flowId = setTimeout(step, 400);
+  flowId = requestAnimationFrame(frame);
 }
 /** Solta a água na hora, sem esperar a contagem: zera o relógio e começa o fluxo. Só vale durante a contagem. */
 function releaseWater() {
@@ -278,7 +336,7 @@ document.getElementById("next").onclick = () => { if (phase === "won" && Coins.g
 function restoreSolved() {
   credited = true;
   rots = solutionRots(puzzle); angles = rots.map(r => r * 90); applyAngles();
-  puzzle.path.forEach(c => tileEls[c].classList.add("wet"));
+  puzzle.path.forEach(c => paintWater(c, 1));
   outletEl.classList.add("wet"); svg.classList.add("won");
   phase = "won"; renderClock(total); renderPhase();
   setMessage("Fase já concluída. Use “Nova fase” para continuar.");
