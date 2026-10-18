@@ -3,6 +3,7 @@ import { Scores } from "../../shared/scores.js";
 import { mountRanking } from "../../shared/ranking-panel.js";
 import { Activity } from "../../shared/profile.js";
 import { Coins } from "../../shared/coins.js";
+import { Cloud } from "../../shared/backend/cloud.js";
 import { gameAllowed } from "../../shared/game-switch.js";
 import { Run } from "../../shared/run.js";
 import { coinBadge, fmtDuration } from "../../shared/coin-badge.js";
@@ -64,13 +65,15 @@ function renderLevel() {
 function creditWin() {
   if (credited) { renderCoins(); return ""; }          // rejogar a mesma fase não pontua nem gasta coin
   credited = true;
+  const cloudMode = Cloud.owns(uid);
   const before = levelOf(wins), points = pointsFor(puzzle.level ?? before);   // pontos do nível em que a fase foi gerada
   wins++; saveWins(wins); renderLevel();
-  const spent = Coins.spend(uid, GAME_ID);                                   // o coin só é gasto aqui, ao concluir a fase
-  Run.set(uid, GAME_ID, { seed: puzzle.seed, level: puzzle.level, solved: true });
+  const spent = cloudMode ? false : Coins.spend(uid, GAME_ID);                // na nuvem o coin já foi cobrado ao SERVIR a fase (open)
+  if (!cloudMode) Run.set(uid, GAME_ID, { seed: puzzle.seed, level: puzzle.level, solved: true });
   let note = "";
   if (Scores.canRank()) {
-    Scores.submit(GAME_ID, points).then(() => ranking.refresh());              // só aqui, ao concluir o cenário
+    // Na nuvem o servidor recebe o tabuleiro, regenera a partir da seed e só pontua se for solução de verdade.
+    Scores.submit(GAME_ID, points, { state: { grid: state.grid } }).then(() => ranking.refresh());
     note = ` +${points} pontos!`;
   } else note = " Crie uma conta para pontuar no ranking.";
   if (spent) note += " −1 coin.";
@@ -84,12 +87,16 @@ function buildPuzzle(seed, level) {
   p.level = level; p.seed = seed;
   return p;
 }
-/** Nova fase: a seed fica salva, então recarregar a página devolve a mesma fase até ela ser concluída. */
-function freshPuzzle() {
+/** Fase servida pelo servidor: chega SEM a solução (a seed fica no servidor), então a tela não sabe a resposta. */
+const serverPuzzle = (view, level) => ({ cells: view.cells, givens: view.givens, level, server: true });
+/** Fase nova no modo local: a seed fica salva, então recarregar a página devolve a mesma fase até ela ser concluída. */
+function localFresh() {
   const seed = (Math.random() * 2 ** 32) >>> 0, level = levelOf(wins);
   Run.set(uid, GAME_ID, { seed, level, solved: false });
   return buildPuzzle(seed, level);
 }
+/** Fase nova: na nuvem quem serve é o servidor (open cobra o coin e guarda a seed); local sorteia. */
+const freshPuzzle = () => (Cloud.owns(uid) ? Cloud.open(GAME_ID).then(d => serverPuzzle(d.puzzle, d.level)) : Promise.resolve(localFresh()));
 
 /* ----- Desenho do tabuleiro -----
    As 81 células são criadas uma vez por fase e só mudam de classe e conteúdo: se o clique recriasse o elemento tocado,
@@ -221,7 +228,11 @@ document.getElementById("undo").onclick = undo;
 document.getElementById("erase").onclick = () => applyDigit(0);
 notesBtn.onclick = toggleNotesMode;
 document.getElementById("reset").onclick = () => { if (!solved) loadPuzzle(puzzle, { keepTimer: true }); };
-document.getElementById("next").onclick = () => { if (solved && Coins.get(uid, GAME_ID).coins > 0) loadPuzzle(freshPuzzle()); };
+document.getElementById("next").onclick = async () => {
+  if (!solved || Coins.get(uid, GAME_ID).coins <= 0) return;
+  try { loadPuzzle(await freshPuzzle()); }
+  catch (e) { setMessage(e?.code === "no_coins" ? "Sem coins por agora." : "Não foi possível abrir a fase. Tente de novo.", true); }
+};
 
 /** Fase já concluída (ao recarregar a página): mostra a solução, trava o tabuleiro e não pontua de novo. */
 function restoreSolved() {
@@ -239,9 +250,18 @@ function lockBoard() {
   renderCoins();
 }
 
-/* Fase inicial: volta a fase salva (mesma seed); sem fase salva, sorteia uma no nível atual se houver coin. */
+/* Fase inicial. Na nuvem a fase é SERVIDA pelo servidor (open): retoma a fase em aberto que veio no snapshot ou pede uma nova.
+   No modo local, volta a fase salva (mesma seed); sem fase salva, sorteia uma no nível atual se houver coin. */
 renderLevel();
-const saved = Run.get(uid, GAME_ID);
-if (saved) { loadPuzzle(buildPuzzle(saved.seed, saved.level)); if (saved.solved) restoreSolved(); }
-else if (Coins.get(uid, GAME_ID).coins > 0) loadPuzzle(freshPuzzle());
-else { loadPuzzle(buildPuzzle((Math.random() * 2 ** 32) >>> 0, levelOf(wins))); lockBoard(); }
+const lockedPuzzle = () => buildPuzzle((Math.random() * 2 ** 32) >>> 0, levelOf(wins));
+if (Cloud.owns(uid)) {
+  const cached = Cloud.phase(GAME_ID);
+  if (cached) loadPuzzle(serverPuzzle(cached.puzzle, cached.level));
+  else if (Coins.get(uid, GAME_ID).coins > 0) freshPuzzle().then(p => loadPuzzle(p)).catch(e => { loadPuzzle(lockedPuzzle()); e?.code === "no_coins" ? lockBoard() : setMessage("Não foi possível carregar a fase. Recarregue a página.", true); });
+  else { loadPuzzle(lockedPuzzle()); lockBoard(); }
+} else {
+  const saved = Run.get(uid, GAME_ID);
+  if (saved) { loadPuzzle(buildPuzzle(saved.seed, saved.level)); if (saved.solved) restoreSolved(); }
+  else if (Coins.get(uid, GAME_ID).coins > 0) loadPuzzle(localFresh());
+  else { loadPuzzle(lockedPuzzle()); lockBoard(); }
+}

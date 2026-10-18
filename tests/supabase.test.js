@@ -11,7 +11,10 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const sql = readFileSync(new URL("../supabase/migrations/20261014000000_init.sql", import.meta.url), "utf8");
+const migrations = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql"]
+  .map(f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8"));
+const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
+const sqlAll = migrations.join("\n");          // estrutura (RLS, permissões, search_path): todas as migrações
 const fn = name => sql.match(new RegExp(`function public\\.${name}\\(\\)[^$]*\\$\\$ select ([^$]*?) \\$\\$`))?.[1];
 
 test("SQL: constantes do jogo iguais às do JS (nível, pontos, coins)", () => {
@@ -35,19 +38,19 @@ test("SQL: os jogos cadastrados são os de js/games.js, na mesma ordem e com o m
 });
 
 test("SQL: RLS ligado em toda tabela do esquema public", () => {
-  const tables = [...sql.matchAll(/create table public\.(\w+)/g)].map(m => m[1]);
+  const tables = [...sqlAll.matchAll(/create table public\.(\w+)/g)].map(m => m[1]);
   assert.ok(tables.length >= 8);
-  for (const t of tables) assert.match(sql, new RegExp(`alter table public\\.${t}\\s+enable row level security`), `${t} sem RLS`);
+  for (const t of tables) assert.match(sqlAll, new RegExp(`alter table public\\.${t}\\s+enable row level security`), `${t} sem RLS`);
 });
 
 test("SQL: funções security definer fixam o search_path (sem sequestro por esquema)", () => {
-  const defs = sql.match(/create function [\s\S]*?\$\$;?/g).filter(b => /security definer/.test(b));
+  const defs = sqlAll.match(/create function [\s\S]*?\$\$;?/g).filter(b => /security definer/.test(b));
   assert.ok(defs.length >= 8);
   for (const d of defs) assert.match(d, /set search_path = ''/, d.slice(0, 60));
 });
 
 test("SQL: o visitante (anon) só recebe a lista de jogos e o ranking; o papel (role) não é editável pelo cliente", () => {
-  const toAnon = [...sql.matchAll(/^grant [^;]* to ([^;]*anon[^;]*);/gm)].map(m => m[0]);
+  const toAnon = [...sqlAll.matchAll(/^grant [^;]* to ([^;]*anon[^;]*);/gm)].map(m => m[0]);
   assert.equal(toAnon.length, 2, toAnon.join("\n"));
   assert.ok(toAnon.some(g => /select on public\.games/.test(g)) && toAnon.some(g => /function public\.ranking/.test(g)));
   const upd = sql.match(/grant update \(([^)]*)\) on public\.profiles/)[1];
@@ -55,8 +58,21 @@ test("SQL: o visitante (anon) só recebe a lista de jogos e o ranking; o papel (
 });
 
 test("SQL: pontos, coins e vitórias só mudam por função (nenhuma tabela dessas dá insert/update/delete ao cliente)", () => {
-  const writes = [...sql.matchAll(/^grant ((?:select, )?(?:insert|update|delete)[^;]*) on ([^;]*) to authenticated;/gm)].map(m => m[2].trim());
+  const writes = [...sqlAll.matchAll(/^grant ((?:select, )?(?:insert|update|delete)[^;]*) on ([^;]*) to authenticated;/gm)].map(m => m[2].trim());
   assert.deepEqual(writes.sort(), ["public.games", "public.profiles", "public.runs"].sort());   // games só `enabled` (admin via RLS), profiles só colunas seguras, runs é do dono
+});
+
+test("SQL: a fase e os pontos são decididos no servidor (o cliente não pontua mais direto)", () => {
+  const phase = sqlAll.match(/create table public\.phase_runs \([\s\S]*?\);/)?.[0] ?? "";
+  assert.match(phase, /level\s+smallint not null/);
+  assert.match(sqlAll, /add column hints\s+smallint not null default 0/);      // dicas contadas no servidor
+  assert.match(sqlAll, /add column puzzle jsonb/);                            // puzzle público (sem a solução)
+  assert.match(sqlAll, /drop function if exists public\.submit_win\(text, int, uuid\)/);   // a assinatura antiga (pontos do cliente) sai
+  for (const f of ["new_run\\(text, bigint\\)", "submit_win\\(text, uuid, int\\)", "level_for\\(uuid, text\\)", "open_phase\\(uuid, text, bigint, jsonb\\)", "use_hint\\(uuid, text\\)", "finalize_win\\(uuid, text, uuid\\)"])
+    assert.match(sqlAll, new RegExp(`revoke all on function public\\.${f}\\s+from public, anon, authenticated`), `${f} deveria estar revogada ao cliente`);
+  for (const f of ["level_for\\(uuid, text\\)", "open_phase\\(uuid, text, bigint, jsonb\\)", "use_hint\\(uuid, text\\)", "finalize_win\\(uuid, text, uuid\\)"])
+    assert.match(sqlAll, new RegExp(`grant execute on function public\\.${f}\\s+to service_role`), `${f} deveria ser exclusiva do service_role`);
+  assert.match(sqlAll, /'phases',\s+coalesce\(\(select jsonb_object_agg\(game_id, jsonb_build_object\('level', level, 'hints', hints, 'puzzle', puzzle\)\)/);
 });
 
 test("a configuração do Supabase é válida quando preenchida (ou vazia, no modo local) e nunca leva chave secreta", () => {

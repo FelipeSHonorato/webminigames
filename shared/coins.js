@@ -3,8 +3,9 @@ import { ADMIN_ID, ADMIN_COINS } from "./roles.js";
 import { Cloud } from "./backend/cloud.js";
 
 /* Coins por jogo: cada jogador recebe COINS_PER_DAY a cada 24 h, sem acumular (o máximo é COINS_PER_DAY).
-   Um coin só é gasto quando a fase é concluída. Implementação LOCAL (localStorage), com o mesmo ponto de troca
-   dos demais serviços: num backend real, a recarga e o gasto devem ser calculados no servidor. */
+   No modo local, um coin só é gasto quando a fase é concluída. Na nuvem o gasto real é do SERVIDOR, ao SERVIR a fase
+   (`open_phase`, chamado por `Cloud.open`); aqui só mexemos na tela. Implementação LOCAL (localStorage), com o mesmo
+   ponto de troca dos demais serviços. */
 const KEY = "wmg.coins";   // { [userId]: { [gameId]: { coins, anchor } } }
 export const COINS_PER_DAY = 2;
 const capFor = uid => (uid === ADMIN_ID || (Cloud.owns(uid) && Cloud.role() === "admin") ? ADMIN_COINS : COINS_PER_DAY);   // a conta administradora tem 99999 e também gasta ao concluir fases
@@ -37,7 +38,7 @@ export const Coins = {
   /** Gasta 1 coin (chamado só ao concluir a fase). Devolve false se não havia coin. */
   spend(uid, gameId, now = Date.now()) {
     if (this.get(uid, gameId, now).coins <= 0) return false;
-    if (Cloud.owns(uid)) {                                                     // só a tela: o servidor desconta o coin de verdade ao registrar a vitória (submit_win)
+    if (Cloud.owns(uid)) {                                                     // só a tela: na nuvem o servidor desconta o coin ao SERVIR a fase (Cloud.open -> open_phase)
       const e = Cloud.coinEntry(gameId);
       Cloud.setCoinEntry(gameId, { ...e, coins: e.coins - 1 });
       return true;

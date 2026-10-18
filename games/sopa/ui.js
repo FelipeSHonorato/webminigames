@@ -9,6 +9,7 @@ import { coinBadge, fmtDuration } from "../../shared/coin-badge.js";
 import { mountUserBar } from "../../js/userbar.js";
 import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
+import { Cloud } from "../../shared/backend/cloud.js";
 import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/progress.js";
 import { GEN, LEVELS, STORE_KEY, canHint, generatePuzzle, isSolved, matchSelection, maskWord, maxHints, pointsAfterHints, snapLine } from "./domain.js";
 
@@ -57,8 +58,8 @@ function renderLevel() {
 
 /** Pontos da fase agora: base do nível em que ela foi gerada menos 1 por dica usada (mínimo 1). */
 const phasePoints = () => pointsAfterHints(pointsFor(puzzle.level), hints);
-/** Salva o andamento: assim recarregar a página não zera as dicas já gastas nem as palavras achadas. */
-const persist = (done = false) => Run.set(uid, GAME_ID, { seed: puzzle.seed, level: puzzle.level, solved: done, hints, found: [...found], gen: GEN });
+/** Salva o andamento: assim recarregar a página não zera as dicas já gastas nem as palavras achadas. Na nuvem o andamento parcial fica só na tela. */
+const persist = (done = false) => { if (Cloud.owns(uid)) return; Run.set(uid, GAME_ID, { seed: puzzle.seed, level: puzzle.level, solved: done, hints, found: [...found], gen: GEN }); };
 
 /** Conta a vitória uma única vez por fase. Pontos = base do nível − dicas usadas. */
 function creditWin() {
@@ -66,11 +67,14 @@ function creditWin() {
   credited = true;
   const before = levelOf(wins), points = phasePoints();
   wins++; saveWins(wins); renderLevel();
-  const spent = Coins.spend(uid, GAME_ID);                                   // o coin só é gasto aqui, ao concluir a fase
+  const cloudMode = Cloud.owns(uid);
+  const spent = cloudMode ? false : Coins.spend(uid, GAME_ID);               // na nuvem o coin já foi cobrado ao SERVIR a fase (open)
   persist(true);
   let note = "";
   if (Scores.canRank()) {
-    Scores.submit(GAME_ID, points).then(() => ranking.refresh());              // só aqui, ao concluir a fase
+    // Na nuvem o servidor recebe as palavras achadas (com as células), regenera a partir da seed e só pontua se forem de verdade.
+    const foundWords = [...found].sort((a, b) => a - b);
+    Scores.submit(GAME_ID, points, { state: { found: foundWords.map(index => ({ index, cells: puzzle.words[index].cells })) } }).then(() => ranking.refresh());
     note = ` +${points} ${points === 1 ? "ponto" : "pontos"}${hints ? ` (${hints} ${hints === 1 ? "dica usada" : "dicas usadas"})` : ""}!`;
   } else note = " Crie uma conta para pontuar no ranking.";
   if (spent) note += " −1 coin.";
@@ -84,12 +88,16 @@ function buildPuzzle(seed, level) {
   p.level = level; p.seed = seed;
   return p;
 }
-/** Nova fase: a seed fica salva, então recarregar a página devolve a mesma fase até ela ser concluída. */
-function freshPuzzle() {
+/** Fase servida pelo servidor: chega SEM a solução (a seed fica no servidor), então a tela não sabe onde as palavras estão. */
+const serverPuzzle = (view, level) => ({ n: view.n, grid: view.grid, words: view.words, level, server: true });
+/** Fase nova no modo local: a seed fica salva, então recarregar a página devolve a mesma fase até ela ser concluída. */
+function localFresh() {
   const seed = (Math.random() * 2 ** 32) >>> 0, level = levelOf(wins);
   Run.set(uid, GAME_ID, { seed, level, solved: false, hints: 0, found: [], gen: GEN });
   return buildPuzzle(seed, level);
 }
+/** Fase nova: na nuvem quem serve é o servidor (open cobra o coin e guarda a seed); local sorteia. */
+const freshPuzzle = () => (Cloud.owns(uid) ? Cloud.open(GAME_ID).then(d => serverPuzzle(d.puzzle, d.level)) : Promise.resolve(localFresh()));
 
 /* ----- Desenho -----
    As células são criadas uma vez por fase e só mudam de classe (como no Sudoku, não recriar o que o dedo toca). */
@@ -167,10 +175,14 @@ function evaluate(cells) {
     if (isSolved(puzzle, found)) win();
   } else setMessage(m.already ? "Você já achou essa palavra." : "Essas letras não formam uma palavra da lista.", true);
 }
-function useHint() {
+/** Dica: revela mais uma letra de cada palavra (o servidor decide e conta, na nuvem). Custa 1 ponto. */
+async function useHint() {
   if (solved || !canHint(puzzle, LEVELS[puzzle.level], found, hints)) return;
   startTimer();
-  hints++; persist();
+  if (Cloud.owns(uid)) {
+    try { hints = (await Cloud.hint(GAME_ID, { found: [...found] })).hints; }
+    catch { setMessage("Não foi possível pedir a dica agora.", true); return; }
+  } else { hints++; persist(); }
   setMessage(`Dica ${hints}: mais uma letra de cada palavra. A fase agora vale ${phasePoints()} ${phasePoints() === 1 ? "ponto" : "pontos"}.`);
   render();
 }
@@ -208,7 +220,11 @@ board.addEventListener("pointercancel", () => { drag = null; renderBoard(); });
 board.addEventListener("contextmenu", e => e.preventDefault());      // segurar o dedo não abre menu no meio do arrasto
 
 hintBtn.onclick = useHint;
-document.getElementById("next").onclick = () => { if (solved && Coins.get(uid, GAME_ID).coins > 0) loadPuzzle(freshPuzzle()); };
+document.getElementById("next").onclick = async () => {
+  if (!solved || Coins.get(uid, GAME_ID).coins <= 0) return;
+  try { loadPuzzle(await freshPuzzle()); }
+  catch (e) { setMessage(e?.code === "no_coins" ? "Sem coins por agora." : "Não foi possível abrir a fase. Tente de novo.", true); }
+};
 
 /** Fase já concluída (ao recarregar a página): mostra tudo achado, trava a grade e não pontua de novo. */
 function restoreSolved() {
@@ -226,15 +242,24 @@ function lockBoard() {
   renderCoins();
 }
 
-/* Fase inicial: volta a fase salva (mesma seed, com as dicas e palavras já registradas); sem fase salva, sorteia uma no nível atual se houver coin. */
+/* Fase inicial. Na nuvem a fase é SERVIDA pelo servidor (open): retoma a fase em aberto que veio no snapshot ou pede uma nova.
+   No modo local, volta a fase salva (mesma seed, com as dicas e palavras já registradas); sem fase salva, sorteia uma no nível atual se houver coin. */
 renderLevel();
-const saved = Run.get(uid, GAME_ID);
-if (saved) {
-  /* Fase salva por uma versão antiga do gerador: a mesma seed gera outra fase, então dicas e palavras achadas (que são índices
-     da lista) não valem mais e o andamento recomeça. Fases já concluídas só mostram a solução, sem problema. */
-  const sameGen = saved.gen === GEN;
-  loadPuzzle(buildPuzzle(saved.seed, saved.level), sameGen ? saved : {});
-  if (saved.solved) restoreSolved(); else if (!sameGen) persist();
+const lockedPuzzle = () => buildPuzzle((Math.random() * 2 ** 32) >>> 0, levelOf(wins));
+if (Cloud.owns(uid)) {
+  const cached = Cloud.phase(GAME_ID);
+  if (cached) loadPuzzle(serverPuzzle(cached.puzzle, cached.level), { hints: cached.hints });
+  else if (Coins.get(uid, GAME_ID).coins > 0) freshPuzzle().then(p => loadPuzzle(p)).catch(e => { loadPuzzle(lockedPuzzle()); e?.code === "no_coins" ? lockBoard() : setMessage("Não foi possível carregar a fase. Recarregue a página.", true); });
+  else { loadPuzzle(lockedPuzzle()); lockBoard(); }
+} else {
+  const saved = Run.get(uid, GAME_ID);
+  if (saved) {
+    /* Fase salva por uma versão antiga do gerador: a mesma seed gera outra fase, então dicas e palavras achadas (que são índices
+       da lista) não valem mais e o andamento recomeça. Fases já concluídas só mostram a solução, sem problema. */
+    const sameGen = saved.gen === GEN;
+    loadPuzzle(buildPuzzle(saved.seed, saved.level), sameGen ? saved : {});
+    if (saved.solved) restoreSolved(); else if (!sameGen) persist();
+  }
+  else if (Coins.get(uid, GAME_ID).coins > 0) loadPuzzle(localFresh());
+  else { loadPuzzle(lockedPuzzle()); lockBoard(); }
 }
-else if (Coins.get(uid, GAME_ID).coins > 0) loadPuzzle(freshPuzzle());
-else { loadPuzzle(buildPuzzle((Math.random() * 2 ** 32) >>> 0, levelOf(wins))); lockBoard(); }

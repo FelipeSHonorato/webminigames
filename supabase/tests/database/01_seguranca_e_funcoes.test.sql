@@ -47,7 +47,8 @@ select throws_ok('select * from public.profiles',      '42501', null, 'visitante
 select throws_ok('select * from public.scores',        '42501', null, 'visitante não lê pontuações');
 select throws_ok('select * from public.runs',          '42501', null, 'visitante não lê fases');
 select throws_ok('select * from public.coins',         '42501', null, 'visitante não lê coins');
-select throws_ok($$select public.submit_win('zip', 5)$$, '42501', null, 'visitante não pontua');
+select throws_ok($$select public.open_phase('11111111-1111-1111-1111-111111111111','zip',0,'{}'::jsonb)$$, '42501', null, 'visitante não serve fases');
+select throws_ok($$select public.finalize_win('11111111-1111-1111-1111-111111111111','zip', gen_random_uuid())$$, '42501', null, 'visitante não pontua');
 select throws_ok($$select public.my_snapshot()$$,        '42501', null, 'visitante não tem snapshot');
 select lives_ok($$select public.ranking('zip')$$, 'visitante vê o ranking');
 select public.tap_super();
@@ -69,6 +70,10 @@ select throws_ok($$insert into public.coins (user_id, game_id, coins, anchor) va
 select throws_ok($$delete from public.win_log$$,                                                   '42501', null, 'Ana não apaga o histórico');
 select throws_ok($$select public.coins_apply('11111111-1111-1111-1111-111111111111','zip',false)$$, '42501', null, 'coins_apply é interna');
 select is(public.tap_rows($$update public.games set enabled = false where id = 'zip'$$), 0::bigint, 'Ana não desliga jogos');
+-- servir/validar/pontuar é exclusivo do servidor (a Edge Function com service_role); o jogador não chama direto
+select throws_ok($$select public.open_phase('11111111-1111-1111-1111-111111111111','zip',0,'{}'::jsonb)$$, '42501', null, 'Ana não serve a própria fase');
+select throws_ok($$select public.finalize_win('11111111-1111-1111-1111-111111111111','zip', gen_random_uuid())$$, '42501', null, 'Ana não pontua direto');
+select throws_ok($$select public.level_for('11111111-1111-1111-1111-111111111111','zip')$$, '42501', null, 'o nível é decidido no servidor');
 
 -- fase salva (runs): lê, grava e apaga só a própria
 select lives_ok($$insert into public.runs (user_id, game_id, state) values ('11111111-1111-1111-1111-111111111111','zip','{"seed":7,"level":0,"solved":false}')$$, 'Ana salva a fase');
@@ -77,71 +82,91 @@ select lives_ok($$update public.runs set state = '{"seed":7,"level":0,"solved":f
 select is((select state ->> 'moves' from public.runs where game_id = 'zip'), '3', 'a fase atualizada foi guardada');
 select throws_ok($$insert into public.runs (user_id, game_id, state) values ('11111111-1111-1111-1111-111111111111','jogo-inexistente','{}')$$, '23503', null, 'fase de jogo que não existe é recusada');
 
--- ---------- vitórias: pontos, progressão, coins e idempotência ----------
-select public.tap_as('11111111-1111-1111-1111-111111111111');
-insert into public.tap_res select 'w1', public.submit_win('zip', 5, 'aaaaaaaa-0000-0000-0000-000000000001');
+-- ---------- fase servida + vitórias: quem serve/valida/pontua é o SERVIDOR (aqui chamado como superusuário) ----------
+-- O ritmo entre vitórias tem seção própria no fim; aqui zeramos para poder encadear vitórias no mesmo instante.
 select public.tap_super();
+create or replace function public.phase_min_seconds() returns int language sql immutable set search_path = '' as $$ select 0 $$;
+
+-- abrir a fase gasta 1 coin e o nível vem do servidor
+select is((public.open_phase('11111111-1111-1111-1111-111111111111','zip', 7, '{}'::jsonb)) ->> 'level', '0', 'open_phase serve a fase no nível do jogador (Fácil)');
+select is((select coins from public.coins where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip'), 1, 'abrir a fase gasta 1 dos 2 coins');
+
+insert into public.tap_res select 'w1', public.finalize_win('11111111-1111-1111-1111-111111111111','zip','aaaaaaaa-0000-0000-0000-000000000001');
 select is((select v ->> 'wins' from public.tap_res where k = 'w1'), '1', 'vitória: progressão 1');
-select is((select v #>> '{score,points}' from public.tap_res where k = 'w1'), '5', 'vitória: 5 pontos no Fácil');
-select is((select v #>> '{coins,coins}' from public.tap_res where k = 'w1'), '1', 'vitória gasta 1 dos 2 coins');
+select is((select v #>> '{score,points}' from public.tap_res where k = 'w1'), '5', 'vitória: o servidor dá os 5 pontos do Fácil');
+select is((select v #>> '{coins,coins}' from public.tap_res where k = 'w1'), '1', 'a vitória NÃO gasta coin (o coin já foi cobrado ao abrir)');
 select is((select v ->> 'duplicate' from public.tap_res where k = 'w1'), 'false', 'primeira vez não é repetição');
 
-select public.tap_as('11111111-1111-1111-1111-111111111111');
-insert into public.tap_res select 'w1b', public.submit_win('zip', 5, 'aaaaaaaa-0000-0000-0000-000000000001');   -- MESMA vitória reenviada
-select throws_ok($$select public.submit_win('zip', 6)$$,  '22023', 'invalid_points', 'Fácil: 6 pontos é recusado');
-select throws_ok($$select public.submit_win('zip', 0)$$,  '22023', 'invalid_points', '0 ponto é recusado');
-select throws_ok($$select public.submit_win('zip', -3)$$, '22023', 'invalid_points', 'ponto negativo é recusado');
-select throws_ok($$select public.submit_win('zip', null)$$, '22023', 'invalid_points', 'ponto nulo é recusado');
-select throws_ok($$select public.submit_win('nao-existe', 5)$$, '22023', 'unknown_game', 'jogo inexistente é recusado');
-select public.tap_super();
+-- MESMA vitória reenviada (fila offline): reconhecida, sem contar de novo
+insert into public.tap_res select 'w1b', public.finalize_win('11111111-1111-1111-1111-111111111111','zip','aaaaaaaa-0000-0000-0000-000000000001');
+
+-- 2 dicas reduzem os pontos: 5 − 2 = 3 (a dica é contada no servidor, em use_hint)
+select public.open_phase('11111111-1111-1111-1111-111111111111','zip', 8, '{}'::jsonb);
+select public.use_hint('11111111-1111-1111-1111-111111111111','zip');
+select public.use_hint('11111111-1111-1111-1111-111111111111','zip');
+insert into public.tap_res select 'hk', public.finalize_win('11111111-1111-1111-1111-111111111111','zip','aaaaaaaa-0000-0000-0000-000000000002');
+
+-- sem coins, o servidor NÃO serve outra fase (não há vitória de graça)
+select throws_ok($$select public.open_phase('11111111-1111-1111-1111-111111111111','zip', 9, '{}'::jsonb)$$, '22023', 'no_coins', 'sem coin não abre fase');
+select throws_ok($$select public.finalize_win('11111111-1111-1111-1111-111111111111','nao-existe', gen_random_uuid())$$, '22023', 'unknown_game', 'finalize_win recusa jogo inexistente');
+select throws_ok($$select public.open_phase('11111111-1111-1111-1111-111111111111','nao-existe', 0, '{}'::jsonb)$$, '22023', 'unknown_game', 'open_phase também recusa jogo inexistente');
+
 select is((select v ->> 'duplicate' from public.tap_res where k = 'w1b'), 'true', 'vitória reenviada é reconhecida');
-select is((select points from public.scores where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip'), 5, 'reenviar não soma pontos de novo');
-select is((select coins from public.coins where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip'), 1, 'reenviar não gasta outro coin');
-select is((select count(*) from public.win_log where user_id = '11111111-1111-1111-1111-111111111111'), 1::bigint, 'histórico tem 1 vitória');
-
-select public.tap_as('11111111-1111-1111-1111-111111111111');
-select public.submit_win('zip', 3, 'aaaaaaaa-0000-0000-0000-000000000002');   -- 2ª vitória, com dica (3 pontos): gasta o 2º coin
-select public.submit_win('zip', 3, 'aaaaaaaa-0000-0000-0000-000000000003');   -- 3ª: sem coin, mas a vitória conta
-select public.tap_super();
-select is((select points from public.scores where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip'), 11, '5 + 3 + 3 = 11 pontos');
-select is((select wins from public.game_progress where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip'), 3, '3 vitórias de progressão');
+select is((select v #>> '{score,points}' from public.tap_res where k = 'hk'), '3', 'a dica reduz os pontos (5 − 2 dicas = 3)');
+select is((select points from public.scores where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip'), 8, '5 + 3 = 8 pontos');
+select is((select wins from public.scores where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip'), 2, '2 vitórias');
 select is((select coins from public.coins where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip'), 0, 'coins zerados, nunca negativos');
+select is((select count(*) from public.win_log where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip'), 2::bigint, 'histórico tem 2 vitórias');
+select is((select count(*) from public.phase_runs where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip'), 0::bigint, 'a fase é consumida ao vencer');
 
--- nível sobe a cada 15 vitórias: o teto de pontos acompanha (5/10/15/20), e o Genius é o último nível
-update public.game_progress set wins = 15  where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip';
-select public.tap_as('11111111-1111-1111-1111-111111111111');
-select throws_ok($$select public.submit_win('zip', 11)$$, '22023', 'invalid_points', 'Médio: 11 pontos é recusado');
-select lives_ok($$select public.submit_win('zip', 10, gen_random_uuid())$$, 'Médio: 10 pontos é aceito');
-select public.tap_super();
+-- a dica nunca derruba os pontos abaixo de 1 (jogo à parte, para não mexer nos totais do zip)
+select public.open_phase('11111111-1111-1111-1111-111111111111','sopa', 1, '{}'::jsonb);
+update public.phase_runs set hints = 99 where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'sopa';
+select is((public.finalize_win('11111111-1111-1111-1111-111111111111','sopa', gen_random_uuid())) #>> '{score,points}', '1', 'dica demais ainda vale 1 ponto');
+delete from public.win_log       where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'sopa';
+delete from public.scores        where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'sopa';
+delete from public.game_progress where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'sopa';
+delete from public.coins         where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'sopa';
+delete from public.phase_runs    where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'sopa';
+
+-- nível sobe a cada 15 vitórias: a pontuação cheia acompanha (5/10/15/20) e o Genius é o último nível
+update public.game_progress set wins = 15 where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip';
+update public.coins set coins = 2, anchor = now() where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip';
+select is((public.open_phase('11111111-1111-1111-1111-111111111111','zip', 7, '{}'::jsonb)) ->> 'level', '1', 'no Médio, o nível da fase vem do servidor');
+select is((public.finalize_win('11111111-1111-1111-1111-111111111111','zip', gen_random_uuid())) #>> '{score,points}', '10', 'Médio: a vitória vale 10 (o cliente não escolhe mais)');
 update public.game_progress set wins = 30 where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip';
-select public.tap_as('11111111-1111-1111-1111-111111111111');
-select throws_ok($$select public.submit_win('zip', 16)$$, '22023', 'invalid_points', 'Difícil: 16 pontos é recusado');
-select lives_ok($$select public.submit_win('zip', 15, gen_random_uuid())$$, 'Difícil: 15 pontos é aceito');
-select public.tap_super();
+update public.coins set coins = 2, anchor = now() where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip';
+select public.open_phase('11111111-1111-1111-1111-111111111111','zip', 7, '{}'::jsonb);
+select is((public.finalize_win('11111111-1111-1111-1111-111111111111','zip', gen_random_uuid())) #>> '{score,points}', '15', 'Difícil: 15 pontos');
 update public.game_progress set wins = 200 where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip';
-select public.tap_as('11111111-1111-1111-1111-111111111111');
-select throws_ok($$select public.submit_win('zip', 21)$$, '22023', 'invalid_points', 'Genius: 21 pontos é recusado (o nível não passa de Genius)');
-select lives_ok($$select public.submit_win('zip', 20, gen_random_uuid())$$, 'Genius: 20 pontos é aceito');
-select public.tap_super();
+update public.coins set coins = 2, anchor = now() where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip';
+select public.open_phase('11111111-1111-1111-1111-111111111111','zip', 7, '{}'::jsonb);
+select is((public.finalize_win('11111111-1111-1111-1111-111111111111','zip', gen_random_uuid())) #>> '{score,points}', '20', 'Genius: 20 pontos (o nível não passa de Genius)');
 
 -- recarga de coins: 24 h depois volta ao máximo (2) e avança a âncora em dias inteiros
+update public.game_progress set wins = 0 where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip';   -- volta ao Fácil: a vitória vale 5
 update public.coins set coins = 0, anchor = now() - interval '49 hours' where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip';
-select public.tap_as('11111111-1111-1111-1111-111111111111');
-insert into public.tap_res select 'refill', public.submit_win('zip', 5, gen_random_uuid());
-select public.tap_super();
-select is((select v #>> '{coins,coins}' from public.tap_res where k = 'refill'), '1', 'após 49 h: recarrega para 2 e a vitória gasta 1');
+select public.open_phase('11111111-1111-1111-1111-111111111111','zip', 7, '{}'::jsonb);
+select is((public.finalize_win('11111111-1111-1111-1111-111111111111','zip', gen_random_uuid())) #>> '{score,points}', '5', 'após a recarga, a fase vale 5 de novo');
+select is((select coins from public.coins where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip'), 1, 'após 49 h: recarrega para 2 e a fase gasta 1 ao abrir');
 select ok((select anchor > now() - interval '25 hours' and anchor <= now() from public.coins where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'zip'), 'a âncora avançou em dias inteiros (2 dias)');
 
 -- ---------- atividade e snapshot ----------
 select public.tap_as('11111111-1111-1111-1111-111111111111');
 select public.record_play('zip'); select public.record_play('zip');
 select throws_ok($$select public.record_play('nao-existe')$$, '22023', 'unknown_game', 'record_play recusa jogo inexistente');
+select public.tap_super();
+insert into public.tap_res select 'ophase', public.open_phase('11111111-1111-1111-1111-111111111111','canos', 5, '{"n":3,"tiles":[]}'::jsonb);   -- fase servida em aberto
+select public.tap_as('11111111-1111-1111-1111-111111111111');
 insert into public.tap_res select 'snap', public.my_snapshot();
 select public.tap_super();
 select is((select v #>> '{activity,zip,plays}' from public.tap_res where k = 'snap'), '2', 'atividade: 2 fases abertas');
 select is((select v #>> '{profile,name}' from public.tap_res where k = 'snap'), 'Ana', 'snapshot traz o perfil');
 select is((select v #>> '{profile,nickname}' from public.tap_res where k = 'snap'), 'Aninha', 'snapshot traz o apelido');
-select is((select v #>> '{runs,zip,seed}' from public.tap_res where k = 'snap'), '7', 'snapshot traz a fase salva');
+select is((select v #>> '{runs,zip,seed}' from public.tap_res where k = 'snap'), '7', 'snapshot traz a fase salva (runs)');
+select is((select v #>> '{phases,canos,level}' from public.tap_res where k = 'snap'), '0', 'snapshot traz a fase SERVIDA (phases) com o nível');
+select is((select v #>> '{phases,canos,puzzle,n}' from public.tap_res where k = 'snap'), '3', 'snapshot traz o puzzle público da fase servida');
+select ok((select not (v #> '{phases,canos}' ? 'seed') from public.tap_res where k = 'snap'), 'snapshot NÃO expõe a seed da fase');
 select ok((select (v #> '{scores,zip,points}')::int > 0 and v #> '{wins,zip}' is not null and v #> '{coins,zip}' is not null from public.tap_res where k = 'snap'), 'snapshot traz pontos, vitórias e coins');
 select ok((select not (v #> '{profile}' ? 'email') from public.tap_res where k = 'snap'), 'snapshot não expõe e-mail');
 
@@ -159,8 +184,11 @@ select throws_ok($$select public.admin_set_level('sudoku', 4)$$,  '22023', 'inva
 select throws_ok($$select public.admin_set_level('sudoku', -1)$$, '22023', 'invalid_level', 'nível -1 não existe');
 select throws_ok($$select public.admin_set_level('xx', 1)$$,      '22023', 'unknown_game',   'jogo inexistente');
 select lives_ok($$select public.admin_set_level('sudoku', 0)$$, 'administrador volta ao Fácil');
-insert into public.tap_res select 'adm', public.submit_win('sudoku', 5, gen_random_uuid());
-select is((select v #>> '{coins,coins}' from public.tap_res where k = 'adm'), '99998', 'administrador tem 99999 coins e gasta 1');
+select public.tap_super();
+select public.open_phase('33333333-3333-3333-3333-333333333333','sudoku', 9, '{}'::jsonb);
+insert into public.tap_res select 'adm', public.finalize_win('33333333-3333-3333-3333-333333333333','sudoku', gen_random_uuid());
+select is((select coins from public.coins where user_id = '33333333-3333-3333-3333-333333333333' and game_id = 'sudoku'), 99998, 'administrador tem 99999 coins e gasta 1 ao abrir');
+select public.tap_as('33333333-3333-3333-3333-333333333333');
 select lives_ok($$update public.games set enabled = false where id = 'patches'$$, 'administrador desliga um jogo');
 select public.tap_super();
 select is((select enabled from public.games where id = 'patches'), false, 'o jogo ficou desligado');
@@ -176,18 +204,21 @@ select throws_ok($$select public.promote_admin('ninguem@teste.com')$$, 'P0002', 
 select lives_ok($$select public.promote_admin('  BOB@teste.com ')$$, 'o dono promove (e-mail sem diferenciar maiúsculas)');
 select is((select role from public.profiles where id = '22222222-2222-2222-2222-222222222222'), 'admin', 'Bob virou administrador');
 select is((select count(*) from public.coins where user_id = '22222222-2222-2222-2222-222222222222'), 0::bigint, 'coins antigos descartados');
-select public.tap_as('22222222-2222-2222-2222-222222222222');
-select is((public.submit_win('sudoku', 5, gen_random_uuid())) #>> '{coins,coins}', '99998', 'recomeça com 99999 coins e gasta 1');
+select public.tap_super();
+select public.open_phase('22222222-2222-2222-2222-222222222222','sudoku', 1, '{}'::jsonb);
+select is((public.finalize_win('22222222-2222-2222-2222-222222222222','sudoku', gen_random_uuid())) #>> '{coins,coins}', '99998', 'recomeça com 99999 coins e gasta 1 ao abrir');
 select public.tap_super();
 update public.profiles set role = 'user' where id = '22222222-2222-2222-2222-222222222222';
 delete from public.win_log where user_id = '22222222-2222-2222-2222-222222222222' and game_id = 'sudoku';
 delete from public.scores where user_id = '22222222-2222-2222-2222-222222222222' and game_id = 'sudoku';
 
 -- ---------- ranking ----------
--- Ana: zip 11+10+15+20+5, outros: Bob e Carol com 5 em zip; Bob chegou antes de Carol; Carol é do sul como a Ana.
+-- Ana: zip 5+3+10+15+20+5, outros: Bob e Carol com 5 em zip; Bob chegou antes de Carol; Carol é do sul como a Ana.
 update public.profiles set region = 'sul' where id = '44444444-4444-4444-4444-444444444444';
-select public.tap_as('22222222-2222-2222-2222-222222222222'); select public.submit_win('zip', 5, gen_random_uuid()); select public.tap_super();
-select public.tap_as('44444444-4444-4444-4444-444444444444'); select public.submit_win('zip', 5, gen_random_uuid()); select public.submit_win('patches', 5, gen_random_uuid()); select public.tap_super();
+select public.tap_super();
+select public.open_phase('22222222-2222-2222-2222-222222222222','zip', 3, '{}'::jsonb); select public.finalize_win('22222222-2222-2222-2222-222222222222','zip', gen_random_uuid());
+select public.open_phase('44444444-4444-4444-4444-444444444444','zip', 3, '{}'::jsonb); select public.finalize_win('44444444-4444-4444-4444-444444444444','zip', gen_random_uuid());
+select public.open_phase('44444444-4444-4444-4444-444444444444','patches', 3, '{}'::jsonb); select public.finalize_win('44444444-4444-4444-4444-444444444444','patches', gen_random_uuid());
 update public.scores set updated_at = now() - interval '2 hours' where user_id = '22222222-2222-2222-2222-222222222222';   -- Bob chegou primeiro
 update public.scores set updated_at = now() - interval '1 hour'  where user_id = '44444444-4444-4444-4444-444444444444' and game_id = 'zip';
 
@@ -212,7 +243,7 @@ select is((select v #>> '{top,0,avatar}' from public.tap_res where k = 'rk_globa
 select ok((select not (v #> '{top,0}' ? 'email') from public.tap_res where k = 'rk_global'), 'o ranking nunca expõe e-mail');
 select is((select v ->> 'total' from public.tap_res where k = 'rk_region'), '2', 'ranking regional (sul): Ana e Carol');
 select is((select v #>> '{top,1,rank}' from public.tap_res where k = 'rk_region'), '2', 'no regional a posição é recontada');
-select is((select v #>> '{top,0,points}' from public.tap_res where k = 'rk_all'), '61', 'geral: 11 + 10 + 15 + 20 + 5 pontos da Ana');
+select is((select v #>> '{top,0,points}' from public.tap_res where k = 'rk_all'), '58', 'geral: 5 + 3 + 10 + 15 + 20 + 5 pontos da Ana');
 select is((select v #>> '{top,0,name}' from public.tap_res where k = 'rk_all'), 'Aninha', 'geral: Ana lidera');
 select is((select jsonb_array_length(v -> 'top') from public.tap_res where k = 'rk_bob_lim1'), 1, 'limite 1: só o primeiro');
 select is((select v #>> '{me,rank}' from public.tap_res where k = 'rk_bob_lim1'), '2', 'fora do top, "me" traz a posição do Bob');
@@ -239,6 +270,18 @@ select public.tap_super();
 select is((select count(*) from auth.users where id = '22222222-2222-2222-2222-222222222222'), 0::bigint, 'a conta foi apagada de auth.users');
 select is((select count(*) from public.profiles where id = '22222222-2222-2222-2222-222222222222'), 0::bigint, 'o perfil foi apagado em cascata');
 select is((select count(*) from public.scores where user_id = '22222222-2222-2222-2222-222222222222'), 0::bigint, 'os pontos foram apagados em cascata');
+
+-- ---------- ritmo: no máximo uma vitória por jogo a cada phase_min_seconds (anti-farm) ----------
+create or replace function public.phase_min_seconds() returns int language sql immutable set search_path = '' as $$ select 3 $$;
+select public.tap_super();
+select public.open_phase('11111111-1111-1111-1111-111111111111','patches', 123, '{}'::jsonb);
+select throws_ok($$select public.finalize_win('11111111-1111-1111-1111-111111111111','patches','bbbbbbbb-0000-0000-0000-000000000001')$$, 'P0001', 'too_fast', 'fase recém-aberta não pontua na hora');
+update public.phase_runs set started_at = now() - interval '10 seconds' where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'patches';
+select lives_ok($$select public.finalize_win('11111111-1111-1111-1111-111111111111','patches','bbbbbbbb-0000-0000-0000-000000000001')$$, 'fase com tempo suficiente já pode vencer');
+select public.open_phase('11111111-1111-1111-1111-111111111111','patches', 124, '{}'::jsonb);
+update public.phase_runs set started_at = now() - interval '10 seconds' where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'patches';
+select throws_ok($$select public.finalize_win('11111111-1111-1111-1111-111111111111','patches','bbbbbbbb-0000-0000-0000-000000000002')$$, 'P0001', 'too_fast', 'duas vitórias coladas no mesmo jogo são recusadas');
+select public.tap_super();
 
 select * from finish();
 rollback;

@@ -16,7 +16,7 @@ Funcionalidades prontas: entrada (criar conta, Google **simulado**, anônimo, "E
 
 ```bash
 npm start     # servidor local (usa serve.json); não abra o index.html com duplo clique
-npm test      # 125 testes, Node 20+
+npm test      # 203 testes, Node 20+
 ```
 
 ## Estrutura e decisões importantes
@@ -49,7 +49,8 @@ npm test      # 125 testes, Node 20+
 
 ## Backend (Supabase) e modo local
 - Dois modos pelo `shared/backend/config.js` (vazio = local). Os serviços de `shared/` e `js/auth.js` escolhem sozinhos: `Cloud.owns(uid)` (dono dos dados na nuvem) e `Cloud.active` (jogos e rankings). **Anônimo é sempre local.**
-- **Toda página nova e todo `ui.js` de jogo importam `shared/backend/boot.js` como primeira linha** (o `await` carrega a conta antes de qualquer leitura síncrona). Vitórias: `Progress.wins/setWins` (nunca `localStorage` direto); na nuvem `setWins` só atualiza a tela e quem soma é `Scores.submit` -> `submit_win`.
+- **Toda página nova e todo `ui.js` de jogo importam `shared/backend/boot.js` como primeira linha** (o `await` carrega a conta antes de qualquer leitura síncrona). Vitórias: `Progress.wins/setWins` (nunca `localStorage` direto); na nuvem `setWins` só atualiza a tela e quem soma é `Scores.submit` -> `Cloud.finish` (Edge Function `play`).
+- **A fase é SERVIDA pelo servidor (migração `20261019000000_serve_phase.sql` + Edge Function `play`)**: o servidor gera a **seed** (que **nunca** vai ao cliente) e o **puzzle público sem solução**, cobra 1 coin ao abrir (`open_phase`) e guarda tudo em `phase_runs`. O cliente pede a fase por `Cloud.open(game)` e desenha a visão pública; ao concluir, manda o **tabuleiro** (`Scores.submit(game, points, { state })` -> `Cloud.finish`); o servidor regenera a fase a partir da seed, **valida** (`supabase/functions/play/_shared/board.js`) e só então `finalize_win` pontua (teto do nível, a dica só reduz), consome a fase e aplica o ritmo `phase_min_seconds` (hoje 3 s). O erro `too_fast` (P0001) é **retentável** — vitórias offline chegam juntas na fila e são reenviadas espaçadas; tabuleiro inválido (422) sai da fila. **Ligado de ponta a ponta nos seis jogos**. As dicas de `cruzadas`/`sopa` também vêm do servidor (`Cloud.hint`). No modo nuvem o andamento parcial (letras/palavras achadas) **não** é retomado após recarregar; a fase e as dicas voltam do snapshot. `new_run`/`submit_win` foram revogadas do cliente.
 - Métodos que na nuvem devolvem Promise (use `await` sempre): `Profile.setNickname/setAvatar`, `GameSwitch.set`, `AdminLevel.set`, `Auth.*`. No modo local continuam síncronos.
 - `supabase/migrations` é a fonte do esquema; mudanças futuras vão em arquivos novos (nunca editar o que já foi aplicado). As constantes (15 vitórias por nível, pontos 5/10/15/20, 2 coins, 99999, regiões, jogos) estão no SQL **e** no JS; `tests/supabase.test.js` falha se divergirem.
 - **Senha** (conta nova: 8+ caracteres, 1 número, 1 maiúscula): uma só regra em `shared/password.js`, usada no cadastro, na troca de senha, na lista de requisitos (`js/password-rules.js`) e na mensagem do erro `weak_password`. O **login nunca** aplica essa regra (contas antigas entram).
@@ -67,7 +68,7 @@ npm test      # 125 testes, Node 20+
 
 ## Limitações e próximos passos sugeridos
 
-1. **Backend**: já existe a integração com o **Supabase** (contas, ranking, coins, progresso, fases e liga/desliga no servidor; ver `docs/SUPABASE.md`). Falta validar a vitória de verdade no servidor (hoje ele só limita os pontos ao teto do nível), foto no Storage, região para contas Google e listar contas no painel do administrador. Recuperar senha ("Esqueceu a senha?", link do Supabase para `redefinir.html`) e excluir a própria conta (LGPD, popup com a senha atual + `delete_my_account`) já estão prontos.
+1. **Backend**: já existe a integração com o **Supabase** (contas, ranking, coins, progresso, fases e liga/desliga no servidor; ver `docs/SUPABASE.md`). Os pontos já são decididos no servidor (teto do nível, menos dicas) e há ritmo mínimo entre vitórias (`phase_min_seconds`), com a fase aberta em `phase_runs` — falta **validar a jogada de verdade** (rodar a lógica de cada jogo numa Edge Function usando o `domain.js`, que é puro), foto no Storage, região para contas Google e listar contas no painel do administrador. Recuperar senha ("Esqueceu a senha?", link do Supabase para `redefinir.html`) e excluir a própria conta (LGPD, popup com a senha atual + `delete_my_account`) já estão prontos.
 2. Gerar as fases do Zip nos níveis altos num **Web Worker** (pode levar alguns segundos no Genius).
 3. Suporte a **teclado** no Patches (o Sudoku já tem).
 4. Centralizar as cores (tokens) num `tokens.css` compartilhado (hoje cada jogo repete os seus).

@@ -1,7 +1,7 @@
 /* Regras e gerador das Palavras Cruzadas (cruzadinha brasileira): código puro, sem DOM (testável no Node).
    As dicas ficam dentro da grade, em casas próprias; a seta da dica diz onde a resposta começa e para onde segue. */
 import { WORDS, normalize } from "./words.js";
-import { POINTS_PER_LEVEL } from "../../shared/progress.js";
+import { POINTS_PER_LEVEL } from "../../shared/points.js";
 export { normalize };
 
 /* ===================== DOMÍNIO ===================== */

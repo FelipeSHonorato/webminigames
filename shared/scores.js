@@ -14,11 +14,13 @@ export const Scores = {
     return Boolean(s) && s.provider !== "anonymous";
   },
 
-  /** Soma os pontos de UMA partida concluída. Chamado só quando o cenário é vencido. */
-  async submit(gameId, points) {
+  /** Soma os pontos de UMA partida concluída. Chamado só quando o cenário é vencido.
+      Na nuvem o servidor decide os pontos: ele recebe o TABULEIRO resolvido (`state`) e só pontua se ele bater com a seed da fase.
+      No modo local, `points` (já descontadas as dicas) é o que vale. */
+  async submit(gameId, points, { state } = {}) {
     const s = getSession();
     if (!this.canRank() || !(points > 0)) return null;
-    if (Cloud.owns(s.id)) return Cloud.submitWin(gameId, points);        // o servidor valida, pontua, sobe a progressão e gasta o coin
+    if (Cloud.owns(s.id)) return Cloud.finish(gameId, state);            // o servidor valida o tabuleiro, pontua, sobe a progressão e consome a fase
     const all = readJSON(KEY, {});
     const row = (all[s.id] ??= { name: s.name, region: s.region ?? null, games: {} });
     row.name = s.name;

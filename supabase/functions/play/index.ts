@@ -1,0 +1,78 @@
+// Edge Function "play": serve a fase (com seed secreta), valida o tabuleiro e só então pontua.
+// O navegador chama isto no lugar de new_run/submit_win. A escrita no banco usa a chave service_role;
+// as funções open_phase/use_hint/finalize_win não têm EXECUTE para anon/authenticated.
+//
+// Deploy:  supabase functions deploy play
+// Segredo: supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...   (URL e ANON_KEY são injetadas automaticamente)
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { publicView, validate, hint, hasHints } from "./_shared/board.js";
+
+const URL = Deno.env.get("SUPABASE_URL")!;
+const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
+const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+const GAMES = new Set(["canos", "cruzadas", "patches", "sopa", "sudoku", "zip"]);
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...CORS } });
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+  if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
+
+  const auth = req.headers.get("Authorization") ?? "";
+  if (!auth) return json({ error: "not_authenticated" }, 401);
+  const userClient = createClient(URL, ANON, { global: { headers: { Authorization: auth } }, auth: { persistSession: false } });
+  const { data: { user } } = await userClient.auth.getUser();
+  if (!user) return json({ error: "not_authenticated" }, 401);
+  const uid = user.id;
+
+  const svc = createClient(URL, SERVICE, { auth: { persistSession: false } });
+
+  let body: any;
+  try { body = await req.json(); } catch { return json({ error: "bad_json" }, 400); }
+  const action = body?.action, game = body?.game;
+  if (!GAMES.has(game)) return json({ error: "unknown_game" }, 400);
+
+  try {
+    if (action === "open") {
+      const { data: level, error: le } = await svc.rpc("level_for", { p_uid: uid, p_game: game });
+      if (le) return json({ error: le.message }, 400);
+      const seed = crypto.getRandomValues(new Uint32Array(1))[0];
+      const view = publicView(game, seed, Number(level));                 // sem await entre gerar e guardar (isolate)
+      const { data, error } = await svc.rpc("open_phase", { p_uid: uid, p_game: game, p_seed: seed, p_puzzle: view });
+      if (error) return json({ error: error.message }, error.message === "no_coins" ? 409 : 400);
+      return json({ level: data.level, hints: data.hints, puzzle: data.puzzle, coins: data.coins });
+    }
+
+    if (action === "hint") {
+      if (!hasHints(game)) return json({ error: "no_hints" }, 400);
+      const { data: phase, error: pe } = await svc.from("phase_runs").select("seed, level, hints").eq("user_id", uid).eq("game_id", game).maybeSingle();
+      if (pe) return json({ error: pe.message }, 400);
+      if (!phase) return json({ error: "no_phase" }, 409);
+      const h = hint(game, Number(phase.seed), phase.level, phase.hints, body?.state);
+      if (!h) return json({ error: "no_hint" }, 409);
+      const { data, error } = await svc.rpc("use_hint", { p_uid: uid, p_game: game });
+      if (error) return json({ error: error.message }, 409);
+      return json({ ...h, hints: data.hints });
+    }
+
+    if (action === "finish") {
+      const { data: phase, error: pe } = await svc.from("phase_runs").select("seed, level, hints").eq("user_id", uid).eq("game_id", game).maybeSingle();
+      if (pe) return json({ error: pe.message }, 400);
+      if (!phase) return json({ error: "no_phase" }, 409);
+      if (!validate(game, Number(phase.seed), phase.level, body?.state)) return json({ error: "invalid" }, 422);
+      const { data, error } = await svc.rpc("finalize_win", { p_uid: uid, p_game: game, p_op: body?.op ?? null });
+      if (error) return json({ error: error.message, retryable: error.message === "too_fast" }, error.message === "too_fast" ? 409 : 400);
+      return json(data);
+    }
+
+    return json({ error: "unknown_action" }, 400);
+  } catch (e) {
+    return json({ error: "server_error", detail: String((e as Error)?.message ?? e) }, 500);
+  }
+});

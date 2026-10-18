@@ -20,7 +20,7 @@ const SNAP = {
 };
 
 /** Cliente Supabase de mentira: registra as chamadas e devolve o que o teste mandar. */
-function fakeClient({ session = { user: { id: UID, email: "ana@t.com", app_metadata: { provider: "email" } } }, snapshot = SNAP, rpc = {}, tables = {}, auth = {} } = {}) {
+function fakeClient({ session = { user: { id: UID, email: "ana@t.com", app_metadata: { provider: "email" } } }, snapshot = SNAP, rpc = {}, tables = {}, auth = {}, functions = {} } = {}) {
   const calls = [];
   const chain = result => { const o = { eq: () => o, select: () => o, then: (ok, no) => Promise.resolve(result).then(ok, no) }; return o; };
   return {
@@ -33,6 +33,9 @@ function fakeClient({ session = { user: { id: UID, email: "ana@t.com", app_metad
       resetPasswordForEmail: async (email, opts) => { calls.push(["resetPasswordForEmail", email, opts]); return auth.resetPasswordForEmail?.(email, opts) ?? { data: {}, error: null }; },
       updateUser: async args => { calls.push(["updateUser", args]); return auth.updateUser?.(args) ?? { data: { user: session?.user }, error: null }; },
       verifyOtp: async args => { calls.push(["verifyOtp", args]); return auth.verifyOtp?.(args) ?? { data: { user: session?.user }, error: null }; },
+    },
+    functions: {
+      invoke: async (name, opts) => { calls.push(["invoke", name, opts.body]); return functions.invoke?.(name, opts.body) ?? { data: null, error: null }; },
     },
     from: table => ({
       select: () => chain(tables.select?.(table) ?? { data: [{ id: "zip", enabled: true }, { id: "canos", enabled: false }], error: null }),
@@ -108,42 +111,74 @@ test("Run: erro ao gravar não perde a fase (continua pendente e é reenviada)",
   assert.equal(c.calls.filter(x => x[0] === "upsert").length, 2);
 });
 
-test("vitória: vai para a fila, o servidor decide e o cache recebe pontos, vitórias e coins", async () => {
-  const c = await boot({ rpc: { submit_win: () => ({ data: winResult, error: null }) } });
+test("abrir fase: o servidor serve o puzzle (sem solução) e o cache guarda nível e coins", async () => {
+  const opened = { level: 2, hints: 0, puzzle: { cells: [1, 2, 0], givens: 2 }, coins: { coins: 1, anchor: 5 } };
+  const c = await boot({ functions: { invoke: (name, body) => (body.action === "open" ? { data: opened, error: null } : { data: null, error: null }) } });
+  const d = await Cloud.open("sudoku");
+  assert.deepEqual(d, opened);
+  const call = c.calls.find(x => x[0] === "invoke" && x[2].action === "open");
+  assert.equal(call[1], "play"); assert.equal(call[2].game, "sudoku");
+  assert.deepEqual(Cloud.phase("sudoku"), { level: 2, hints: 0, puzzle: { cells: [1, 2, 0], givens: 2 } });
+  assert.equal(Cloud.coinEntry("sudoku").coins, 1);
+});
+
+test("dica: o servidor conta e devolve o novo total; o cache da fase acompanha", async () => {
+  const c = await boot({ functions: { invoke: (name, body) => (body.action === "hint" ? { data: { cell: 4, value: "A", hints: 3 }, error: null } : { data: { level: 0, hints: 0, puzzle: { cells: [] }, coins: { coins: 2, anchor: 1 } }, error: null }) } });
+  await Cloud.open("cruzadas");
+  const d = await Cloud.hint("cruzadas", { entries: "", id: 0 });
+  assert.deepEqual(d, { cell: 4, value: "A", hints: 3 });
+  assert.equal(c.calls.find(x => x[0] === "invoke" && x[2].action === "hint")[2].state.id, 0);
+  assert.equal(Cloud.phase("cruzadas").hints, 3);
+});
+
+test("vitória: o servidor valida o tabuleiro e o cache recebe pontos, vitórias e coins", async () => {
+  const c = await boot({ functions: { invoke: () => ({ data: winResult, error: null }) } });
   Coins.spend(UID, "zip");
-  const r = await Scores.submit("zip", 5);
+  const r = await Scores.submit("zip", 5, { state: { grid: [1, 2, 3] } });
   assert.deepEqual(r, winResult.score);
-  const call = c.calls.find(x => x[1] === "submit_win");
-  assert.equal(call[2].p_game, "zip"); assert.equal(call[2].p_points, 5); assert.match(call[2].p_op, /^[0-9a-f-]{36}$/);
+  const call = c.calls.find(x => x[0] === "invoke" && x[2].action === "finish");
+  assert.equal(call[2].game, "zip"); assert.deepEqual(call[2].state, { grid: [1, 2, 3] }); assert.match(call[2].op, /^[0-9a-f-]{36}$/);
   assert.equal(Progress.wins("zip.wins", UID), 4); assert.equal(Scores.mine().zip.points, 17); assert.equal(Coins.get(UID, "zip").coins, 0);
   assert.equal(JSON.parse(store.get("wmg.outbox")).length, 0);
 });
 
 test("vitória sem rede fica na fila e é reenviada com o MESMO id (nunca conta duas vezes)", async () => {
   let offline = true;
-  const c = await boot({ rpc: { submit_win: () => (offline ? { data: null, error: { code: "", message: "Failed to fetch" } } : { data: winResult, error: null }) } });
-  assert.equal(await Scores.submit("zip", 5), null);
+  const c = await boot({ functions: { invoke: () => (offline ? { data: null, error: { message: "Failed to fetch" } } : { data: winResult, error: null }) } });
+  assert.equal(await Scores.submit("zip", 5, { state: { grid: [1] } }), null);
   const queued = JSON.parse(store.get("wmg.outbox")); assert.equal(queued.length, 1);
   offline = false; await Cloud.flush();
-  const ops = c.calls.filter(x => x[1] === "submit_win").map(x => x[2].p_op);
+  const ops = c.calls.filter(x => x[0] === "invoke" && x[2].action === "finish").map(x => x[2].op);
   assert.equal(ops.length, 2); assert.equal(ops[0], ops[1]); assert.equal(ops[0], queued[0].op);
   assert.equal(JSON.parse(store.get("wmg.outbox")).length, 0);
 });
 
-test("vitória recusada pelo servidor (regra violada) sai da fila: não fica tentando para sempre", async () => {
-  const c = await boot({ rpc: { submit_win: () => ({ data: null, error: { code: "22023", message: "invalid_points" } }) } });
-  assert.equal(await Scores.submit("zip", 20), null);
+test("vitória recusada pelo servidor (tabuleiro inválido) sai da fila: não fica tentando para sempre", async () => {
+  const c = await boot({ functions: { invoke: () => ({ data: null, error: { message: "invalid", context: { status: 422, json: async () => ({ error: "invalid" }) } } }) } });
+  assert.equal(await Scores.submit("zip", 20, { state: { grid: [0] } }), null);
   assert.equal(JSON.parse(store.get("wmg.outbox")).length, 0);
   await Cloud.flush();
-  assert.equal(c.calls.filter(x => x[1] === "submit_win").length, 1);
+  assert.equal(c.calls.filter(x => x[0] === "invoke").length, 1);
   assert.deepEqual([isPermanent({ code: "22023" }), isPermanent({ code: "" }), isPermanent({ code: "PGRST301" })], [true, false, false]);
 });
 
+test("vitória 'too_fast' (ritmo) NÃO é descartada: fica na fila e é reenviada depois", async () => {
+  let tooFast = true;
+  const c = await boot({ functions: { invoke: () => (tooFast ? { data: null, error: { message: "too_fast", context: { status: 409, json: async () => ({ error: "too_fast", retryable: true }) } } } : { data: winResult, error: null }) } });
+  assert.equal(await Scores.submit("zip", 5, { state: { grid: [1] } }), null);
+  assert.equal(JSON.parse(store.get("wmg.outbox")).length, 1, "jogada offline em série não perde a vitória");
+  tooFast = false; await Cloud.flush();
+  assert.equal(JSON.parse(store.get("wmg.outbox")).length, 0);
+  assert.equal(c.calls.filter(x => x[0] === "invoke").length, 2);
+  assert.equal(isPermanent({ code: "P0001" }), false);
+  Cloud._reset();
+});
+
 test("a fila é por jogador: vitórias pendentes de outra conta não são enviadas por esta", async () => {
-  const c = await boot({ rpc: { submit_win: () => ({ data: winResult, error: null }) } });
-  store.set("wmg.outbox", JSON.stringify([{ uid: "outra-conta", game: "zip", points: 5, op: "aaaaaaaa-0000-4000-8000-000000000001" }]));
+  const c = await boot({ functions: { invoke: () => ({ data: winResult, error: null }) } });
+  store.set("wmg.outbox", JSON.stringify([{ uid: "outra-conta", game: "zip", state: {}, op: "aaaaaaaa-0000-4000-8000-000000000001" }]));
   await Cloud.flush();
-  assert.equal(c.calls.filter(x => x[1] === "submit_win").length, 0);
+  assert.equal(c.calls.filter(x => x[0] === "invoke").length, 0);
   assert.equal(JSON.parse(store.get("wmg.outbox")).length, 1);
 });
 

@@ -9,6 +9,7 @@ import { coinBadge, fmtDuration } from "../../shared/coin-badge.js";
 import { mountUserBar } from "../../js/userbar.js";
 import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
+import { Cloud } from "../../shared/backend/cloud.js";
 import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/progress.js";
 import { BIT, DELTA, E, GEN, LEVELS, N, S, STORE_KEY, W, firstLeaks, generatePuzzle, initialRots, maskOf, opposite, rotateTile, simulate, solutionRots } from "./domain.js";
 
@@ -59,11 +60,13 @@ function creditWin() {
   credited = true;
   const before = levelOf(wins), points = pointsFor(puzzle.level);
   wins++; saveWins(wins); renderLevel();
-  const spent = Coins.spend(uid, GAME_ID);                                   // o coin só é gasto aqui, ao vencer (falhar não gasta)
-  Run.set(uid, GAME_ID, { seed: puzzle.seed, level: puzzle.level, solved: true, gen: GEN });
+  const cloudMode = Cloud.owns(uid);
+  const spent = cloudMode ? false : Coins.spend(uid, GAME_ID);               // na nuvem o coin já foi cobrado ao SERVIR a fase (open)
+  if (!cloudMode) Run.set(uid, GAME_ID, { seed: puzzle.seed, level: puzzle.level, solved: true, gen: GEN });
   let note = "";
   if (Scores.canRank()) {
-    Scores.submit(GAME_ID, points).then(() => ranking.refresh());              // só aqui, ao vencer
+    // Na nuvem o servidor recebe os giros, regenera a partir da seed e só pontua se a água chegar mesmo à saída.
+    Scores.submit(GAME_ID, points, { state: { rots } }).then(() => ranking.refresh());
     note = ` +${points} pontos!`;
   } else note = " Crie uma conta para pontuar no ranking.";
   if (spent) note += " −1 coin.";
@@ -77,12 +80,16 @@ function buildPuzzle(seed, level) {
   p.level = level; p.seed = seed;
   return p;
 }
-/** Nova fase: a seed fica salva, então recarregar a página devolve o mesmo cenário até ele ser concluído. */
-function freshPuzzle() {
+/** Fase servida pelo servidor: chega SEM a solução (a seed fica no servidor), então a tela não sabe os giros certos. */
+const serverPuzzle = (view, level) => ({ n: view.n, tiles: view.tiles, inlet: view.inlet, outlet: view.outlet, level, server: true });
+/** Fase nova no modo local: a seed fica salva, então recarregar a página devolve o mesmo cenário até ele ser concluído. */
+function localFresh() {
   const seed = (Math.random() * 2 ** 32) >>> 0, level = levelOf(wins);
   Run.set(uid, GAME_ID, { seed, level, solved: false, gen: GEN });
   return buildPuzzle(seed, level);
 }
+/** Fase nova: na nuvem quem serve é o servidor (open cobra o coin e guarda a seed); local sorteia. */
+const freshPuzzle = () => (Cloud.owns(uid) ? Cloud.open(GAME_ID).then(d => serverPuzzle(d.puzzle, d.level)) : Promise.resolve(localFresh()));
 
 /* ----- Desenho do SVG -----
    A grade n x n fica no meio de um quadro (n+2) x (n+2): a margem de uma casa em volta guarda o cano de entrada e o de saída.
@@ -330,7 +337,11 @@ retryBtn.onclick = () => {
   if (phase === "counting") { restoreRots(); renderPhase(); }   // contagem em andamento: os giros voltam ao começo, o tempo segue correndo
   else if (phase === "ready" || phase === "lost") reset();      // tentativa nova (a água já correu, ou ainda nem começou): relógio cheio, volta a contar no 1º giro
 };   // "won", "flowing" e "locked": não reinicia
-document.getElementById("next").onclick = () => { if (phase === "won" && Coins.get(uid, GAME_ID).coins > 0) loadPuzzle(freshPuzzle()); };
+document.getElementById("next").onclick = async () => {
+  if (phase !== "won" || Coins.get(uid, GAME_ID).coins <= 0) return;
+  try { loadPuzzle(await freshPuzzle()); }
+  catch (e) { setMessage(e?.code === "no_coins" ? "Sem coins por agora." : "Não foi possível abrir a fase. Tente de novo.", true); }
+};
 
 /** Fase já concluída (ao recarregar a página): mostra a solução com a água correndo e não pontua de novo. */
 function restoreSolved() {
@@ -347,12 +358,21 @@ function lockBoard() {
   setMessage(`Sem coins por agora: novos em ${fmtDuration(Coins.get(uid, GAME_ID).nextRefillAt - Date.now())}.`);
 }
 
-/* Fase inicial: volta a fase salva (mesma seed); sem fase salva, sorteia uma no nível atual se houver coin. */
+/* Fase inicial. Na nuvem a fase é SERVIDA pelo servidor (open): retoma a fase em aberto que veio no snapshot ou pede uma nova.
+   No modo local, volta a fase salva (mesma seed); sem fase salva, sorteia uma no nível atual se houver coin. */
 renderLevel();
-const saved = Run.get(uid, GAME_ID);
-if (saved) {
-  loadPuzzle(buildPuzzle(saved.seed, saved.level));
-  if (saved.solved) restoreSolved(); else if (saved.gen !== GEN) Run.set(uid, GAME_ID, { seed: saved.seed, level: saved.level, solved: false, gen: GEN });
+const lockedPuzzle = () => buildPuzzle((Math.random() * 2 ** 32) >>> 0, levelOf(wins));
+if (Cloud.owns(uid)) {
+  const cached = Cloud.phase(GAME_ID);
+  if (cached) loadPuzzle(serverPuzzle(cached.puzzle, cached.level));
+  else if (Coins.get(uid, GAME_ID).coins > 0) freshPuzzle().then(p => loadPuzzle(p)).catch(e => { loadPuzzle(lockedPuzzle()); e?.code === "no_coins" ? lockBoard() : setMessage("Não foi possível carregar a fase. Recarregue a página.", true); });
+  else { loadPuzzle(lockedPuzzle()); lockBoard(); }
+} else {
+  const saved = Run.get(uid, GAME_ID);
+  if (saved) {
+    loadPuzzle(buildPuzzle(saved.seed, saved.level));
+    if (saved.solved) restoreSolved(); else if (saved.gen !== GEN) Run.set(uid, GAME_ID, { seed: saved.seed, level: saved.level, solved: false, gen: GEN });
+  }
+  else if (Coins.get(uid, GAME_ID).coins > 0) loadPuzzle(localFresh());
+  else { loadPuzzle(lockedPuzzle()); lockBoard(); }
 }
-else if (Coins.get(uid, GAME_ID).coins > 0) loadPuzzle(freshPuzzle());
-else { loadPuzzle(buildPuzzle((Math.random() * 2 ** 32) >>> 0, levelOf(wins))); lockBoard(); }

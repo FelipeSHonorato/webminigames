@@ -6,13 +6,14 @@ import { PASSWORD_HINT } from "../password.js";
    Ponto de troca dos serviços de shared/ (Coins, Run, Scores, Profile, GameSwitch, Progress, AdminLevel) e de js/auth.js.
    Quando o Supabase está configurado, os dados do jogador são carregados UMA vez ao abrir a página (`start`) para um cache em
    memória: a leitura continua síncrona (os jogos leem coins, fase e nível sem esperar a rede) e as escritas seguem para o
-   servidor em segundo plano. Pontos, vitórias, nível e coins são decididos pelo servidor (supabase/migrations): o navegador
-   só pede (submit_win) e guarda a resposta. Sem Supabase configurado, `start` não faz nada e tudo roda local. */
+   servidor em segundo plano. Pontos, vitórias, nível, coins e o PRÓPRIO puzzle são decididos pelo servidor (supabase/migrations
+   + Edge Function "play"): o navegador só pede (open/hint/finish) e guarda a resposta; sem a seed do servidor, não há como
+   derivar a solução. Sem Supabase configurado, `start` não faz nada e tudo roda local. */
 
 const SESSION_KEY = "wmg.session", OUTBOX_KEY = "wmg.outbox";
 const RUN_DELAY_MS = 700, RETRY_MS = 5000;
-const empty = () => ({ profile: null, wins: {}, runs: {}, coins: {}, scores: {}, activity: {}, games: {} });
-const fresh = () => ({ active: false, client: null, uid: null, degraded: false, reason: null, cache: empty(), dirty: new Set(), removed: new Set(), timer: null, runLock: null, outboxLock: null, wired: false });
+const empty = () => ({ profile: null, wins: {}, runs: {}, phases: {}, coins: {}, scores: {}, activity: {}, games: {} });
+const fresh = () => ({ active: false, client: null, uid: null, degraded: false, reason: null, cache: empty(), dirty: new Set(), removed: new Set(), timer: null, runLock: null, outboxTimer: null, outboxLock: null, wired: false });
 let S = fresh();
 
 export const isConfigured = (url = SUPABASE_URL, key = SUPABASE_ANON_KEY) => Boolean(url && key);
@@ -44,11 +45,26 @@ export function authErrorMessage(error) {
 
 /** Erro que reenviar a mesma vitória não resolve (regra violada): sai da fila em vez de ficar tentando para sempre. */
 export const isPermanent = error => ["22023", "23503", "42501", "28000"].includes(error?.code);
+/** Erro passageiro (rede) ou ritmo: mantém na fila e tenta mais tarde. */
+const isRetryable = error => !error?.status || error?.code === "too_fast";
 
 const providerOf = user => (user?.app_metadata?.provider === "google" ? "google" : "password");
 const sessionOf = (user, profile) => ({ id: user.id, name: profile.name, provider: providerOf(user), region: profile.region ?? null, role: profile.role ?? "user", email: user.email ?? null });
 const writeSession = session => store.set(SESSION_KEY, JSON.stringify(session));
 const degrade = e => { S.degraded = true; S.reason = e; console.warn("[WebMiniGames] Supabase indisponível:", e?.message ?? e); };
+
+/** Erro da Edge Function "play": normaliza { status, code } a partir da resposta JSON ({ error }). */
+async function edgeError(error) {
+  let code = error?.message ?? "edge_error", status = error?.context?.status ?? error?.status ?? 0;
+  try { const body = await error?.context?.json?.(); if (body?.error) code = body.error; } catch { /* corpo sem JSON */ }
+  const e = new Error(code); e.code = code; e.status = status; return e;
+}
+/** Chama a Edge Function: ela decide o nível, cobra o coin, valida o tabuleiro e só então pontua. */
+async function invoke(action, body) {
+  const { data, error } = await S.client.functions.invoke("play", { body: { action, ...body } });
+  if (error) throw await edgeError(error);
+  return data;
+}
 
 async function loadGames() {
   const { data, error } = await S.client.from("games").select("id,enabled");
@@ -69,8 +85,8 @@ async function loadUser(user, gamesPromise = loadGames()) {
 }
 
 function resetUser() {
-  clearTimeout(S.timer);
-  Object.assign(S, { uid: null, cache: { ...empty(), games: S.cache.games }, dirty: new Set(), removed: new Set(), timer: null });
+  clearTimeout(S.timer); clearTimeout(S.outboxTimer);
+  Object.assign(S, { uid: null, cache: { ...empty(), games: S.cache.games }, dirty: new Set(), removed: new Set(), timer: null, outboxTimer: null });
 }
 
 /* ----- Fase salva: grava em segundo plano (junta jogadas seguidas) ----- */
@@ -96,12 +112,15 @@ function flushRuns() {
   return S.runLock;
 }
 
-/* ----- Vitórias: fila guardada no navegador; cada vitória leva um id único, então reenviar nunca conta em dobro ----- */
+/* ----- Vitórias: a Edge Function valida o tabuleiro (com a seed secreta) e só então pontua.
+   A fila no navegador guarda o TABULEIRO resolvido; cada pedido leva um id único, então reenviar nunca conta em dobro. ----- */
 const readOutbox = () => readJSON(OUTBOX_KEY, []);
 const writeOutbox = list => store.set(OUTBOX_KEY, JSON.stringify(list));
 function applyWin(game, data) {
   S.cache.wins[game] = data.wins; S.cache.scores[game] = data.score; S.cache.coins[game] = data.coins;
+  delete S.cache.phases[game];   // a fase foi consumida (ou já estava): não há o que retomar
 }
+function scheduleOutboxRetry() { clearTimeout(S.outboxTimer); S.outboxTimer = setTimeout(() => { S.outboxTimer = null; flushOutbox(); }, RETRY_MS); }
 function flushOutbox() {
   S.outboxLock = (S.outboxLock ?? Promise.resolve()).then(async () => {
     if (!S.client || S.uid === null || S.degraded) return null;
@@ -109,10 +128,14 @@ function flushOutbox() {
     for (;;) {
       const item = readOutbox().find(i => i.uid === S.uid);
       if (!item) return last;
-      const { data, error } = await S.client.rpc("submit_win", { p_game: item.game, p_points: item.points, p_op: item.op });
-      if (error && !isPermanent(error)) { console.warn("[WebMiniGames] vitória na fila (será reenviada):", error.message); return last; }
+      let data = null;
+      try { data = await invoke("finish", { game: item.game, state: item.state, op: item.op }); }
+      catch (e) {
+        if (isRetryable(e)) { console.warn("[WebMiniGames] vitória na fila (será reenviada):", e.code); scheduleOutboxRetry(); return last; }
+        console.warn("[WebMiniGames] vitória recusada:", e.code);   // tabuleiro inválido / sem fase: sai da fila
+      }
       writeOutbox(readOutbox().filter(i => i.op !== item.op));
-      if (!error) { applyWin(item.game, data); last = data.score; }
+      if (data) { applyWin(item.game, data); last = data.score; }
     }
   });
   return S.outboxLock;
@@ -186,21 +209,39 @@ export const Cloud = {
   profile: () => S.cache.profile ?? {},
   wins: g => S.cache.wins[g] ?? 0,
   run: g => S.cache.runs[g] ?? null,
+  phase: g => S.cache.phases[g] ?? null,
   coinEntry: g => S.cache.coins[g] ?? null,
   scores: () => S.cache.scores,
   activity: () => S.cache.activity,
   gameOn: g => S.cache.games[g] !== false,
 
   /* ----- escrita ----- */
-  setWins(g, n) { S.cache.wins[g] = n; },                                        // só o cache: quem conta vitória é o servidor (submit_win)
+  setWins(g, n) { S.cache.wins[g] = n; },                                        // só o cache: quem conta vitória é o servidor
   setCoinEntry(g, entry) { S.cache.coins[g] = entry; },
   setRun(g, run) { S.cache.runs[g] = run; S.removed.delete(g); S.dirty.add(g); scheduleRuns(); },
   clearRun(g) { delete S.cache.runs[g]; S.dirty.delete(g); S.removed.add(g); scheduleRuns(); },
   flush: () => Promise.all([flushRuns(), flushOutbox()]),
 
-  /** Soma uma vitória: vai para a fila e é enviada já. Devolve a pontuação atual do jogo (ou null se ficou na fila). */
-  async submitWin(game, points) {
-    writeOutbox([...readOutbox(), { uid: S.uid, game, points, op: crypto.randomUUID() }]);
+  /* ----- fase servida pelo servidor ----- */
+  /** Abre a fase: o servidor escolhe o nível, cobra 1 coin, guarda a seed (secreta) e devolve o puzzle SEM a solução.
+      Lança { code: "no_coins" } quando o saldo acabou. */
+  async open(game) {
+    const d = await invoke("open", { game });
+    S.cache.phases[game] = { level: d.level, hints: d.hints, puzzle: d.puzzle };
+    if (d.coins) S.cache.coins[game] = d.coins;
+    return d;
+  },
+  /** Pede uma dica: o servidor conta (e devolve o novo total). O conteúdo da dica vem no retorno, se houver. */
+  async hint(game, state) {
+    const d = await invoke("hint", { game, state });
+    const p = S.cache.phases[game]; if (p) p.hints = d.hints;
+    return d;
+  },
+
+  /** Fase servida pelo servidor: a vitória é decidida no servidor (fase aberta com open) e validada por ele
+      (o tabuleiro regenerado a partir da seed tem de bater). Cai na fila do navegador até o servidor confirmar. */
+  async finish(game, state) {
+    writeOutbox([...readOutbox(), { uid: S.uid, game, state, op: crypto.randomUUID() }]);
     return flushOutbox();
   },
   recordPlay(g) {
@@ -238,5 +279,5 @@ export const Cloud = {
   },
 
   /** Só para testes: volta ao estado inicial (modo local). */
-  _reset() { clearTimeout(S.timer); S = fresh(); },
+  _reset() { clearTimeout(S.timer); clearTimeout(S.outboxTimer); S = fresh(); },
 };

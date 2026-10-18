@@ -17,7 +17,7 @@ Quem joga como **anônimo** continua local nos dois modos (não cria conta, não
 ### 2. Criar as tabelas
 **SQL Editor → New query** → cole **todo** o conteúdo de `supabase/migrations/20261014000000_init.sql` → **Run**. Deve terminar com "Success". Isso cria tabelas, regras de segurança (RLS) e as funções que decidem pontos, nível e coins. **Rode uma vez só** (rodar de novo dá erro de "já existe", sem estragar nada).
 
-Depois rode, também no SQL Editor, `supabase/migrations/20261017000000_delete_account.sql`: cria a função `delete_my_account`, que apaga a própria conta (LGPD). (Se você usa a CLI do Supabase, `supabase db push` aplica os dois arquivos na ordem.)
+Depois rode, também no SQL Editor, `supabase/migrations/20261017000000_delete_account.sql`: cria a função `delete_my_account`, que apaga a própria conta (LGPD). Em seguida `20261018000000_phase_runs.sql` (fase aberta em `phase_runs`, pontos decididos no servidor e ritmo anti-farm) e `20261019000000_serve_phase.sql`: o **servidor passa a servir a fase** (seed secreta + puzzle público, sem a solução) e a **validar o tabuleiro** antes de pontuar. A validação roda numa **Edge Function** `play`: publique-a em **Edge Functions → Create function** (nome `play`) colando `supabase/functions/play/index.ts` e a pasta `_shared/`, ou, com a CLI, `supabase functions deploy play` e `supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...` (a URL e a chave anon do projeto o Supabase injeta sozinho). Se você usa a CLI, `supabase db push` aplica as migrações na ordem.
 
 ### 3. Configurar o login (Authentication)
 - **URL Configuration**
@@ -114,28 +114,30 @@ on conflict do nothing;
 | `games` | lista de jogos e se estão ligados | só o administrador (`enabled`) |
 | `profiles` | nome, apelido, região, foto, papel (`role`) | o próprio dono (menos o `role`); criado por gatilho no cadastro |
 | `game_progress` | vitórias por jogo (o nível sobe a cada 15) | só funções |
-| `scores` | pontos do ranking | só `submit_win` |
-| `win_log` | histórico de vitórias (e anti-repetição) | só `submit_win` |
+| `scores` | pontos do ranking | só `finalize_win` |
+| `win_log` | histórico de vitórias (e anti-repetição) | só `finalize_win` |
+| `phase_runs` | a fase servida (seed secreta, nível, dicas e o puzzle público) | `open_phase`/`use_hint`/`finalize_win` (Edge Function) |
 | `coins` | coins por jogo (2 a cada 24 h) | só funções |
 | `runs` | a fase atual de cada jogo | o próprio dono |
 | `activity` | último jogo e fases abertas | só `record_play` |
 
-O navegador **não consegue** escrever pontos, vitórias ou coins: só chama funções, que validam tudo (`submit_win` confere o jogo, limita os pontos ao teto do nível, gasta 1 coin e ignora uma vitória reenviada). `ranking(...)` monta os rankings no servidor e nunca expõe e-mail. `delete_my_account()` (migração `20261017000000_delete_account.sql`) apaga a própria conta em `auth.users`; o `on delete cascade` leva embora, junto, todo o rastro do jogador.
+O navegador **não consegue** escrever pontos, vitórias nem coins — e nem servir a própria fase. Quem decide tudo é a **Edge Function `play`** (só ela tem a chave `service_role` e chama as funções exclusivas do servidor): `open_phase` cobra 1 coin, escolhe o nível e guarda a **seed** (que **nunca** vai ao cliente) junto do **puzzle público sem solução**; `use_hint` conta as dicas; e `finalize_win` recebe o tabuleiro já **validado** pela função (ela regenera a fase a partir da seed e confere), **decide os pontos** pelo nível (a dica só reduz, nunca abaixo de 1), exige uma vitória por jogo a cada `phase_min_seconds` (anti-farm), consome a fase e ignora um reenvio (mesmo id, para a fila offline). `ranking(...)` monta os rankings no servidor e nunca expõe e-mail. `delete_my_account()` (migração `20261017000000_delete_account.sql`) apaga a própria conta em `auth.users`; o `on delete cascade` leva embora, junto, todo o rastro do jogador.
 
 **Site** (`shared/backend/`; a biblioteca do Supabase vem do próprio repositório, `vendor/supabase-js.mjs`, sem CDN):
 - `boot.js` é importado como **primeira linha de cada página**. Ele carrega os dados da conta de uma vez para um cache em memória; os jogos continuam lendo coins, fase e nível de forma síncrona, e as escritas vão para o servidor em segundo plano.
 - `cloud.js` concentra o acesso ao Supabase. Os serviços de `shared/` (`Coins`, `Run`, `Scores`, `Profile`, `GameSwitch`, `Progress`, `AdminLevel`) e `js/auth.js` escolhem sozinhos entre local e nuvem.
-- **Vitórias** entram numa fila guardada no navegador, cada uma com um id único: sem internet, ficam esperando e são reenviadas depois **sem contar em dobro**.
+- **A fase é servida pelo servidor**: o jogo chama `Cloud.open` (Edge Function `play`) e recebe o puzzle **sem a solução**, pronto para desenhar; ao concluir, manda o **tabuleiro** em `Scores.submit`/`Cloud.finish` e o servidor só pontua se ele bater com a seed guardada. No modo local nada disso acontece: o puzzle é gerado no navegador, como antes.
+- **Vitórias** entram numa fila guardada no navegador (com o tabuleiro e um id único): sem internet, ficam esperando e são reenviadas depois **sem contar em dobro**. Se o servidor recusar por ritmo (`too_fast`), a vitória **continua na fila** e é reenviada mais tarde (uma de cada vez) — terminar várias fases offline não perde nenhuma. Se recusar por tabuleiro inválido, sai da fila.
 - **Falha ao carregar a conta**: o site avisa numa faixa vermelha e usa o armazenamento local, **sem gravar** na nuvem (para nunca sobrescrever o que está no servidor com dados vazios).
 
 **Regra para páginas e jogos novos**: importe `shared/backend/boot.js` primeiro, leia/grave vitórias por `Progress` (nunca direto no `localStorage`) e, no banco, cadastre o jogo em `games` e em `js/games.js` com a mesma id (`tests/supabase.test.js` confere).
 
 ## Testes
-- `npm test`: inclui `tests/supabase.test.js` (o SQL e o JS precisam concordar em níveis, pontos, coins, regiões e jogos; RLS ligado em toda tabela; o visitante e o cliente só têm as permissões mínimas) e `tests/cloud.test.js` (modo nuvem com um cliente simulado: cache, fila, reenvio, modo degradado).
+- `npm test`: inclui `tests/supabase.test.js` (o SQL e o JS precisam concordar em níveis, pontos, coins, regiões e jogos; RLS ligado em toda tabela; o visitante e o cliente só têm as permissões mínimas), `tests/cloud.test.js` (modo nuvem com um cliente simulado: cache, fila, reenvio, modo degradado) e `tests/edge.test.js` (validação server-side de cada jogo + paridade das cópias dos domínios com `games/`).
 - `supabase test db` (CLI do Supabase, precisa de Docker): roda `supabase/tests/database/*.test.sql` (pgTAP) contra um banco local com a migração. Cobre RLS, permissões, cada função, idempotência, tetos de pontos, recarga de coins e ranking.
 
 ## Limites e próximos passos
-1. **Pontos por vitória são pedidos pelo navegador** (o servidor só limita ao teto do nível). Quem editar o JavaScript consegue se dar o máximo do nível a cada vitória, mesmo sem jogar, mas não passa disso nem muda coins/nível de graça. Validar a vitória de verdade exigiria rodar a lógica de cada jogo no servidor (Edge Function).
+1. **Validação de jogada no servidor (todos os seis jogos).** A Edge Function `play` serve a fase (seed secreta + puzzle sem solução) e valida o tabuleiro antes de pontuar — ligada de ponta a ponta em **zip, patches, canos, sudoku, cruzadas e sopa**. Cada UI chama `Cloud.open`, desenha a visão pública e, ao concluir, manda o tabuleiro via `Scores.submit(game, points, { state })` → `Cloud.finish`; a validação de cada jogo está em `supabase/functions/play/_shared/board.js` (com testes em `tests/edge.test.js`). Em `cruzadas`/`sopa` a validação é mais fraca (a grade contém as letras/respostas), então esses jogos sempre serão mais fáceis de burlar. Andamento parcial (letras/palavras achadas) **não** é retomado após recarregar a página no modo nuvem: a fase e as dicas voltam do snapshot, mas o preenchimento recomeça.
 2. **Foto de perfil** é guardada como imagem `data:` no próprio perfil (até 100 mil caracteres). Para muitos usuários, migrar para o **Storage** e guardar só a URL.
 3. **Dados do protótipo local não migram** (contas e senhas locais ficam só no navegador antigo). Ao ligar a nuvem, a sessão local é descartada e a pessoa cria a conta de novo.
 4. **Contas Google não têm região** (não há tela para escolher): ficam fora do ranking regional. A coluna `profiles.region` já permite gravar; falta o seletor no perfil.
