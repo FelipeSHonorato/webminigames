@@ -210,6 +210,15 @@ test("perfil: apelido e foto vão ao banco; apelido repetido vira mensagem em po
   await assert.rejects(async () => Profile.setNickname(UID, "Repetido"), /já está em uso/);
 });
 
+test("região: na nuvem vai ao banco e a sessão espelho é atualizada (qualquer conta)", async () => {
+  const c = await boot();
+  assert.equal(await Profile.setRegion(UID, "nordeste"), "nordeste");
+  assert.deepEqual(c.calls.find(x => x[0] === "update" && x[1] === "profiles").slice(2), [{ region: "nordeste" }]);
+  assert.equal(Profile.get(UID).region, "nordeste");
+  assert.equal(JSON.parse(store.get("wmg.session")).region, "nordeste");
+  await assert.rejects(async () => Profile.setRegion(UID, "marte"), /região/);
+});
+
 test("ranking vem do servidor (função ranking), com escopo e limite; erro vira lista vazia", async () => {
   const data = { top: [{ id: "x", name: "Ana", points: 5, rank: 1, isMe: false }], me: null, total: 1 };
   const c = await boot({ rpc: { ranking: () => ({ data, error: null }) } });

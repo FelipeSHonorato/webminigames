@@ -4,7 +4,7 @@ import { requireSession } from "../shared/session.js";
 import { Profile, Activity } from "../shared/profile.js";
 import { Scores } from "../shared/scores.js";
 import { fileToAvatar, avatarNode } from "../shared/avatar.js";
-import { regionName } from "../shared/regions.js";
+import { REGIONS, regionName } from "../shared/regions.js";
 import { GAMES } from "./games.js";
 import { GameSwitch } from "../shared/game-switch.js";
 import { isAdmin } from "../shared/roles.js";
@@ -23,6 +23,7 @@ function renderIdentity() {
   $("shownMeta").textContent = `${isAdmin(session) ? "Administrador" : PROVIDERS[session.provider]} · Região: ${regionName(session.region)}`;
   $("removePhoto").hidden = !p.avatar;
   $("nickname").value = p.nickname ?? "";
+  $("region").value = session.region ?? "";
   mountUserBar($("userbar"));                    // a barra superior acompanha foto e apelido
 }
 
@@ -50,6 +51,7 @@ function init() {
   $("account").hidden = false;
   const hasPassword = session.provider === "password";
   $("pwForm").hidden = !hasPassword; $("pwInfo").hidden = hasPassword;
+  $("region").append(new Option("Selecione…", ""), ...REGIONS.map(r => new Option(r.name, r.id)));
   renderIdentity(); renderGames();
 
   $("changePhoto").onclick = () => $("file").click();
@@ -69,6 +71,12 @@ function init() {
     e.preventDefault();
     try { const nick = await Profile.setNickname(session.id, $("nickname").value); say($("nickMsg"), nick ? `Apelido salvo: ${nick}` : "Apelido removido."); renderIdentity(); }
     catch (err) { say($("nickMsg"), err.message, true); }
+  };
+
+  $("regionForm").onsubmit = async e => {
+    e.preventDefault();
+    try { session.region = await Profile.setRegion(session.id, $("region").value); say($("regionMsg"), "Região atualizada."); renderIdentity(); }
+    catch (err) { say($("regionMsg"), err.message, true); }
   };
 
   const updateRules = mountPasswordRules($("pwNew"), $("pwRules"));

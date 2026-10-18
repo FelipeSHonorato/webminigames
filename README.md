@@ -15,7 +15,7 @@ Os seis têm quatro níveis (Fácil, Médio, Difícil e Genius). O nível sobe a
 
 Cada partida vencida vale pontos conforme o nível em que a fase foi gerada: **Fácil 5, Médio 10, Difícil 15, Genius 20**. Os pontos só são gravados quando o cenário é concluído. Só contas pontuam; jogadores anônimos veem o ranking, mas não aparecem nele.
 
-Cada jogo tem um painel lateral de ranking, aberto ao entrar (em telas largas) e recolhível pela aba "Ranking". Ele tem duas visões: **Geral** e **Minha região** (a região é escolhida no cadastro). Empates são resolvidos por quem chegou primeiro à pontuação. Cada linha mostra a posição, a foto do jogador (ou um avatar padrão), o nome e os pontos. Na página de jogos (`jogos.html`) há também o **Ranking geral**, que soma os pontos de todos os jogos, numa janela fixa ao lado dos jogos (sempre visível, sem opção de ocultar; em telas estreitas ela passa para baixo dos jogos).
+Cada jogo tem um painel lateral de ranking, aberto ao entrar (em telas largas) e recolhível pela aba "Ranking". Ele tem duas visões: **Geral** e **Minha região** (a região é escolhida no cadastro e pode ser ajustada depois, no **Meu perfil**). Empates são resolvidos por quem chegou primeiro à pontuação. Cada linha mostra a posição, a foto do jogador (ou um avatar padrão), o nome e os pontos. Na página de jogos (`jogos.html`) há também o **Ranking geral**, que soma os pontos de todos os jogos, numa janela fixa ao lado dos jogos (sempre visível, sem opção de ocultar; em telas estreitas ela passa para baixo dos jogos).
 
 ## Reiniciar
 
@@ -136,7 +136,7 @@ Estas valem para o **modo local** (padrão, com `shared/backend/config.js` vazio
 - **No modo local, o ranking é local:** `shared/scores.js` guarda tudo no `localStorage`, então só compara contas criadas no mesmo navegador.
 - **Contas são um protótipo local:** ficam no `localStorage` do navegador (senha com PBKDF2 + salt) e não sincronizam entre dispositivos. O botão do Google é uma simulação neste modo; na nuvem ele usa o OAuth real do Supabase.
 - **No modo local, o navegador decide a vitória:** sem servidor, o próprio jogo decide que a fase foi concluída. Na **nuvem** a jogada é validada de verdade: a Edge Function `play` regenera a fase a partir da seed secreta (que nunca vai ao cliente) e confere o tabuleiro antes de pontuar — um tabuleiro inválido é recusado. Coins e nível só mudam por função no banco.
-- Contas criadas antes do campo de região não têm região e não aparecem no ranking regional; contas Google também ficam sem região (o seletor só aparece no cadastro local).
+- Contas criadas antes do campo de região e as contas Google entram **sem região** e ficam fora do ranking regional até definir uma — dá para escolher ou trocar a região a qualquer momento no **Meu perfil**.
 - A geração dos níveis altos roda na thread principal e pode levar alguns segundos no Zip Genius; um Web Worker resolveria.
 - Sem suporte a teclado no Patches.
 

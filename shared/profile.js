@@ -1,5 +1,6 @@
 import { readJSON, store } from "./storage.js";
 import { Cloud } from "./backend/cloud.js";
+import { REGIONS } from "./regions.js";
 
 const PROFILES = "wmg.profiles";   // { [userId]: { nickname?, avatar? } }
 const ACTIVITY = "wmg.activity";   // { [userId]: { [gameId]: { lastPlayedAt, plays } } }
@@ -32,6 +33,20 @@ export const Profile = {
     all[uid] = { ...all[uid] };
     if (dataUrl) all[uid].avatar = dataUrl; else delete all[uid].avatar;
     store.set(PROFILES, JSON.stringify(all));
+  },
+
+  /** Define a região (ranking "Minha região"). Serve para qualquer conta — inclusive as criadas no Google, que entram sem região. Na nuvem devolve uma Promise (use `await`). */
+  setRegion(uid, region) {
+    if (!REGIONS.some(r => r.id === region)) throw new Error("Selecione sua região.");
+    if (Cloud.owns(uid)) return Cloud.setProfile({ region }).then(() => region);
+    const mirror = readJSON("wmg.session", null);
+    if (mirror?.id === uid) store.set("wmg.session", JSON.stringify({ ...mirror, region }));
+    const users = readJSON("wmg.users", {});
+    const account = Object.values(users).find(u => u.id === uid);
+    if (account) { account.region = region; store.set("wmg.users", JSON.stringify(users)); }
+    const scores = readJSON("wmg.scores", {});
+    if (scores[uid]) { scores[uid].region = region; store.set("wmg.scores", JSON.stringify(scores)); }
+    return region;
   },
 };
 

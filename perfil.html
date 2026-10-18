@@ -57,6 +57,16 @@
     </section>
 
     <section class="pcard">
+      <h2>Região</h2>
+      <p>Define em qual ranking regional você aparece ("Minha região"). Vale para qualquer conta, inclusive as criadas com o Google.</p>
+      <form id="regionForm" novalidate>
+        <label>Sua região<select id="region"></select></label>
+        <button class="btn primary small" type="submit">Salvar região</button>
+        <p class="fmsg" id="regionMsg" role="status"></p>
+      </form>
+    </section>
+
+    <section class="pcard">
       <h2>Senha</h2>
       <p id="pwInfo" hidden>Esta conta não usa senha.</p>
       <form id="pwForm" novalidate>

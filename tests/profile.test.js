@@ -58,6 +58,19 @@ test("anônimo sempre aparece como \"Anônimo\", mesmo em sessão antiga", () =>
   assert.equal(Profile.displayName({ id: "u9", name: "Ana", provider: "password" }), "Ana");
 });
 
+test("região: pode ser trocada em qualquer conta e vale para a sessão, o cadastro e o ranking", async () => {
+  reset();
+  await Auth.register({ name: "Ana", email: "ana@example.com", password: "Segredo1", region: "sul" });
+  const s = Auth.current();
+  await Scores.submit("zip", 10);                    // cria a linha do ranking na região "sul"
+  assert.equal(await Profile.setRegion(s.id, "nordeste"), "nordeste");
+  assert.equal(JSON.parse(store.get("wmg.session")).region, "nordeste");                       // a sessão passa a ter a nova região
+  assert.equal(JSON.parse(store.get("wmg.users"))["ana@example.com"].region, "nordeste");      // o cadastro local guarda a nova região
+  assert.equal(JSON.parse(store.get("wmg.scores"))[s.id].region, "nordeste");                  // a linha do ranking muda de região
+  assert.equal((await Scores.leaderboard("zip", { scope: "region" })).top.length, 1);
+  await assert.rejects(async () => Profile.setRegion(s.id, "marte"), /região/);
+});
+
 test("excluir a conta local exige a senha e apaga os dados do jogador", async () => {
   reset();
   await Auth.register({ name: "Ana", email: "ana@example.com", password: "Segredo1", region: "sul" });
