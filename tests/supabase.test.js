@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrations = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql"]
+const migrations = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql"]
   .map(f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8"));
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
 const sqlAll = migrations.join("\n");          // estrutura (RLS, permissões, search_path): todas as migrações

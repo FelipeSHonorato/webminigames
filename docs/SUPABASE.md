@@ -84,6 +84,8 @@ Faça commit e push: a Vercel publica sozinha. Esses dois valores são **públic
 2. No **SQL Editor**: `select public.promote_admin('seu@email.com');`
 3. Saia e entre de novo: o link **Painel** aparece.
 
+A conta administradora **não pontua nem concorre em rankings** (migração `20261020000000_admin_sem_pontos.sql`): ao vencer, `finalize_win` consome a fase e conta a progressão, mas não grava em `scores` nem em `win_log`, e `ranking(...)` exclui `role = 'admin'`. Serve para testar os jogos à vontade — os coins continuam sendo cobrados (99999, recarregados por dia).
+
 (A conta de administrador de protótipo que está no código, `administrador@administrador.com.br`, só existe no modo local e não vale nada na nuvem.)
 
 ### 7. Conferir

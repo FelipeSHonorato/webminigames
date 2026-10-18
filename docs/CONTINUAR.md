@@ -65,6 +65,7 @@ npm test      # 203 testes, Node 20+
 `administrador@administrador.com.br` / `administrador` (criada automaticamente). A senha está no código-fonte: serve só para o protótipo.
 
 - Nível por jogo (painel do administrador, `js/admin.js` + `shared/admin-level.js`): `AdminLevel.set(session, gameId, gameKey, nível)` grava `winsForLevel(nível)` (= nível × 15) em `<jogo>.wins:u-admin` e chama `Run.clear` (a fase salva é descartada; sem isso a fase em andamento ficaria no nível antigo). Só aceita a sessão do administrador e nível 0 a 3. O Genius (último nível) mostra "45 vitórias" em vez de 0/15. Um teste confere que a `key` de `js/games.js` é igual à `STORE_KEY` de cada jogo: jogo novo precisa das duas iguais e de 4 níveis para aparecer certo no painel.
+- **Sem pontuação na nuvem** (migração `20261020000000_admin_sem_pontos.sql`): a conta `role = 'admin'` não grava em `scores` nem `win_log` — vence num "sandbox" (consome a fase, conta a progressão, sem ritmo anti-farm) e `ranking(...)` a exclui. Coins continuam sendo gastos ao abrir a fase (teto 99999). No modo local não há essa separação.
 
 ## Limitações e próximos passos sugeridos
 

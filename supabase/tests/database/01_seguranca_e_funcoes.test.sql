@@ -188,6 +188,8 @@ select public.tap_super();
 select public.open_phase('33333333-3333-3333-3333-333333333333','sudoku', 9, '{}'::jsonb);
 insert into public.tap_res select 'adm', public.finalize_win('33333333-3333-3333-3333-333333333333','sudoku', gen_random_uuid());
 select is((select coins from public.coins where user_id = '33333333-3333-3333-3333-333333333333' and game_id = 'sudoku'), 99998, 'administrador tem 99999 coins e gasta 1 ao abrir');
+select is((select count(*) from public.scores where user_id = '33333333-3333-3333-3333-333333333333' and game_id = 'sudoku'), 0::bigint, 'a vitória do administrador não entra na pontuação');
+select is((select count(*) from public.win_log where user_id = '33333333-3333-3333-3333-333333333333' and game_id = 'sudoku'), 0::bigint, 'a vitória do administrador não entra no histórico de tempo');
 select public.tap_as('33333333-3333-3333-3333-333333333333');
 select lives_ok($$update public.games set enabled = false where id = 'patches'$$, 'administrador desliga um jogo');
 select public.tap_super();
