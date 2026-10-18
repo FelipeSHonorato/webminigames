@@ -40,6 +40,17 @@ test("visão pública não vaza a solução (jogos fortes)", () => {
   }
 });
 
+test("visão pública de sopa e cruzadas não carrega a solução", () => {
+  const sopaView = JSON.stringify(publicView("sopa", 555, 0));
+  assert.ok(!sopaView.includes("\"cells\""), "sopa vazou as células das palavras");
+  assert.ok(!sopaView.includes("\"dir\""), "sopa vazou a direção das palavras");
+  const cruz = JSON.stringify(publicView("cruzadas", 666, 0));
+  assert.ok(!cruz.includes("\"ch\""), "cruzadas vazou as letras certas");
+  assert.ok(!cruz.includes("\"norm\""), "cruzadas vazou as respostas");
+  assert.ok(cruz.includes("\"cap\""), "cruzadas deveria mandar a capacidade das casas (cap)");
+  assert.ok(cruz.includes("\"len\""), "cruzadas deveria mandar o tamanho das respostas (len)");
+});
+
 /* ---------- aceita a solução correta ---------- */
 
 test("solve() do sudoku é aceito e um tabuleiro inválido é recusado", () => {

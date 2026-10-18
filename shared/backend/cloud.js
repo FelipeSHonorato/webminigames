@@ -244,6 +244,17 @@ export const Cloud = {
     writeOutbox([...readOutbox(), { uid: S.uid, game, state, op: crypto.randomUUID() }]);
     return flushOutbox();
   },
+  /** Jogada final validada NA HORA (cruzadas): manda e espera a resposta, porque a tela precisa saber se a grade está certa.
+      Se for um erro passageiro (rede/ritmo), cai na fila e devolve { pending: true } — a vitória otimista já foi contada; se o
+      servidor recusar o tabuleiro, lança o erro para o chamador avisar o jogador. */
+  async finishNow(game, state) {
+    const item = { uid: S.uid, game, state, op: crypto.randomUUID() };
+    try { const data = await invoke("finish", item); applyWin(game, data); return { ok: data }; }
+    catch (e) {
+      if (isRetryable(e)) { writeOutbox([...readOutbox(), item]); scheduleOutboxRetry(); return { pending: true }; }
+      throw e;
+    }
+  },
   recordPlay(g) {
     const a = (S.cache.activity[g] ??= { plays: 0, lastPlayedAt: 0 });
     a.plays += 1; a.lastPlayedAt = Date.now();

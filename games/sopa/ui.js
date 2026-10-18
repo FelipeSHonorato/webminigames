@@ -11,7 +11,7 @@ import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
 import { Cloud } from "../../shared/backend/cloud.js";
 import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/progress.js";
-import { GEN, LEVELS, STORE_KEY, canHint, generatePuzzle, isSolved, matchSelection, maskWord, maxHints, pointsAfterHints, snapLine } from "./domain.js";
+import { GEN, LEVELS, STORE_KEY, canHint, generatePuzzle, isSolved, matchSelection, maskWord, maxHints, pointsAfterHints, readCells, snapLine } from "./domain.js";
 
 const GAME_ID = "sopa";
 const sessionUser = requireSession("../../index.html");   // sem sessão, volta para o login
@@ -21,8 +21,10 @@ const ranking = mountRanking({ gameId: GAME_ID, title: "Sopa de Letras" });
 const uid = sessionUser?.id ?? "guest";
 const coinsEl = document.getElementById("coinBadge");
 
-/* Estado da partida (declarado antes de qualquer função que o use). */
-let puzzle, found = new Set(), hints = 0, solved = false, credited = false, drag = null, startedAt = 0, timerId = null;
+/* Estado da partida (declarado antes de qualquer função que o use).
+   foundCells: células de cada palavra achada, na ordem de leitura (a fase servida pelo servidor não traz as células das palavras, então
+   a posição vem da seleção do jogador — é ela que o servidor confere). Na fase local, reconstrói das palavras ao retomar. */
+let puzzle, found = new Set(), foundCells = new Map(), hints = 0, solved = false, credited = false, drag = null, startedAt = 0, timerId = null;
 
 /* Coins: saldo ao lado do nome do jogo e liberação do botão "Nova fase" (só com fase concluída e coin disponível). */
 function renderCoins() {
@@ -60,6 +62,11 @@ function renderLevel() {
 const phasePoints = () => pointsAfterHints(pointsFor(puzzle.level), hints);
 /** Salva o andamento: assim recarregar a página não zera as dicas já gastas nem as palavras achadas. Na nuvem o andamento parcial fica só na tela. */
 const persist = (done = false) => { if (Cloud.owns(uid)) return; Run.set(uid, GAME_ID, { seed: puzzle.seed, level: puzzle.level, solved: done, hints, found: [...found], gen: GEN }); };
+/** Células (ordem de leitura) de cada palavra já achada: as que o jogador marcou, ou, na fase local retomada, as próprias da fase. */
+function seedFoundCells() {
+  foundCells = new Map();
+  for (const k of found) { const c = puzzle.words[k]?.cells; if (c) foundCells.set(k, [...c]); }
+}
 
 /** Conta a vitória uma única vez por fase. Pontos = base do nível − dicas usadas. */
 function creditWin() {
@@ -73,8 +80,8 @@ function creditWin() {
   let note = "";
   if (Scores.canRank()) {
     // Na nuvem o servidor recebe as palavras achadas (com as células), regenera a partir da seed e só pontua se forem de verdade.
-    const foundWords = [...found].sort((a, b) => a - b);
-    Scores.submit(GAME_ID, points, { state: { found: foundWords.map(index => ({ index, cells: puzzle.words[index].cells })) } }).then(() => ranking.refresh());
+    const foundWords = [...found].sort((a, b) => a - b), cellsOf = index => foundCells.get(index) ?? puzzle.words[index]?.cells;
+    Scores.submit(GAME_ID, points, { state: { found: foundWords.map(index => (cellsOf(index) ? { index, cells: cellsOf(index) } : index)) } }).then(() => ranking.refresh());
     note = ` +${points} ${points === 1 ? "ponto" : "pontos"}${hints ? ` (${hints} ${hints === 1 ? "dica usada" : "dicas usadas"})` : ""}!`;
   } else note = " Crie uma conta para pontuar no ranking.";
   if (spent) note += " −1 coin.";
@@ -110,7 +117,7 @@ function buildBoard() {
 /** Palavras achadas colorem as células (cada palavra tem a sua cor); a seleção em andamento fica por cima. */
 function renderBoard() {
   const color = new Map(), picked = new Set(drag?.cells ?? []);
-  puzzle.words.forEach((w, k) => { if (found.has(k)) for (const c of w.cells) color.set(c, k % 8); });
+  puzzle.words.forEach((w, k) => { if (found.has(k)) for (const c of (foundCells.get(k) ?? [])) color.set(c, k % 8); });
   cellEls.forEach((el, i) => {
     const cls = "cell" + (color.has(i) ? ` found f${color.get(i)}` : "") + (picked.has(i) ? " pick" : "");
     if (el.className !== cls) el.className = cls;
@@ -153,6 +160,7 @@ function setMessage(text, isError = false) { msg.textContent = text; msg.classLi
 function loadPuzzle(p, progress = {}) {
   if (p !== puzzle) credited = false;
   puzzle = p; found = new Set(progress.found ?? []); hints = progress.hints ?? 0; drag = null; solved = false;
+  seedFoundCells();
   stopTimer(); timerEl.textContent = "00:00"; setMessage("");
   buildBoard(); render();
   renderCoins();
@@ -169,7 +177,9 @@ function evaluate(cells) {
   if (cells.length < 2) return;                                    // um toque simples não marca nada
   const m = matchSelection(puzzle, cells, found);
   if (m.index >= 0) {
-    found.add(m.index); persist();
+    // Guarda a ocorrência na ordem de leitura (o jogador pode ter arrastado de trás para frente): é ela que o serviço valida.
+    found.add(m.index); foundCells.set(m.index, readCells(puzzle, cells) === puzzle.words[m.index].norm ? [...cells] : [...cells].reverse());
+    persist();
     setMessage(`Achou: ${puzzle.words[m.index].text}!`);
     render();
     if (isSolved(puzzle, found)) win();
@@ -230,6 +240,7 @@ document.getElementById("next").onclick = async () => {
 function restoreSolved() {
   credited = true; solved = true;
   found = new Set(puzzle.words.keys());
+  seedFoundCells();
   render();
   setMessage("Fase já concluída. Use “Nova fase” para continuar.");
   renderCoins();

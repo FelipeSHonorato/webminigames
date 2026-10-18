@@ -23,8 +23,14 @@ export function publicView(game, seed, level) {
     case "canos":    return { n: p.n, tiles: p.tiles.map(t => ({ type: t.type, rot: t.rot })), inlet: p.inlet, outlet: p.outlet };
     case "patches":  return { n: patches.N, clues: p.clues };
     case "zip":      return { n: zip.N, total: zip.TOTAL, waypoints: [...p.waypoints], walls: [...p.walls], max: p.max };
-    case "sopa":     return { n: p.n, grid: p.grid, words: p.words.map(w => ({ text: w.text, norm: w.norm, cells: w.cells, dir: w.dir })) };
-    case "cruzadas": return { n: p.n, cells: p.cells, answers: p.answers };
+    /* Sopa: sem cells/dir — a posição de cada palavra na grade É a solução. O jogador só recebe o texto (para ocultar as letras). */
+    case "sopa":     return { n: p.n, grid: p.grid, words: p.words.map(w => ({ text: w.text, norm: w.norm })) };
+    /* Cruzadas: a letra certa (ch) vira cap (quantas letras cabem) e a resposta (norm) vira len — sem solução para o navegador. */
+    case "cruzadas": return {
+      n: p.n,
+      cells: p.cells.map(c => (c.t === "L" ? { t: "L", cap: c.ch.length, across: c.across, down: c.down } : c)),
+      answers: p.answers.map(a => ({ id: a.id, len: a.len, clue: a.clue, dir: a.dir, variant: a.variant, start: a.start, cells: a.cells, clueCell: a.clueCell })),
+    };
     default: throw new Error("unknown_game");
   }
 }

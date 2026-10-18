@@ -51,11 +51,12 @@ const VARIANT_LIST = Object.entries(VARIANTS);
 
 /* Fase: { n, cells: Cell[n*n], answers: Answer[] }
    Cell = { t: "L", ch, across: id|-1, down: id|-1 }  casa de letra; ch é a resposta certa: 1 letra, ou 2 numa casa com diagonal (aí só uma
-                                                       das respostas, across ou down, passa por ela)
+                                                       das respostas, across ou down, passa por ela). Na fase SERVIDA ao navegador o ch é
+                                                       trocado por cap (quantas letras cabem): o jogador nunca recebe a solução.
         | { t: "C", clues: [{ id, slot: "full"|"top"|"bottom" }] }  casa de dica (1 ou 2 dicas; com 2, a de cima vem primeiro)
         | { t: "B" }  casa sem uso (só cor)
-   Answer = { id, norm, clue, dir: "across"|"down", variant, start, cells: number[], clueCell }
-            norm é a palavra inteira; cells tem uma casa por letra, ou uma por dígrafo (então cells.length < norm.length). */
+   Answer = { id, norm, clue, len, dir: "across"|"down", variant, start, cells: number[], clueCell }
+            norm é a palavra inteira (a visão pública manda só len = norm.length); cells tem uma casa por letra, ou uma por dígrafo. */
 
 const rowOf = (n, i) => Math.floor(i / n), colOf = (n, i) => i % n;
 const shuffle = (arr, rng) => {
@@ -124,7 +125,7 @@ function buildGrid(rng, level, pool) {
     kind[m.ci] = CLUE; clueAt[m.ci].push({ id, fam: m.vt.fam });
     for (const b of [m.before, m.after]) if (b >= 0 && kind[b] === EMPTY) kind[b] = WALL;
     m.cells.forEach((idx, i) => { kind[idx] = LETTER; ch[idx] = m.form[i]; (across ? ownA : ownD)[idx] = id; });
-    answers.push({ id, norm: m.word.norm, clue: m.word.clue, dir: m.vt.dir, variant: m.vname, start: m.cells[0], cells: m.cells, clueCell: m.ci });
+    answers.push({ id, norm: m.word.norm, len: m.word.norm.length, clue: m.word.clue, dir: m.vt.dir, variant: m.vname, start: m.cells[0], cells: m.cells, clueCell: m.ci });
     used.add(m.word.norm);
     if (m.word.norm.length === 2) twos++;
     if (isSigla(m.word)) siglas++;
@@ -265,13 +266,15 @@ export function normalizeLetter(key) {
   const up = normalize(key);
   return /^[A-Z]$/.test(up) ? up : null;
 }
-/** Quantas letras cabem na casa: 1, ou 2 numa casa com diagonal. */
-export const cellCapacity = (puzzle, idx) => (puzzle.cells[idx]?.t === "L" ? puzzle.cells[idx].ch.length : 0);
+/** Quantas letras cabem na casa: 1, ou 2 numa casa com diagonal. A fase servida ao navegador troca o ch por cap (capOf cai no ch quando
+    cap não vier), então todo o código de jogada serve tanto ao tabuleiro completo quanto ao público. */
+const capOf = c => c.cap ?? c.ch.length;
+export const cellCapacity = (puzzle, idx) => (puzzle.cells[idx]?.t === "L" ? capOf(puzzle.cells[idx]) : 0);
 /** Define o conteúdo digitado de uma casa de letra ("", 1 letra, ou 2 numa casa de duas letras), se ela não estiver travada por dica.
     Devolve outro array, ou o mesmo se nada mudou. */
 export function setLetter(puzzle, entries, locked, idx, value) {
   const c = puzzle.cells[idx];
-  if (c?.t !== "L" || locked.has(idx) || entries[idx] === value || value.length > c.ch.length) return entries;
+  if (c?.t !== "L" || locked.has(idx) || entries[idx] === value || value.length > capOf(c)) return entries;
   const next = [...entries];
   next[idx] = value;
   return next;
@@ -282,8 +285,8 @@ export function typeInCell(puzzle, entries, locked, idx, letter) {
   const c = puzzle.cells[idx];
   if (c?.t !== "L") return { entries, advance: false };
   if (locked.has(idx)) return { entries, advance: true };
-  const value = c.ch.length === 2 && entries[idx].length === 1 ? entries[idx] + letter : letter;
-  return { entries: setLetter(puzzle, entries, locked, idx, value), advance: value.length === c.ch.length };
+  const value = capOf(c) === 2 && entries[idx].length === 1 ? entries[idx] + letter : letter;
+  return { entries: setLetter(puzzle, entries, locked, idx, value), advance: value.length === capOf(c) };
 }
 /** Backspace: tira a última letra digitada na casa (numa casa de duas letras, uma de cada vez). Sem nada a tirar, devolve o mesmo array. */
 export function eraseAt(puzzle, entries, locked, idx) {
@@ -294,10 +297,10 @@ export const isAnswerCorrect = (puzzle, entries, id) => puzzle.answers[id].cells
 /** Fase completa: toda casa de letra tem a letra certa. */
 export const isComplete = (puzzle, entries) => puzzle.cells.every((c, i) => c.t !== "L" || entries[i] === c.ch);
 /** Todas as casas de letra preenchidas por inteiro (certas ou não; numa casa de duas letras, as duas). */
-export const isFilled = (puzzle, entries) => puzzle.cells.every((c, i) => c.t !== "L" || entries[i].length === c.ch.length);
+export const isFilled = (puzzle, entries) => puzzle.cells.every((c, i) => c.t !== "L" || entries[i].length === capOf(c));
 
 /** Casa de duas letras (a diagonal `\\`: CH, LH, NH, QU, GU, RR, SS). */
-export const isDouble = c => c?.t === "L" && c.ch.length === 2;
+export const isDouble = c => c?.t === "L" && capOf(c) === 2;
 /** O que a dica escreve na casa: a letra, ou só a 1ª das duas numa casa de duas letras. A dica NUNCA preenche as duas letras de uma casa:
     a outra o jogador digita (qualquer que seja o par, igual como RR ou diferente como CH). */
 export const hintValue = c => (isDouble(c) ? c.ch[0] : c.ch);
@@ -339,7 +342,7 @@ export function neighborAnswer(puzzle, id, step) {
   return order[(k + step + order.length) % order.length];
 }
 /** Casa em que o cursor começa ao escolher uma dica: a primeira ainda não preenchida por inteiro (ou a primeira, se estiver toda preenchida). */
-export const firstOpenCell = (puzzle, entries, id) => puzzle.answers[id].cells.find(i => entries[i].length < puzzle.cells[i].ch.length) ?? puzzle.answers[id].cells[0];
+export const firstOpenCell = (puzzle, entries, id) => puzzle.answers[id].cells.find(i => entries[i].length < capOf(puzzle.cells[i])) ?? puzzle.answers[id].cells[0];
 /** Casa vizinha dentro da resposta (step = 1 ou -1); fica onde está nas pontas. */
 export function stepInAnswer(puzzle, id, idx, step) {
   const cells = puzzle.answers[id].cells, k = cells.indexOf(idx);
@@ -364,7 +367,7 @@ export function decodeEntries(puzzle, text) {
   if (typeof text !== "string" || text.length !== out.length * 2) return out;
   puzzle.cells.forEach((c, i) => {
     const part = text.slice(2 * i, 2 * i + 2), value = part.replace(/\./g, "");
-    if (c.t === "L" && /^([A-Z]{1,2}|[A-Z]\.|\.\.)$/.test(part) && value.length <= c.ch.length) out[i] = value;
+    if (c.t === "L" && /^([A-Z]{1,2}|[A-Z]\.|\.\.)$/.test(part) && value.length <= capOf(c)) out[i] = value;
   });
   return out;
 }

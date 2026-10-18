@@ -26,7 +26,7 @@ const coinsEl = document.getElementById("coinBadge");
 
 /* Estado da partida (declarado antes de qualquer função que o use).
    selected: id da resposta escolhida (-1 = nenhuma). active: casa onde o cursor está (-1 = nenhuma). locked: casas reveladas por dica. */
-let puzzle, entries = [], locked = new Set(), hints = 0, selected = -1, active = -1, tapped = -1, solved = false, credited = false, startedAt = 0, timerId = null;
+let puzzle, entries = [], locked = new Set(), hints = 0, selected = -1, active = -1, tapped = -1, solved = false, credited = false, finishing = false, startedAt = 0, timerId = null;
 
 /* Coins: saldo ao lado do nome do jogo e liberação do botão "Nova fase" (só com fase concluída e coin disponível). */
 function renderCoins() {
@@ -67,8 +67,9 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 /** Salva o andamento: assim recarregar a página não perde as letras digitadas nem as dicas já gastas. Na nuvem o andamento parcial fica só na tela. */
 const persist = (done = false) => { if (Cloud.owns(uid)) return; Run.set(uid, GAME_ID, { seed: puzzle.seed, level: puzzle.level, solved: done, hints, entries: encodeEntries(entries), locked: [...locked], gen: GEN }); };
 
-/** Conta a vitória uma única vez por fase. Pontos = base do nível − dicas usadas. */
-function creditWin() {
+/** Conta a vitória uma única vez por fase. Pontos = base do nível − dicas usadas. `alreadySubmitted`: na nuvem o servidor já validou e
+    pontuou a jogada (finishNow), então aqui só atualiza o ranking — sem reenviar. */
+function creditWin(alreadySubmitted = false) {
   if (credited) { renderCoins(); return ""; }          // rejogar a mesma fase não pontua nem gasta coin
   credited = true;
   const before = levelOf(wins), points = phasePoints();
@@ -79,7 +80,8 @@ function creditWin() {
   let note = "";
   if (Scores.canRank()) {
     // Na nuvem o servidor recebe as letras, regenera a partir da seed e só pontua se a grade estiver completa de verdade.
-    Scores.submit(GAME_ID, points, { state: { entries: encodeEntries(entries) } }).then(() => ranking.refresh());
+    if (alreadySubmitted) ranking.refresh();
+    else Scores.submit(GAME_ID, points, { state: { entries: encodeEntries(entries) } }).then(() => ranking.refresh());
     note = ` +${plural(points, "ponto", "pontos")}${hints ? ` (${plural(hints, "dica usada", "dicas usadas")})` : ""}!`;
   } else note = " Crie uma conta para pontuar no ranking.";
   if (spent) note += " −1 coin.";
@@ -122,7 +124,7 @@ function buildBoard() {
     el.dataset.i = i;
     if (c.t === "L") {
       el.className = "cell letter";
-      if (c.ch.length === 2) el.innerHTML = '<span class="d1"></span><span class="d2"></span>';   // casa com diagonal \: duas letras, uma em cada triângulo
+      if (isDouble(c)) el.innerHTML = '<span class="d1"></span><span class="d2"></span>';   // casa com diagonal \: duas letras, uma em cada triângulo
     } else if (c.t === "B") el.className = "cell block";
     else {
       el.className = "cell clue";
@@ -134,7 +136,7 @@ function buildBoard() {
     return el;
   });
   shown = new Array(puzzle.cells.length).fill(null);
-  dblDir = puzzle.cells.map(c => (c.t === "L" && c.ch.length === 2 ? (c.across >= 0 ? "a" : "d") : ""));
+  dblDir = puzzle.cells.map(c => (isDouble(c) ? (c.across >= 0 ? "a" : "d") : ""));
   board.replaceChildren(...cellEls);
 }
 function renderBoard() {
@@ -152,17 +154,19 @@ function renderBoard() {
   });
   board.classList.toggle("locked", solved);
 }
+/** Há dica a pedir agora: resposta escolhida, dentro do limite e (na fase local, que conhece a solução) com letra a revelar. */
+const canAskHint = () => !solved && hints < maxHints(puzzle.level) && selected >= 0 && (puzzle.server || canHint(puzzle, entries, selected, hints, puzzle.level));
 function renderPanel() {
   const a = selected >= 0 ? puzzle.answers[selected] : null;
   clueBox.classList.toggle("empty", !a);
-  clueDir.textContent = a ? `${a.dir === "across" ? "→ Horizontal" : "↓ Vertical"} · ${plural(a.norm.length, "letra", "letras")}${a.cells.length < a.norm.length ? ` em ${plural(a.cells.length, "casa", "casas")}` : ""}` : "Dica";
+  clueDir.textContent = a ? `${a.dir === "across" ? "→ Horizontal" : "↓ Vertical"} · ${plural(a.len, "letra", "letras")}${a.cells.length < a.len ? ` em ${plural(a.cells.length, "casa", "casas")}` : ""}` : "Dica";
   clueText.textContent = a ? a.clue : EMPTY_CLUE;
   document.getElementById("prevClue").disabled = document.getElementById("nextClue").disabled = solved;
-  const max = maxHints(puzzle.level), can = !solved && canHint(puzzle, entries, selected, hints, puzzle.level);
+  const max = maxHints(puzzle.level), can = canAskHint();
   hintBtn.disabled = !can;
   hintBtn.title = can || solved ? "" : selected < 0 ? "Escolha uma dica (casa amarela) ou uma casa da grade primeiro."
     : hints >= max ? `Limite de ${plural(max, "dica", "dicas")} neste nível.`
-    : isAnswerCorrect(puzzle, entries, selected) ? "Essa palavra já está certa." : "Só falta a 2ª letra de uma casa de duas letras: a dica revela só uma das duas, digite a outra.";
+    : !puzzle.server && isAnswerCorrect(puzzle, entries, selected) ? "Essa palavra já está certa." : "Só falta a 2ª letra de uma casa de duas letras: a dica revela só uma das duas, digite a outra.";
   document.getElementById("hintinfo").textContent = `Dicas: ${hints} de ${max} · Esta fase vale ${plural(phasePoints(), "ponto", "pontos")}`;
 }
 const render = () => { renderBoard(); renderPanel(); };
@@ -182,8 +186,8 @@ function loadPuzzle(p, progress = {}) {
   if (p !== puzzle) credited = false;
   puzzle = p; entries = decodeEntries(p, progress.entries); hints = progress.hints ?? 0;
   const valid = new Set(letterCells(p));
-  locked = new Set((progress.locked ?? []).filter(i => valid.has(i) && entries[i] === p.cells[i].ch));   // só vale travada a casa que está certa
-  selected = -1; active = -1; tapped = -1; solved = false;
+  locked = new Set((progress.locked ?? []).filter(i => valid.has(i) && (!p.cells[i].ch || entries[i] === p.cells[i].ch)));   // só vale travada a casa que está certa (na fase servida não há ch: nenhuma travada)
+  selected = -1; active = -1; tapped = -1; solved = false; finishing = false;
   stopTimer(); timerEl.textContent = "00:00"; setMessage("");
   buildBoard(); render();
   renderCoins();
@@ -195,13 +199,36 @@ function win() {
   render();
   setMessage(`Cruzadinha completa em ${formatTime(Date.now() - startedAt)}!` + creditWin());
 }
-/** Aplica uma mudança nas letras: salva e confere se a grade está completa. `typed`: veio de uma letra digitada (avisa se encheu com erro). */
+/** Vitória na nuvem: o servidor já validou e pontuou a grade (finishNow); aqui só fecha a fase e atualiza a tela. */
+function winConfirmed() {
+  solved = true; stopTimer(); selected = -1; active = -1;
+  render();
+  setMessage(`Cruzadinha completa em ${formatTime(Date.now() - startedAt)}!` + creditWin(true));
+}
+/** Aplica uma mudança nas letras: salva e confere se a grade está completa. `typed`: veio de uma letra digitada (avisa se encheu com erro).
+    Na nuvem a grade não traz a solução: com todas as casas preenchidas, quem confere é o servidor. */
 function commit(next, typed = false) {
   if (next === entries) return;
   entries = next; persist(); setMessage("");
   render();
+  if (puzzle.server) { if (isFilled(puzzle, entries)) finishServer(); return; }
   if (isComplete(puzzle, entries)) win();
   else if (typed && isFilled(puzzle, entries)) setMessage("Todas as casas estão preenchidas, mas ainda há letras erradas.", true);
+}
+/** Grade cheia na nuvem: manda AGORA para o servidor validar. Se ele confirmar (ou ficar na fila por rede/ritmo), a fase é vencida;
+    se recusar, avisa e deixa o jogador corrigir. */
+async function finishServer() {
+  if (finishing || solved) return;
+  finishing = true;
+  setMessage("Conferindo o tabuleiro…");
+  try {
+    const r = await Cloud.finishNow(GAME_ID, { entries: encodeEntries(entries) });
+    if (r?.ok || r?.pending) winConfirmed();
+  } catch (e) {
+    if (e?.code === "invalid") setMessage("Todas as casas estão preenchidas, mas ainda há letras erradas.", true);
+    else if (e?.code === "no_phase") setMessage("Esta fase não está mais aberta. Use “Nova fase”.", true);
+    else setMessage("Não foi possível enviar a jogada agora. Tente de novo.", true);
+  } finally { finishing = false; }
 }
 /** Escolhe uma resposta (pelo toque na dica ou numa letra) e leva o cursor à primeira casa vazia dela. */
 function selectAnswer(id, cell = -1) {
@@ -223,7 +250,8 @@ function selectCell(idx) {
 }
 /** Digita uma letra na casa do cursor e avança para a próxima da resposta. Casa travada por dica não muda. */
 function typeLetter(letter) {
-  if (solved || active < 0) { if (!solved) setMessage("Toque em uma dica ou em uma casa da grade primeiro.", true); return; }
+  if (solved || finishing) return;
+  if (active < 0) { setMessage("Toque em uma dica ou em uma casa da grade primeiro.", true); return; }
   startTimer();
   const { entries: next, advance } = typeInCell(puzzle, entries, locked, active, letter);   // casa de duas letras: a 1ª abre a casa, a 2ª fecha e só então o cursor avança
   if (selected >= 0 && advance) active = stepInAnswer(puzzle, selected, active, 1);
@@ -233,7 +261,7 @@ function typeLetter(letter) {
 }
 /** Backspace: apaga a última letra da casa (numa casa de duas letras, uma de cada vez); se a casa estiver vazia (ou travada por dica), volta uma casa e apaga lá. */
 function erase() {
-  if (solved || active < 0) return;
+  if (solved || finishing || active < 0) return;
   let target = active;
   if ((entries[active] === "" || locked.has(active)) && selected >= 0) { target = stepInAnswer(puzzle, selected, active, -1); active = target; }
   const next = eraseAt(puzzle, entries, locked, target);
@@ -253,12 +281,16 @@ function move(dr, dc) {
 /** Dica: preenche a próxima letra (a primeira que ainda não está certa) da resposta escolhida. Custa 1 ponto.
     Na nuvem o servidor decide a casa e a letra, e conta a dica. */
 async function useHint() {
-  if (solved || !canHint(puzzle, entries, selected, hints, puzzle.level)) return;
+  if (solved || finishing) return;
   startTimer();
   if (Cloud.owns(uid)) {
+    if (!canAskHint()) return;   // na nuvem a grade não traz a solução: só dá para pedir dica com uma resposta escolhida e dentro do limite
     let d;
     try { d = await Cloud.hint(GAME_ID, { id: selected, entries: encodeEntries(entries) }); }
-    catch { setMessage("Não foi possível pedir a dica agora.", true); return; }
+    catch (e) {
+      setMessage(e?.code === "no_hint" ? "Essa palavra já está certa." : e?.code === "no_phase" ? "Esta fase não está mais aberta. Use “Nova fase”." : "Não foi possível pedir a dica agora.", true);
+      return;
+    }
     hints = d.hints;
     const idx = d.cell, cell = puzzle.cells[idx], half = isDouble(cell), cells = puzzle.answers[selected].cells;
     if (half) active = idx;   // casa de duas letras (C\H, R\R…): só a 1ª é revelada e a casa NÃO trava; o cursor fica nela para o jogador digitar a outra
@@ -266,13 +298,14 @@ async function useHint() {
       locked.add(idx);
       active = cells.slice(cells.indexOf(idx) + 1).find(i => !locked.has(i)) ?? idx;
     }
-    entries = setLetter(puzzle, entries, new Set(), idx, d.value ?? hintValue(cell));
+    entries = setLetter(puzzle, entries, new Set(), idx, d.value);
     render();
-    if (isComplete(puzzle, entries)) { win(); return; }
-    const what = half ? `uma das duas letras (${cell.ch[0]}) foi revelada: digite a outra` : "letra revelada";
+    if (isFilled(puzzle, entries)) { finishServer(); return; }
+    const what = half ? `a 1ª letra (${d.value}) foi revelada: digite a outra` : "letra revelada";
     setMessage(`Dica ${hints}: ${what}. A fase agora vale ${plural(phasePoints(), "ponto", "pontos")}.`);
     return;
   }
+  if (!canHint(puzzle, entries, selected, hints, puzzle.level)) return;
   const idx = nextHintCell(puzzle, entries, selected), cell = puzzle.cells[idx], half = isDouble(cell);
   hints++;
   const cells = puzzle.answers[selected].cells;

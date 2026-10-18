@@ -174,6 +174,27 @@ test("vitória 'too_fast' (ritmo) NÃO é descartada: fica na fila e é reenviad
   Cloud._reset();
 });
 
+test("finishNow: o servidor valida e a vitória é contada NA HORA (sem passar pela fila)", async () => {
+  const c = await boot({ functions: { invoke: (name, body) => (body.action === "finish" ? { data: winResult, error: null } : { data: null, error: null }) } });
+  assert.deepEqual(await Cloud.finishNow("cruzadas", { entries: "AB" }), { ok: winResult });
+  const call = c.calls.find(x => x[0] === "invoke" && x[2].action === "finish");
+  assert.equal(call[2].game, "cruzadas"); assert.deepEqual(call[2].state, { entries: "AB" });
+  assert.equal(Progress.wins("cruzadas.wins", UID), 4);
+  assert.equal(JSON.parse(store.get("wmg.outbox")).length, 0);
+});
+
+test("finishNow: erro passageiro enfileira e devolve pending; tabuleiro recusado lança", async () => {
+  let offline = true;
+  await boot({ functions: { invoke: (name, body) => (body.action === "finish" ? (offline ? { data: null, error: { message: "Failed to fetch" } } : { data: winResult, error: null }) : { data: null, error: null }) } });
+  assert.deepEqual(await Cloud.finishNow("cruzadas", { entries: "AB" }), { pending: true });
+  assert.equal(JSON.parse(store.get("wmg.outbox")).length, 1);
+  offline = false; await Cloud.flush();
+  assert.equal(JSON.parse(store.get("wmg.outbox")).length, 0);
+  await boot({ functions: { invoke: () => ({ data: null, error: { message: "invalid", context: { status: 422, json: async () => ({ error: "invalid" }) } } }) } });
+  await assert.rejects(Cloud.finishNow("cruzadas", { entries: "AB" }), /invalid/);
+  assert.equal(JSON.parse(store.get("wmg.outbox")).length, 0);
+});
+
 test("a fila é por jogador: vitórias pendentes de outra conta não são enviadas por esta", async () => {
   const c = await boot({ functions: { invoke: () => ({ data: winResult, error: null }) } });
   store.set("wmg.outbox", JSON.stringify([{ uid: "outra-conta", game: "zip", state: {}, op: "aaaaaaaa-0000-4000-8000-000000000001" }]));
