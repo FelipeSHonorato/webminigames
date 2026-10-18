@@ -131,11 +131,11 @@ Fluxo: `index.html` (entrada) → `jogos.html` (lista de jogos) → `games/<jogo
 
 ## Limitações conhecidas
 
-Estas valem para o **modo local** (padrão, com `shared/backend/config.js` vazio). Com o Supabase ligado, contas, progresso, coins, fases e rankings passam a ficar no servidor e são compartilhados entre navegadores.
+Estas valem para o **modo local** (padrão, com `shared/backend/config.js` vazio). Com o Supabase ligado, contas, progresso, coins, fases, rankings **e a validação das jogadas** passam a ficar no servidor e são compartilhados entre navegadores.
 
 - **No modo local, o ranking é local:** `shared/scores.js` guarda tudo no `localStorage`, então só compara contas criadas no mesmo navegador.
 - **Contas são um protótipo local:** ficam no `localStorage` do navegador (senha com PBKDF2 + salt) e não sincronizam entre dispositivos. O botão do Google é uma simulação neste modo; na nuvem ele usa o OAuth real do Supabase.
-- **Os pontos de cada vitória são pedidos pelo navegador:** mesmo na nuvem, o servidor só limita os pontos ao teto do nível, sem reexecutar a lógica do jogo. Validar a vitória de verdade exigiria rodar as regras de cada jogo no servidor (ex.: Edge Function). Coins e nível, esses só mudam por função no banco.
+- **No modo local, o navegador decide a vitória:** sem servidor, o próprio jogo decide que a fase foi concluída. Na **nuvem** a jogada é validada de verdade: a Edge Function `play` regenera a fase a partir da seed secreta (que nunca vai ao cliente) e confere o tabuleiro antes de pontuar — um tabuleiro inválido é recusado. Coins e nível só mudam por função no banco.
 - Contas criadas antes do campo de região não têm região e não aparecem no ranking regional; contas Google também ficam sem região (o seletor só aparece no cadastro local).
 - A geração dos níveis altos roda na thread principal e pode levar alguns segundos no Zip Genius; um Web Worker resolveria.
 - Sem suporte a teclado no Patches.

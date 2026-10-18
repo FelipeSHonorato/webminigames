@@ -17,7 +17,45 @@ Quem joga como **anônimo** continua local nos dois modos (não cria conta, não
 ### 2. Criar as tabelas
 **SQL Editor → New query** → cole **todo** o conteúdo de `supabase/migrations/20261014000000_init.sql` → **Run**. Deve terminar com "Success". Isso cria tabelas, regras de segurança (RLS) e as funções que decidem pontos, nível e coins. **Rode uma vez só** (rodar de novo dá erro de "já existe", sem estragar nada).
 
-Depois rode, também no SQL Editor, `supabase/migrations/20261017000000_delete_account.sql`: cria a função `delete_my_account`, que apaga a própria conta (LGPD). Em seguida `20261018000000_phase_runs.sql` (fase aberta em `phase_runs`, pontos decididos no servidor e ritmo anti-farm) e `20261019000000_serve_phase.sql`: o **servidor passa a servir a fase** (seed secreta + puzzle público, sem a solução) e a **validar o tabuleiro** antes de pontuar. A validação roda numa **Edge Function** `play`: publique-a em **Edge Functions → Create function** (nome `play`) colando `supabase/functions/play/index.ts` e a pasta `_shared/`, ou, com a CLI, `supabase functions deploy play` e `supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...` (a URL e a chave anon do projeto o Supabase injeta sozinho). Se você usa a CLI, `supabase db push` aplica as migrações na ordem.
+Depois rode, também no SQL Editor, as demais migrações, **nesta ordem**:
+
+- `20261017000000_delete_account.sql`: cria `delete_my_account` (o jogador apaga a própria conta — LGPD).
+- `20261018000000_phase_runs.sql`: fase aberta em `phase_runs`, pontos e coins decididos no servidor e ritmo anti-farm.
+- `20261019000000_serve_phase.sql`: o **servidor passa a servir a fase** (seed secreta + puzzle público, sem a solução) e a **validar o tabuleiro** antes de pontuar.
+
+Para conferir o que já está aplicado:
+
+```sql
+select
+  to_regclass('public.phase_runs') as phase_runs,
+  to_regproc('public.open_phase')  as open_phase,
+  to_regproc('public.finalize_win') as finalize_win;
+```
+
+O que der `null` ainda falta rodar (re-rodar é seguro: os arquivos são idempotentes). Com a CLI, `supabase db push` aplica todas na ordem.
+
+### 2b. Publicar a Edge Function `play` (validação no servidor)
+A validação do tabuleiro roda numa **Edge Function** — um código que roda nos servidores do Supabase: recebe o pedido do jogo (`open`/`hint`/`finish`), confere quem é o usuário, monta o puzzle a partir da **seed secreta**, valida e só então chama as funções do banco com a chave `service_role`. **Sem publicá-la, o modo nuvem não abre a fase** (as funções `open_phase`/`finalize_win` são exclusivas do `service_role`, então o navegador não consegue chamá-las direto).
+
+**Pela CLI (recomendada — sobe o `index.ts` e a pasta `_shared/` de uma vez):** rode da **raiz do projeto** (a pasta que contém `supabase/`). De outra pasta o CLI falha com `Entrypoint path does not exist`:
+
+```bash
+supabase login
+supabase functions deploy play --project-ref SEU_PROJECT_REF
+```
+
+- `SEU_PROJECT_REF` é o ref do projeto (aparece na URL do painel e no subdomínio de `shared/backend/config.js`). Se você já rodou `supabase link`, pode omitir o `--project-ref`.
+- **Não** precisa configurar segredos: o Supabase injeta `SUPABASE_URL`, `SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY` automaticamente (`supabase secrets list` mostra os três). A `service_role` **nunca** vai para o site.
+- O aviso `WARNING: Docker is not running` é **inofensivo** no deploy (Docker só é preciso para rodar o Supabase localmente).
+- Para conferir que está no ar (deve responder `{"error":"not_authenticated"}` — é o nosso código rodando):
+
+```bash
+curl -s -X POST "https://SEU-PROJETO.supabase.co/functions/v1/play" \
+  -H "apikey: SUA_ANON" -H "Authorization: Bearer SUA_ANON" \
+  -d '{"action":"open","game":"zip"}'
+```
+
+**Pelo painel:** Edge Functions → **Deploy a new function** → nome **`play`** → cole `supabase/functions/play/index.ts` e recrie a pasta `_shared/` com os domínios (`_shared/board.js`, `_shared/rng.js`, `_shared/points.js`, `_shared/<jogo>/domain.js`, `_shared/cruzadas/words.js`, `_shared/sopa/words.js`); os caminhos têm que bater exatamente. Se o editor só aceitar um arquivo, use a CLI.
 
 ### 3. Configurar o login (Authentication)
 - **URL Configuration**

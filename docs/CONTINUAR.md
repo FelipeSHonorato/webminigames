@@ -68,7 +68,7 @@ npm test      # 203 testes, Node 20+
 
 ## Limitações e próximos passos sugeridos
 
-1. **Backend**: já existe a integração com o **Supabase** (contas, ranking, coins, progresso, fases e liga/desliga no servidor; ver `docs/SUPABASE.md`). Os pontos já são decididos no servidor (teto do nível, menos dicas) e há ritmo mínimo entre vitórias (`phase_min_seconds`), com a fase aberta em `phase_runs` — falta **validar a jogada de verdade** (rodar a lógica de cada jogo numa Edge Function usando o `domain.js`, que é puro), foto no Storage, região para contas Google e listar contas no painel do administrador. Recuperar senha ("Esqueceu a senha?", link do Supabase para `redefinir.html`) e excluir a própria conta (LGPD, popup com a senha atual + `delete_my_account`) já estão prontos.
+1. **Backend**: a integração com o **Supabase** está pronta e a **jogada é validada de verdade no servidor** — a Edge Function `play` regenera a fase a partir da seed secreta (rodando o `domain.js`, que é puro) e só então `finalize_win` pontua, com ritmo mínimo entre vitórias (`phase_min_seconds`) e a fase aberta em `phase_runs` (ver `docs/SUPABASE.md`). Falta: foto no Storage, região para contas Google e listar contas no painel do administrador. Recuperar senha ("Esqueceu a senha?", link do Supabase para `redefinir.html`) e excluir a própria conta (LGPD, popup com a senha atual + `delete_my_account`) já estão prontos.
 2. Gerar as fases do Zip nos níveis altos num **Web Worker** (pode levar alguns segundos no Genius).
 3. Suporte a **teclado** no Patches (o Sudoku já tem).
 4. Centralizar as cores (tokens) num `tokens.css` compartilhado (hoje cada jogo repete os seus).
