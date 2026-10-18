@@ -48,3 +48,12 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 p.help{color:var(--muted);font-size:.9rem;line-height:1.4}
 
 button:disabled,button:disabled:hover{opacity:.45;cursor:not-allowed;border-color:var(--grid)}
+
+/* Celular: mais área útil para o tabuleiro (menos margem e títulos menores). */
+@media (max-width:720px){
+main{padding:12px 12px 20px}
+h1{font-size:1.6rem}
+header{margin-bottom:8px}
+#level{margin-bottom:8px}
+.actions{gap:6px}
+}

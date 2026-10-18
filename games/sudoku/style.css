@@ -57,4 +57,15 @@ button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
 button:disabled,button:disabled:hover{opacity:.45;cursor:not-allowed;border-color:var(--grid)}
 p.help{color:var(--muted);font-size:.9rem;line-height:1.4}
+
+/* Celular: tabuleiro maior e teclado numérico mais compacto (9 botões cabem em 320px). */
+@media (max-width:720px){
+main{padding:12px 12px 20px}
+h1{font-size:1.6rem}
+header{margin-bottom:8px}
+#level{margin-bottom:8px}
+#pad{gap:4px;margin-bottom:8px}
+#pad button{padding:9px 0;font-size:1.05rem}
+.actions{gap:6px;margin-bottom:6px}
+}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

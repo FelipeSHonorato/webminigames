@@ -13,12 +13,6 @@ const TROPHY = `<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="tru
 export function mountRanking({ gameId, title, loginUrl = "../../index.html?modo=conta" }) {
   const aside = el("aside", "ranking");
   aside.setAttribute("aria-label", `Ranking do ${title}`);
-  const tab = el("button", "ranking-tab");
-  tab.type = "button";
-  tab.title = "Ranking";
-  tab.setAttribute("aria-label", "Ranking");
-  tab.setAttribute("aria-controls", "ranking-body");
-  tab.innerHTML = TROPHY;                       // ícone estático, sem dados do usuário
 
   const body = el("div", "ranking-body");
   body.id = "ranking-body";
@@ -26,11 +20,30 @@ export function mountRanking({ gameId, title, loginUrl = "../../index.html?modo=
   const tabs = scopeTabs(scopes, () => refresh());
   const list = el("ol", "ranking-list"), note = el("p", "ranking-note");
   body.append(el("h2", "", `Ranking · ${title}`), scopes, list, note);
-  aside.append(tab, body);
+  aside.append(body);
+
+  const tab = el("button", "ranking-tab");
+  tab.type = "button";
+  tab.title = "Ranking";
+  tab.setAttribute("aria-label", "Ranking");
+  tab.setAttribute("aria-controls", "ranking-body");
+  tab.innerHTML = TROPHY;                       // ícone estático, sem dados do usuário
+
+  /* Em telas largas a aba é irmã do painel (fora dele) e encosta na borda esquerda: continua clicável com o painel
+     recolhido. No celular a aba vai para dentro da barra superior (fica sempre à mão, sem cobrir o jogo). */
+  const bar = document.querySelector(".sitebar");
+  const host = document.getElementById("userbar");
+  const narrow = matchMedia("(max-width: 899px)");
+  const place = () => {
+    const inBar = narrow.matches && bar && host;
+    if (inBar) bar.insertBefore(tab, host); else document.body.append(tab);
+    tab.classList.toggle("in-bar", Boolean(inBar));
+  };
   document.body.append(aside);
+  place();
+  narrow.addEventListener?.("change", place);
 
   /* A janela fica logo abaixo da barra superior, qualquer que seja a altura dela. */
-  const bar = document.querySelector(".sitebar");
   const fit = () => document.documentElement.style.setProperty("--ranking-top", `${(bar?.offsetHeight ?? 0) + 12}px`);
   fit();
   addEventListener("resize", fit);

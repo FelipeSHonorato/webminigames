@@ -8,9 +8,9 @@
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--fg);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif}
 main{max-width:940px;margin:0 auto;padding:20px 16px 28px}
-/* Jogo largo (grade + painel lado a lado): com o painel de ranking aberto (≥900px, 344px à direita), o deslocamento genérico de
-   css/ranking.css (-172px) só serve para jogos estreitos; aqui o main passa a ocupar a área livre. */
-@media (min-width:900px){html body.ranking-open main{transform:none;width:calc(100vw - 344px);margin:0 auto 0 max(0px,calc((100vw - 344px - 940px) / 2))}}
+/* Jogo largo (grade + painel lado a lado): com o painel de ranking aberto (≥900px, 380px à direita: painel 320 + margem 12 +
+   aba 48), o deslocamento genérico de css/ranking.css (-172px) só serve para jogos estreitos; aqui o main passa a ocupar a área livre. */
+@media (min-width:900px){html body.ranking-open main{transform:none;width:calc(100vw - 380px);margin:0 auto 0 max(0px,calc((100vw - 380px - 940px) / 2))}}
 header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
 h1{margin:0;font-size:2rem;letter-spacing:-.02em}
 #timer{font-variant-numeric:tabular-nums;color:var(--muted);font-size:1.1rem}

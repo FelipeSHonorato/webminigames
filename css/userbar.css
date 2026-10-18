@@ -1,15 +1,33 @@
 /* Barra do usuário (avatar, engrenagem, modo escuro, Deslogar). Usa os tokens do site ou, nos jogos, os do jogo. */
-.userbar{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px}
+.userbar{display:flex;align-items:center;justify-content:flex-end;gap:8px}
+.usermenu{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px}
 .userbar .me{display:flex;align-items:center;gap:8px;max-width:170px;color:var(--fg);font-weight:700;text-decoration:none}
 .userbar .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .avatar{display:inline-grid;place-items:center;flex:none;width:36px;height:36px;border-radius:50%;object-fit:cover;overflow:hidden;background:var(--bg);color:var(--muted);border:2px solid var(--line,var(--grid))}
 .avatar svg{width:100%;height:100%}
 .userbar .icon-btn,.userbar .out{display:grid;place-items:center;height:36px;border:2px solid var(--line,var(--grid));border-radius:8px;background:var(--surface,var(--cell));color:var(--fg);font:inherit;font-weight:700;text-decoration:none;cursor:pointer}
 .userbar .icon-btn{width:36px}
+.userbar .icon-btn .lbl{display:none}
 .userbar .out{padding:0 12px;white-space:nowrap}
 .userbar .out.primary{background:var(--accent,var(--path));border-color:var(--accent,var(--path));color:var(--accent-fg,#0e1621)}
 .userbar .icon-btn:hover,.userbar .out:hover{border-color:var(--accent,var(--path))}
-@media (max-width:600px){.userbar .nm{display:none}}
+/* Em telas médias/estreitas o nome some (o avatar já leva ao perfil); na barra do jogo ele reaparece dentro do menu. */
+@media (max-width:900px){.userbar .nm{display:none}}
+
+/* Botão sanduíche: só existe em telas estreitas (as ações vão para o menu). */
+.menu-toggle{display:none;place-items:center;width:40px;height:40px;padding:0;border:2px solid var(--line,var(--grid));border-radius:8px;background:var(--surface,var(--cell));color:var(--fg);cursor:pointer}
+.menu-toggle:hover,.menu-toggle[aria-expanded="true"]{border-color:var(--accent,var(--path))}
+
+/* Telas estreitas: o menu abre como um painel logo abaixo da barra. */
+@media (max-width:720px){
+  .menu-toggle{display:grid}
+  .usermenu{position:absolute;top:calc(100% + 8px);right:0;left:auto;display:none;flex-direction:column;align-items:stretch;gap:4px;min-width:min(240px,calc(100vw - 24px));padding:10px;background:var(--surface,var(--cell));border:1px solid var(--line,var(--grid));border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.22);z-index:45}
+  .usermenu.open{display:flex}
+  .usermenu .me,.usermenu .out,.usermenu .icon-btn{width:100%;height:auto;min-height:44px;display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:10px 12px;border-radius:8px;text-align:left}
+  .usermenu .me{max-width:none;border:0;background:none}
+  .usermenu .me .nm{display:inline}     /* dentro do menu o nome aparece (a regra de ≤900px esconde só o inline) */
+  .usermenu .icon-btn .lbl{display:inline}
+}
 
 /* Switch de modo escuro: símbolos de sol e lua translúcidos; o círculo desliza sobre o símbolo ativo. */
 .theme-switch{position:relative;display:flex;align-items:center;justify-content:space-between;flex:none;width:58px;height:32px;padding:0 7px;border:2px solid var(--line,var(--grid));border-radius:999px;background:var(--bg);color:var(--fg);cursor:pointer}
