@@ -2,12 +2,14 @@
    Cada jogo tem um "clima" próprio (andamento, tonalidade, progressão, timbres e densidade da melodia), mas
    todos seguem o mesmo padrão relaxante: pads suaves, baixo redondo, melodia esparsa, percussão discreta e um
    chiado de vinil. O áudio só começa depois do primeiro gesto do usuário (política de autoplay dos navegadores)
-   e a preferência de mudo fica salva em `wmg.muted`. O botão (`musicSwitch`) aparece ao lado do tema e só em
-   páginas de jogo (quando `Music.play(id)` é chamado). */
+   e a preferência de mudo fica salva em `wmg.muted`; o volume do regulador fica em `wmg.music.volume`. O botão
+   (`musicSwitch`) aparece ao lado do tema e só em páginas de jogo (quando `Music.play(id)` é chamado). */
 import { store } from "./storage.js";
 
 const KEY = "wmg.muted";
-const LEVEL = 0.72;   // volume geral discreto (música de fundo)
+const VOL_KEY = "wmg.music.volume";
+const MAX_GAIN = 1.5;      // teto do regulador (permite subir bem acima do padrão antigo)
+const DEFAULT_VOL = 0.8;   // volume inicial: mais alto que antes (0,8 × 1,5 = 1,2)
 const midiHz = m => 440 * Math.pow(2, (m - 69) / 12);
 const rand = (a, b) => a + Math.random() * (b - a);
 const chance = p => Math.random() < p;
@@ -53,6 +55,12 @@ const MOODS = {
 
 let ctx = null, master = null, bus = null, noise = null, timer = null, bar = 0, nextBar = 0;
 let game = null, muted = store.get(KEY) === "1", armed = false;
+const readVolume = () => {
+  const v = parseFloat(store.get(VOL_KEY));
+  return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : DEFAULT_VOL;
+};
+let volume = readVolume();
+const gainFor = () => (muted ? 0 : volume * MAX_GAIN);
 
 const emit = () => { try { dispatchEvent(new CustomEvent("musicstate")); } catch { /* fora do navegador */ } };
 
@@ -63,7 +71,7 @@ function build() {
   if (!AC) return false;
   ctx = new AC();
   master = ctx.createGain();
-  master.gain.value = muted ? 0 : LEVEL;
+  master.gain.value = gainFor();
   const comp = ctx.createDynamicsCompressor();
   comp.threshold.value = -20; comp.ratio.value = 3; comp.attack.value = 0.01; comp.release.value = 0.3;
   master.connect(comp).connect(ctx.destination);
@@ -155,7 +163,7 @@ function start() {
   const now = ctx.currentTime;
   master.gain.cancelScheduledValues(now);
   master.gain.setValueAtTime(master.gain.value, now);
-  master.gain.linearRampToValueAtTime(LEVEL, now + 0.25);
+  master.gain.linearRampToValueAtTime(gainFor(), now + 0.25);
   bus = ctx.createGain(); bus.gain.value = 1; bus.connect(master);   // cada sessão tem seu barramento
   bar = 0; nextBar = now + 0.08;
   tick();
@@ -197,10 +205,25 @@ function setMuted(v) {
   emit();
 }
 
+/** Regulador de volume (0 a 1). Aplicado na hora, salvo entre visitas. */
+function setVolume(v) {
+  volume = Math.max(0, Math.min(1, Number(v) || 0));
+  store.set(VOL_KEY, String(volume));
+  if (ctx && master) {
+    const now = ctx.currentTime;
+    master.gain.cancelScheduledValues(now);
+    master.gain.setValueAtTime(master.gain.value, now);
+    master.gain.linearRampToValueAtTime(gainFor(), now + 0.08);
+  }
+  if (!muted) { if (volume === 0) stop(false); else start(); }
+  emit();
+}
+
 export const Music = {
   /** Jogo atual (null fora das páginas de jogo). */
   get game() { return game; },
   get muted() { return muted; },
+  get volume() { return volume; },
   /** Liga o som de fundo deste jogo (o botão ao lado do tema passa a aparecer). */
   play(id) {
     if (game === id) return;
@@ -210,6 +233,7 @@ export const Music = {
   },
   toggle() { setMuted(!muted); },
   setMuted,
+  setVolume,
 };
 
 if (typeof document !== "undefined") {
@@ -223,19 +247,39 @@ if (typeof document !== "undefined") {
 const ICON_ON = `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
 const ICON_OFF = `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path d="M16 9l6 6M22 9l-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
 
-/** Botão de mudo (alto-falante). Fica escondido fora das páginas de jogo. */
+/** Botão de mudo (alto-falante) + regulador de volume. Fica escondido fora das páginas de jogo. */
 export function musicSwitch() {
+  const ctl = document.createElement("div");
+  ctl.className = "music-ctl";
+
   const btn = document.createElement("button");
   btn.type = "button"; btn.className = "music-switch";
+  btn.onclick = () => Music.toggle();
+
+  const pop = document.createElement("div");
+  pop.className = "music-pop";
+  const row = document.createElement("label");
+  const name = document.createElement("span"); name.textContent = "Volume";
+  const range = document.createElement("input");
+  range.type = "range"; range.min = "0"; range.max = "100"; range.step = "1";
+  range.setAttribute("aria-label", "Volume da música");
+  const out = document.createElement("output");
+  range.addEventListener("input", () => Music.setVolume(Number(range.value) / 100));
+  row.append(name, range, out);
+  pop.append(row);
+
   const sync = () => {
-    btn.hidden = !Music.game;
+    ctl.hidden = !Music.game;
     btn.innerHTML = Music.muted ? ICON_OFF : ICON_ON;
     btn.setAttribute("aria-pressed", String(Music.muted));
     const label = Music.muted ? "Ativar som de fundo" : "Silenciar som de fundo";
     btn.setAttribute("aria-label", label); btn.title = label;
+    const pct = Math.round(Music.volume * 100);
+    range.value = String(pct); out.textContent = `${pct}%`;
   };
-  btn.onclick = () => Music.toggle();
   addEventListener("musicstate", sync);
   sync();
-  return btn;
+
+  ctl.append(btn, pop);
+  return ctl;
 }
