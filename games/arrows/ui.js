@@ -7,6 +7,7 @@ import { gameAllowed } from "../../shared/game-switch.js";
 import { Run } from "../../shared/run.js";
 import { coinBadge, fmtDuration } from "../../shared/coin-badge.js";
 import { mountUserBar } from "../../js/userbar.js";
+import { Music } from "../../shared/music.js";
 import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
 import { Cloud } from "../../shared/backend/cloud.js";
@@ -18,6 +19,7 @@ const sessionUser = requireSession("../../index.html");   // sem sessão, volta 
 if (sessionUser && !gameAllowed("arrows", sessionUser)) location.replace("../../jogos.html");   // jogo desligado pelo administrador
 mountUserBar(document.getElementById("userbar"), { base: "../../" });
 const GAME_ID = "arrows";
+Music.play(GAME_ID);
 const uid = sessionUser?.id ?? "guest";
 const isCloud = Cloud.owns(uid);                          // o desafio diário só existe na nuvem (a seed é do servidor)
 const ranking = mountRanking({ gameId: GAME_ID, title: "Fuga das Setas", modes: isCloud ? ["daily", "points"] : ["points"] });

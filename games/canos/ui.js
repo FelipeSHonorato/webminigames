@@ -7,6 +7,7 @@ import { gameAllowed } from "../../shared/game-switch.js";
 import { Run } from "../../shared/run.js";
 import { coinBadge, fmtDuration } from "../../shared/coin-badge.js";
 import { mountUserBar } from "../../js/userbar.js";
+import { Music } from "../../shared/music.js";
 import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
 import { Cloud } from "../../shared/backend/cloud.js";
@@ -15,6 +16,7 @@ import { BIT, DELTA, E, GEN, LEVELS, N, S, STORE_KEY, W, firstLeaks, generatePuz
 import { fmtTime } from "../../shared/ranking-list.js";
 
 const GAME_ID = "canos";
+Music.play(GAME_ID);
 const sessionUser = requireSession("../../index.html");   // sem sessão, volta para o login
 if (sessionUser && !gameAllowed(GAME_ID, sessionUser)) location.replace("../../jogos.html");   // jogo desligado pelo administrador
 mountUserBar(document.getElementById("userbar"), { base: "../../" });

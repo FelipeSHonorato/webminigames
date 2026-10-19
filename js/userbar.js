@@ -2,6 +2,7 @@ import { Auth } from "./auth.js";
 import { getSession } from "../shared/session.js";
 import { Profile } from "../shared/profile.js";
 import { themeSwitch } from "../shared/theme.js";
+import { musicSwitch } from "../shared/music.js";
 import { avatarNode } from "../shared/avatar.js";
 import { isAdmin } from "../shared/roles.js";
 
@@ -46,7 +47,8 @@ export function mountUserBar(host, { base = "" } = {}) {
     menu.append(gear);
   }
   const theme = themeSwitch();                    // no desktop fica no meio das ações (como antes); no celular vai para a barra
-  menu.append(theme);
+  const music = musicSwitch();                    // som de fundo do jogo (só aparece nas páginas de jogo)
+  menu.append(theme, music);
   let auth;                                       // 1º item de Entrar/Deslogar: o tema volta para antes dele em telas largas
   if (!account) {                                 // anônimo: em vez de Deslogar, volta para a entrada já na aba escolhida
     const link = (label, mode, primary) => {
@@ -79,21 +81,24 @@ export function mountUserBar(host, { base = "" } = {}) {
   document.addEventListener("click", onDoc);
   document.addEventListener("keydown", onKey);
 
-  /* O alternador de tema fica sempre visível na barra: no celular vai para o lado do sanduíche (fora do menu),
-     em telas largas volta para o meio das ações, antes de Entrar/Deslogar. */
+  /* O tema e o som ficam sempre visíveis na barra: no celular vão para o lado do sanduíche (fora do menu),
+     em telas largas voltam para o meio das ações, antes de Entrar/Deslogar. */
   const narrow = matchMedia("(max-width:720px)");
-  const placeTheme = () => {
-    if (narrow.matches) host.insertBefore(theme, toggle);
-    else if (theme.parentNode !== menu) menu.insertBefore(theme, auth);
+  const placeControls = () => {
+    if (narrow.matches) { host.insertBefore(theme, toggle); host.insertBefore(music, toggle); }
+    else {
+      if (theme.parentNode !== menu) menu.insertBefore(theme, auth);
+      if (music.parentNode !== menu) menu.insertBefore(music, auth);
+    }
   };
-  narrow.addEventListener?.("change", placeTheme);
+  narrow.addEventListener?.("change", placeControls);
 
   teardown = () => {
     document.removeEventListener("click", onDoc);
     document.removeEventListener("keydown", onKey);
-    narrow.removeEventListener?.("change", placeTheme);
+    narrow.removeEventListener?.("change", placeControls);
   };
 
   host.append(toggle, menu);
-  placeTheme();
+  placeControls();
 }

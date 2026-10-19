@@ -44,3 +44,11 @@
 .theme-switch[aria-checked="true"] .knob{transform:translateX(26px)}
 @media (prefers-reduced-motion:reduce){.theme-switch .ico,.theme-switch .knob{transition:none}}
 .theme-corner{position:absolute;top:16px;right:16px}
+
+/* Botão de som de fundo (mudo), ao lado do tema. Só aparece nas páginas que chamam Music.play(id). */
+.music-switch{display:grid;place-items:center;flex:none;width:36px;height:36px;padding:0;border:2px solid var(--line,var(--grid));border-radius:8px;background:var(--surface,var(--cell));color:var(--fg);cursor:pointer}
+.music-switch:hover{border-color:var(--accent,var(--path))}
+.music-switch[aria-pressed="true"]{color:var(--muted)}
+.music-switch .ico{width:20px;height:20px}
+.music-switch[hidden]{display:none}
+@media (max-width:720px){.userbar .music-switch{width:38px;height:30px}.userbar .music-switch .ico{width:16px;height:16px}}

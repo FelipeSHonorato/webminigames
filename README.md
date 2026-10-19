@@ -12,6 +12,8 @@ Site de mini-games de lógica que roda direto no navegador, sem build e sem depe
 
 Os sete têm quatro níveis (Fácil, Médio, Difícil e Genius). O nível sobe a cada 15 vitórias, por jogo e por usuário, e as fases são geradas na hora, sempre com solução única.
 
+Cada jogo tem um **som de fundo lo-fi próprio**, sintetizado no navegador (Web Audio, sem arquivos de áudio): pads suaves, baixo, melodia esparsa, percussão discreta e chiado de vinil. O som só começa depois do primeiro clique ou tecla e pode ser silenciado no **botão de alto-falante ao lado do tema** (a escolha fica salva).
+
 ## Pontuação e ranking
 
 Cada partida vencida vale pontos conforme o nível em que a fase foi gerada: **Fácil 5, Médio 10, Difícil 15, Genius 20**. Os pontos só são gravados quando o cenário é concluído. Só contas pontuam; jogadores anônimos veem o ranking, mas não aparecem nele.
