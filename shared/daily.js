@@ -83,7 +83,7 @@ function appendTrophies(panel, slot, stats) {
 }
 
 /** Desenha o painel do dia: os quadrados dos cenários (vencido = preenchido + troféus) e, por cima do
-    cenário selecionado, a premiação — que abre ao vencer e fecha no ×, no próprio quadrado ou clicando fora. */
+    cenário selecionado, a premiação — que abre ao vencer e só sai no × ou no Esc (não some ao clicar fora). */
 export function renderDailyPanel({ el: host, gameId, info, slot, won }) {
   if (!host) return;
   hideVeil();
@@ -166,7 +166,7 @@ function hideVeil() {
   veil = null;
 }
 
-/** Mostra os troféus no meio do tabuleiro, sobre uma cor translúcida. Fecha no ×, no véu, no Esc ou fora. */
+/** Mostra os troféus no meio do tabuleiro, sobre uma cor translúcida. Permanece até o × ou o Esc. */
 function showVeil(host, slot, stats, close) {
   hideVeil();
   const board = boardOf(host);
@@ -199,20 +199,14 @@ function showVeil(host, slot, stats, close) {
   };
   place();
 
-  const onDown = e => {
-    if (panel.contains(e.target) || host.contains(e.target)) return;   // cartão ou quadrados do dia: não fecha
-    close();
-  };
   const onKey = e => { if (e.key === "Escape") close(); };
   const ro = typeof ResizeObserver === "function" ? new ResizeObserver(place) : null;
   ro?.observe(board);
-  document.addEventListener("click", onDown, true);
   document.addEventListener("keydown", onKey);
   window.addEventListener("scroll", place, true);
   window.addEventListener("resize", place);
   veilCleanup = () => {
     ro?.disconnect();
-    document.removeEventListener("click", onDown, true);
     document.removeEventListener("keydown", onKey);
     window.removeEventListener("scroll", place, true);
     window.removeEventListener("resize", place);
