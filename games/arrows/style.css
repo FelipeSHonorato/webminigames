@@ -18,11 +18,10 @@ h1{margin:0;font-size:2rem;letter-spacing:-.02em}
 .piece .hit{pointer-events:all}
 polyline.hit{fill:none;stroke:transparent;stroke-width:.85;stroke-linecap:round;stroke-linejoin:round}
 circle.hit{fill:transparent;stroke:none}
-polyline.body{fill:none;stroke:var(--c);stroke-width:.26;stroke-linecap:round;stroke-linejoin:round;pointer-events:none;filter:drop-shadow(0 1px 0 rgba(0,0,0,.18))}
-circle.body{fill:var(--c);stroke:none;pointer-events:none;filter:drop-shadow(0 1px 0 rgba(0,0,0,.18))}
+polyline.body{fill:none;stroke:var(--c);stroke-width:.26;stroke-linecap:butt;stroke-linejoin:round;pointer-events:none}
+circle.body{fill:var(--c);stroke:none;pointer-events:none}
 .piece .tip{fill:var(--c);pointer-events:none}
-.piece:hover polyline.body,.piece:hover circle.body{filter:drop-shadow(0 0 4px var(--c))}
-.piece:focus-visible{filter:drop-shadow(0 0 3px var(--accent))}
+.piece:focus-visible .tip{stroke:var(--accent);stroke-width:.06}
 .piece.out{opacity:0;pointer-events:none}
 .piece.shake{animation:shake .3s}
 @keyframes shake{25%{transform:translateX(-7%) rotate(-3deg)}75%{transform:translateX(7%) rotate(3deg)}}

@@ -220,16 +220,19 @@ function loadPuzzle(p, { keepTimer = false } = {}) {
   renderCoins();
 }
 
-/** Animação de saída: a peça desliza na direção da ponta (o caminho livre até fora do tabuleiro) e
-    desaparece. Usa o atributo transform do SVG, em unidades da grade, então a velocidade é a mesma em
-    qualquer tamanho de tela. Acelera no meio e some no fim. */
-function flyOut(el, dir) {
+/** Animação de saída no estilo "água no cano": a peça escoa pelo próprio caminho, da ponta oposta
+    (cauda) até a ponta da seta, e some no fim. Um traço com `stroke-dasharray` normalizado
+    (`pathLength=100`) é "esvaziado" pelo `stroke-dashoffset`, como a água percorrendo o cano. */
+function flyOut(el, piece) {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) { el.style.display = "none"; return; }
-  const [dr, dc] = DIRS[dir], dist = puzzle.n + 2, dur = 480, t0 = performance.now();
+  const body = el.querySelector("polyline.body"), circle = el.querySelector("circle.body"), tip = el.querySelector(".tip");
+  const dur = 480, t0 = performance.now();
+  if (body) { body.setAttribute("pathLength", "100"); body.setAttribute("stroke-dasharray", "100"); }
   const step = now => {
-    const t = Math.min(1, (now - t0) / dur), e = t * t;   // começa devagar e acelera ao sair
-    el.setAttribute("transform", `translate(${(dc * dist * e).toFixed(3)} ${(dr * dist * e).toFixed(3)})`);
-    el.style.opacity = String(t <= 0.65 ? 1 : Math.max(0, 1 - (t - 0.65) / 0.35));
+    const t = Math.min(1, (now - t0) / dur), e = t * t * (3 - 2 * t);   // suave nas pontas
+    if (body) body.setAttribute("stroke-dashoffset", (e * 100).toFixed(2));   // esvazia da cauda para a ponta
+    if (circle) circle.setAttribute("r", (0.17 * (1 - e)).toFixed(4));         // peça de uma casa: encolhe
+    if (tip) tip.style.opacity = String(Math.max(0, 1 - Math.max(0, (t - 0.7) / 0.3)));
     if (t < 1) requestAnimationFrame(step);
     else el.style.display = "none";
   };
@@ -254,7 +257,7 @@ function tap(i) {
   if (el) {
     el.style.pointerEvents = "none";
     el.setAttribute("aria-hidden", "true");
-    flyOut(el, puzzle.pieces[i].dir);
+    flyOut(el, puzzle.pieces[i]);
   }
   if (present.size === 0) {
     solved = true; stopTimer();
