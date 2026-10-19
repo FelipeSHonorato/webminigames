@@ -1,8 +1,9 @@
 /* Painel lateral de ranking das páginas de jogo (usa os tokens de cor de cada jogo). */
 .ranking{position:fixed;top:var(--ranking-top,65px);right:12px;bottom:12px;width:min(320px,100vw - 24px);background:var(--cell);border:1px solid var(--grid);border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.14);z-index:20;transition:transform .25s ease}
 .ranking.closed{transform:translateX(calc(100% + 12px));box-shadow:none}
-/* A aba é irmã do painel (fora dele): encosta na borda esquerda do painel e continua visível mesmo recolhido. */
-.ranking-tab{position:fixed;top:calc(var(--ranking-top,65px) + 14px);right:332px;width:45px;height:48px;display:grid;place-items:center;padding:0;background:var(--cell);border:1px solid var(--grid);border-right:0;border-radius:12px 0 0 12px;cursor:pointer;z-index:21}
+/* A aba é irmã do painel (fora dele). Recolhida fica encostada na borda direita da tela; ao abrir, desliza para a
+   borda esquerda do painel (regra em @media min-width:900px). Continua visível nos dois estados. */
+.ranking-tab{position:fixed;top:calc(var(--ranking-top,65px) + 14px);right:0;width:45px;height:48px;display:grid;place-items:center;padding:0;background:var(--cell);border:1px solid var(--grid);border-right:0;border-radius:12px 0 0 12px;cursor:pointer;z-index:21;transition:right .25s ease}
 .ranking-tab:hover{background:var(--bg)}
 /* No celular a aba entra na barra superior (js/ranking-panel.js põe a classe): vira um botão quadrado. */
 .ranking-tab.in-bar{position:static;width:34px;height:34px;background:var(--surface,var(--cell));border:2px solid var(--grid);border-radius:8px;box-shadow:none}
@@ -10,7 +11,12 @@
 .ranking-body{height:100%;overflow:auto;padding:16px;border-radius:inherit}
 .ranking h2{margin:0 0 12px;font-size:1.1rem}
 /* Com o painel aberto, só o jogo (main) se desloca para o centro da área livre; a barra superior não é afetada. */
-@media (min-width:900px){main{transition:transform .25s ease}body.ranking-open main{transform:translateX(-172px)}}
+@media (min-width:900px){
+  main{transition:transform .25s ease}
+  body.ranking-open main{transform:translateX(-172px)}
+  /* Aba aberta encosta na borda esquerda do painel (painel right:12px + largura 320 = 332px). */
+  body.ranking-open .ranking-tab{right:332px}
+}
 /* Tela estreita: o ranking vira uma folha que sobe de baixo e a aba entra na barra superior (sempre alcançável). */
 @media (max-width:899px){
   .ranking{top:auto;left:12px;right:12px;bottom:12px;width:auto;max-height:min(72vh,600px)}
@@ -19,4 +25,4 @@
   /* Fallback (sem barra superior): botão redondo fixo. */
   .ranking-tab:not(.in-bar){top:auto;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));width:52px;height:52px;border:1px solid var(--grid);border-radius:50%;box-shadow:0 8px 20px rgba(0,0,0,.22)}
 }
-@media (prefers-reduced-motion:reduce){.ranking,main{transition:none!important}}
+@media (prefers-reduced-motion:reduce){.ranking,main,.ranking-tab{transition:none!important}}
