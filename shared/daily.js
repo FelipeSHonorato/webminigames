@@ -82,34 +82,47 @@ function appendTrophies(panel, slot, stats) {
   panel.append(cards);
 }
 
-/** Desenha o painel do dia: os quadrados dos cenários (vencido = preenchido + troféus) e a premiação do
-    cenário selecionado. `won` diz se o cenário atual (`slot`) acabou de ser vencido; quadrados vencidos
-    podem ser tocados para rever os troféus. */
+/** Desenha o painel do dia: os quadrados dos cenários (vencido = preenchido + troféus) e, por cima do
+    cenário selecionado, a premiação — que abre ao vencer e fecha no ×, no próprio quadrado ou clicando fora. */
 export function renderDailyPanel({ el: host, gameId, info, slot, won }) {
   if (!host) return;
   const data = info ?? { coins: 0, slots: dailySlots(null), results: {}, level: 0, stats: {} };
+  host.__dailyArgs = { el: host, gameId, info: data, slot, won };
   const list = slotsOf(data);
   const done = list.filter(s => s.seconds != null);
   const lastDone = done.length ? done[done.length - 1].slot : null;
+
+  let open = host.dataset.open ? Number(host.dataset.open) : null;
+  if (open != null && !done.some(s => s.slot === open)) open = null;                 // virou o dia / cenário sumiu
+  const wonNow = won && slot && done.some(s => s.slot === slot);
+  if (wonNow && data.stats?.[slot] && host.dataset.won !== String(slot)) open = slot; // acabou de vencer: abre
+  host.dataset.won = wonNow ? String(slot) : "";
+
   const stored = Number(host.dataset.selected);
-  const selected = stored && done.some(s => s.slot === stored) ? stored
-    : won && slot && done.some(s => s.slot === slot) ? slot
-    : lastDone;
-  host.replaceChildren();
+  const selected = open ?? (stored && done.some(s => s.slot === stored) ? stored : lastDone);
+  host.dataset.open = open ? String(open) : "";
   host.dataset.selected = selected ? String(selected) : "";
+
+  host.replaceChildren();
   if (!list.length) return;
 
+  const slotEls = new Map();
   const status = node("div", "slots");
   for (const s of list) {
     const isDone = s.seconds != null;
     const playing = !isDone && s.slot === slot && !won;
     const t = isDone ? scenarioTrophies(data.stats?.[s.slot]) : null;
-    const item = document.createElement(isDone ? "button" : "span");
-    if (isDone) {
+    const canOpen = isDone && !!data.stats?.[s.slot];
+    const item = document.createElement(canOpen ? "button" : "span");
+    if (canOpen) {
       item.type = "button";
-      item.setAttribute("aria-pressed", String(s.slot === selected));
-      item.title = "Ver os troféus deste cenário";
-      item.onclick = () => { host.dataset.selected = String(s.slot); renderDailyPanel({ el: host, gameId, info: data, slot, won }); };
+      item.setAttribute("aria-pressed", String(s.slot === open));
+      item.title = s.slot === open ? "Fechar os troféus" : "Ver os troféus deste cenário";
+      item.onclick = () => {
+        host.dataset.open = Number(host.dataset.open) === s.slot ? "" : String(s.slot);
+        host.dataset.selected = String(s.slot);
+        renderDailyPanel(host.__dailyArgs);
+      };
     }
     item.className = "slot" + (isDone ? " done" : playing ? " current" : " pending") + (s.slot === selected ? " selected" : "");
     item.append(node("span", "slot-name", `Cenário ${s.slot}`));
@@ -122,6 +135,7 @@ export function renderDailyPanel({ el: host, gameId, info, slot, won }) {
         if (t.regionRank != null) row.append(mini("globe", `#${t.regionRank}`, `Nº ${t.regionRank} na sua região`));
         if (row.children.length) item.append(row);
       }
+      slotEls.set(s.slot, item);
     } else {
       item.append(node("span", "slot-status", playing ? "jogando" : "pendente"));
     }
@@ -136,9 +150,49 @@ export function renderDailyPanel({ el: host, gameId, info, slot, won }) {
     : "Sem coins do dia: voltam à meia-noite (Brasília).";
   host.append(tip);
 
-  if (selected && data.stats?.[selected]) {
+  if (open && data.stats?.[open]) {
     const panel = node("div", "trophies");
-    appendTrophies(panel, selected, data.stats[selected]);
+    const close = node("button", "trophies-close", "×");
+    close.type = "button";
+    close.setAttribute("aria-label", "Fechar os troféus");
+    close.onclick = () => { host.dataset.open = ""; renderDailyPanel(host.__dailyArgs); };
+    panel.append(close);
+    appendTrophies(panel, open, data.stats[open]);
     host.append(panel);
+    placePanel(host, panel, slotEls.get(open));
+    watchOutside(host);
+    watchResize(host);
   }
+}
+
+/** Centraliza o painel sobre o quadrado do cenário (e o mantém dentro da largura da seção). O painel cresce
+    para cima, cobrindo o quadrado, para não esconder os botões que ficam logo abaixo do painel do dia. */
+function placePanel(host, panel, slotEl) {
+  if (!slotEl) return;
+  const width = panel.offsetWidth;
+  const center = slotEl.offsetLeft + slotEl.offsetWidth / 2;
+  const half = width / 2;
+  const left = host.clientWidth > width + 16
+    ? Math.max(half + 8, Math.min(host.clientWidth - half - 8, center))
+    : host.clientWidth / 2;
+  panel.style.left = `${Math.round(left)}px`;
+  panel.style.top = `${Math.round(slotEl.offsetTop + slotEl.offsetHeight - panel.offsetHeight)}px`;
+}
+
+/** Fecha os troféus ao clicar fora da seção do dia (o painel cobre o quadrado, então precisa de outra saída). */
+function watchOutside(host) {
+  if (host.__dailyOutside) return;
+  host.__dailyOutside = e => {
+    if (!host.dataset.open || host.contains(e.target)) return;
+    host.dataset.open = "";
+    renderDailyPanel(host.__dailyArgs);
+  };
+  document.addEventListener("click", host.__dailyOutside, true);
+}
+
+/** Reposiciona o painel se a janela mudar de tamanho. */
+function watchResize(host) {
+  if (host.__dailyResize) return;
+  host.__dailyResize = () => { if (host.dataset.open) renderDailyPanel(host.__dailyArgs); };
+  window.addEventListener("resize", host.__dailyResize);
 }

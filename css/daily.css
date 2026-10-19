@@ -1,12 +1,12 @@
 /* Painel dos cenários do dia (um por coin do dia) — compartilhado pelos jogos. Cada cenário é um quadrado:
    vencido fica preenchido com a cor de destaque e mostra os troféus (percentual, média e região). Os cartões
    grandes (`.trophies`) são a premiação do cenário selecionado. */
-.daily{margin:0 0 12px}
+.daily{position:relative;margin:0 0 12px}
 .slots{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
 .slot{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:112px;padding:10px 12px;font:inherit;font-size:.85rem;font-weight:700;color:var(--muted);background:var(--btn);border:2px solid var(--grid);border-radius:14px}
 .slot.current{border-color:var(--accent);color:var(--fg)}
 .slot.done{position:relative;overflow:hidden;color:var(--fg);border-color:var(--accent);cursor:pointer;text-align:center}
-.slot.done::before{content:"";position:absolute;inset:0;background:var(--accent);opacity:.16;pointer-events:none}
+.slot.done::before{content:"";position:absolute;inset:0;background:var(--accent);opacity:.22;pointer-events:none}
 .slot.done>*{position:relative}
 .slot.done:hover{filter:brightness(1.05)}
 .slot.done.selected{box-shadow:0 0 0 2px var(--accent) inset}
@@ -20,8 +20,10 @@
 .mini .mini-ico{display:inline-grid;place-items:center;width:12px;height:12px;color:var(--accent)}
 .mini .mini-ico svg{display:block;width:12px;height:12px}
 .daily-tip{margin:8px 0 0;font-size:.85rem;color:var(--muted);text-align:center}
-/* Premiação do cenário selecionado. */
-.trophies{margin:12px auto 0;max-width:560px;padding:12px;border:1px solid var(--grid);border-radius:14px;background:var(--surface,var(--cell))}
+/* Premiação do cenário: um popover ancorado no quadrado, por cima dele (a cor do quadrado fica atrás). */
+.trophies{position:absolute;z-index:30;top:0;left:50%;width:min(560px,calc(100vw - 32px));padding:14px 12px 12px;transform:translateX(-50%);border:1px solid var(--grid);border-radius:14px;background:var(--surface,var(--cell));box-shadow:0 14px 34px rgba(0,0,0,.35)}
+.trophies-close{position:absolute;top:6px;right:8px;display:grid;place-items:center;width:26px;height:26px;padding:0;font:inherit;font-size:1.15rem;line-height:1;color:var(--muted);background:none;border:0;border-radius:8px;cursor:pointer}
+.trophies-close:hover{color:var(--fg);background:var(--btn)}
 .trophies-head{display:flex;align-items:baseline;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .trophies-title{font-size:1rem;color:var(--fg)}
 .trophies-meta{font-size:.8rem;color:var(--muted)}
@@ -32,4 +34,4 @@
 .trophy-main{font-size:.95rem;color:var(--fg)}
 .trophy-sub{font-size:.75rem;color:var(--muted)}
 .trophy-detail{font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums}
-@media (max-width:420px){.slot{min-width:96px;padding:8px 9px}}
+@media (max-width:420px){.slot{min-width:96px;padding:8px 9px}.trophies{width:calc(100vw - 24px);padding:12px 10px}}
