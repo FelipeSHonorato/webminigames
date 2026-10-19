@@ -118,11 +118,14 @@ const DIR_NAMES = ["cima", "direita", "baixo", "esquerda"];
 const DIR_COLORS = ["#3f8fd6", "#23b3a4", "#e4572e", "#e0a020"];   // cima, direita, baixo, esquerda
 const center = cell => { const n = puzzle.n; return [(cell % n) + 0.5, ((cell / n) | 0) + 0.5]; };
 
-/** Triângulo da ponta: fica na casa da cabeça, apontando a direção de saída. */
+/** Ponta em forma de seta: triângulo na cabeça, apontando a direção de saída.
+    `perp` é o vetor perpendicular em coordenadas de tela (x = coluna, y = linha). */
 function tipPath(cell, d) {
-  const [cx, cy] = center(cell), [dr, dc] = DIRS[d], px = -dc, py = dr;
-  const tx = cx + dc * 0.40, ty = cy + dr * 0.40, bx = cx - dc * 0.08, by = cy - dr * 0.08, w = 0.26;
-  return `M${tx} ${ty} L${bx + px * w} ${by + py * w} L${bx - px * w} ${by - py * w} Z`;
+  const [cx, cy] = center(cell), [dr, dc] = DIRS[d], px = dr, py = -dc;
+  const tipx = cx + dc * 0.46, tipy = cy + dr * 0.46;   // ápice à frente
+  const bx = cx + dc * 0.10, by = cy + dr * 0.10;       // base logo à frente do centro
+  const w = 0.27;
+  return `M${tipx} ${tipy} L${bx + px * w} ${by + py * w} L${bx - px * w} ${by - py * w} Z`;
 }
 
 /** Desenha cada seta como uma polilinha (com curvas) e a ponta na cabeça. A grade é sempre cheia; casas sem
@@ -137,15 +140,6 @@ function buildBoard() {
   svg.setAttribute("class", "pieces");
   svg.setAttribute("role", "group");
   svg.setAttribute("aria-label", "Tabuleiro de setas");
-
-  for (let i = 0; i <= n; i++) {
-    for (const [x1, y1, x2, y2] of [[i, 0, i, n], [0, i, n, i]]) {
-      const ln = document.createElementNS(SVGNS, "line");
-      ln.setAttribute("x1", x1); ln.setAttribute("y1", y1); ln.setAttribute("x2", x2); ln.setAttribute("y2", y2);
-      ln.setAttribute("class", "grid");
-      svg.append(ln);
-    }
-  }
 
   puzzle.pieces.forEach((p, i) => {
     const g = document.createElementNS(SVGNS, "g");
@@ -226,6 +220,22 @@ function loadPuzzle(p, { keepTimer = false } = {}) {
   renderCoins();
 }
 
+/** Animação de saída: a peça desliza na direção da ponta (o caminho livre até fora do tabuleiro) e
+    desaparece. Usa o atributo transform do SVG, em unidades da grade, então a velocidade é a mesma em
+    qualquer tamanho de tela. Acelera no meio e some no fim. */
+function flyOut(el, dir) {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { el.style.display = "none"; return; }
+  const [dr, dc] = DIRS[dir], dist = puzzle.n + 2, dur = 480, t0 = performance.now();
+  const step = now => {
+    const t = Math.min(1, (now - t0) / dur), e = t * t;   // começa devagar e acelera ao sair
+    el.setAttribute("transform", `translate(${(dc * dist * e).toFixed(3)} ${(dr * dist * e).toFixed(3)})`);
+    el.style.opacity = String(t <= 0.65 ? 1 : Math.max(0, 1 - (t - 0.65) / 0.35));
+    if (t < 1) requestAnimationFrame(step);
+    else el.style.display = "none";
+  };
+  requestAnimationFrame(step);
+}
+
 /** Um toque: se o caminho estiver livre a seta inteira desliza e sai; senão balança e custa uma vida.
     Tirar a última seta vence. */
 function tap(i) {
@@ -242,12 +252,9 @@ function tap(i) {
   present.delete(i); order.push(i);
   const el = pieceEls[i];
   if (el) {
-    const [dr, dc] = DIRS[puzzle.pieces[i].dir], dist = puzzle.n + 2;
-    el.style.transform = `translate(${dc * dist}px, ${dr * dist}px)`;
-    el.style.opacity = "0";
-    el.classList.add("out");
     el.style.pointerEvents = "none";
     el.setAttribute("aria-hidden", "true");
+    flyOut(el, puzzle.pieces[i].dir);
   }
   if (present.size === 0) {
     solved = true; stopTimer();
