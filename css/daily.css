@@ -1,9 +1,35 @@
-/* Painel dos cenários do dia (um por coin do dia) — compartilhado pelos jogos. Só leitura: o cenário é
-   servido pelo servidor (sem escolha), então cada item mostra apenas o progresso do dia. */
+/* Painel dos cenários do dia (um por coin do dia) — compartilhado pelos jogos. Cada cenário é um quadrado:
+   vencido fica preenchido com a cor de destaque e mostra os troféus (percentual, média e região). Os cartões
+   grandes (`.trophies`) são a premiação do cenário selecionado. */
 .daily{margin:0 0 12px}
-.slots{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
-.slot{padding:6px 10px;font-size:.85rem;font-weight:700;color:var(--muted);background:var(--btn);border:2px solid var(--grid);border-radius:999px}
+.slots{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.slot{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:112px;padding:10px 12px;font:inherit;font-size:.85rem;font-weight:700;color:var(--muted);background:var(--btn);border:2px solid var(--grid);border-radius:14px}
 .slot.current{border-color:var(--accent);color:var(--fg)}
-.slot.done{color:var(--fg);border-style:dashed;opacity:.9}
+.slot.done{position:relative;overflow:hidden;color:var(--fg);border-color:var(--accent);cursor:pointer;text-align:center}
+.slot.done::before{content:"";position:absolute;inset:0;background:var(--accent);opacity:.16;pointer-events:none}
+.slot.done>*{position:relative}
+.slot.done:hover{filter:brightness(1.05)}
+.slot.done.selected{box-shadow:0 0 0 2px var(--accent) inset}
 .slot.pending{opacity:.7}
+.slot-name{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.slot.done .slot-name{color:var(--fg)}
+.slot-time{font-size:1.05rem;font-variant-numeric:tabular-nums}
+.slot-status{font-size:.8rem}
+.slot-trophies{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;margin-top:2px}
+.mini{display:inline-flex;align-items:center;gap:2px;padding:1px 6px;border:1px solid var(--grid);border-radius:999px;background:var(--btn);font-size:.7rem;font-weight:700;color:var(--fg)}
+.mini .mini-ico{display:inline-grid;place-items:center;width:12px;height:12px;color:var(--accent)}
+.mini .mini-ico svg{display:block;width:12px;height:12px}
 .daily-tip{margin:8px 0 0;font-size:.85rem;color:var(--muted);text-align:center}
+/* Premiação do cenário selecionado. */
+.trophies{margin:12px auto 0;max-width:560px;padding:12px;border:1px solid var(--grid);border-radius:14px;background:var(--surface,var(--cell))}
+.trophies-head{display:flex;align-items:baseline;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.trophies-title{font-size:1rem;color:var(--fg)}
+.trophies-meta{font-size:.8rem;color:var(--muted)}
+.trophy-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.trophy-card{display:flex;flex-direction:column;align-items:center;gap:3px;padding:12px 8px;text-align:center;border:1px solid var(--grid);border-radius:12px;background:var(--btn)}
+.trophy-ico{display:grid;place-items:center;width:30px;height:30px;color:var(--accent)}
+.trophy-ico svg{display:block;width:30px;height:30px}
+.trophy-main{font-size:.95rem;color:var(--fg)}
+.trophy-sub{font-size:.75rem;color:var(--muted)}
+.trophy-detail{font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums}
+@media (max-width:420px){.slot{min-width:96px;padding:8px 9px}}

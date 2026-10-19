@@ -120,12 +120,13 @@ function applyWin(game, data) {
   S.cache.wins[game] = data.wins; S.cache.scores[game] = data.score; S.cache.coins[game] = data.coins;
   delete S.cache.phases[game];   // a fase foi consumida (ou já estava): não há o que retomar
 }
-/** Resultado do desafio diário: guarda os coins/cenários do dia, o melhor tempo por slot e a pontuação/progressão. */
+/** Resultado do desafio diário: guarda os coins/cenários do dia, o melhor tempo por slot, os troféus e a pontuação/progressão. */
 function applyDaily(game, slot, data) {
-  const g = (S.cache.daily[game] ??= { day: null, level: 0, coins: 0, slots: 2, results: {}, open: [] });
+  const g = (S.cache.daily[game] ??= { day: null, level: 0, coins: 0, slots: 2, results: {}, open: [], stats: {} });
   if (data?.coins != null) g.coins = data.coins;
   if (data?.slots != null) g.slots = data.slots;
   if (data?.seconds != null) g.results[slot] = Math.min(g.results[slot] ?? Infinity, data.seconds);
+  if (data?.stats) (g.stats ??= {})[slot] = data.stats;               // troféus do cenário (percentual, média, região)
   if (data?.wins != null) S.cache.wins[game] = data.wins;              // concluir o cenário do dia também pontua/progride
   if (data?.score) S.cache.scores[game] = data.score;
 }
@@ -280,7 +281,7 @@ export const Cloud = {
   /** Abre o tabuleiro do dia (slot 1 ou 2): o servidor cobra 1 coin, marca o início e devolve o puzzle (sem a seed). */
   async dailyOpen(game, slot) {
     const d = await invoke("daily_open", { game, slot });
-    const g = (S.cache.daily[game] ??= { day: null, level: 0, coins: 0, slots: 2, results: {}, open: [] });
+    const g = (S.cache.daily[game] ??= { day: null, level: 0, coins: 0, slots: 2, results: {}, open: [], stats: {} });
     g.day = d.day; g.level = d.level; g.coins = d.coins; if (d.slots != null) g.slots = d.slots;
     if (!g.open.includes(slot)) g.open.push(slot);
     return d;

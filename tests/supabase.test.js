@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrations = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql"]
+const migrations = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql"]
   .map(f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8"));
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
 const sqlAll = migrations.join("\n");          // estrutura (RLS, permissões, search_path): todas as migrações
@@ -101,6 +101,21 @@ test("SQL: coins por dia é configurável (settings) e manda no nº de cenários
   assert.match(sqlAll, /revoke all on function public\.coins_cap\(\)\s+from public, anon, authenticated/);
   assert.match(sqlAll, /slot <= public\.max_scenarios\(\)/);                                            // slots acompanham o máximo de cenários
   assert.match(sqlAll, /'config',\s+jsonb_build_object\('coinsPerDay', public\.coins_cap\(\)\)/);         // a tela recebe o valor
+});
+
+test("SQL: troféus do cenário diário (percentual, média e região) sem expor outros jogadores", () => {
+  for (const f of ["daily_points\\(int, int\\)", "daily_scenario_stats\\(uuid, text, int, int, text\\)", "daily_my_stats\\(uuid, text\\)"]) {
+    assert.match(sqlAll, new RegExp(`revoke all on function public\\.${f}\\s+from public, anon, authenticated`), `${f} acessível ao cliente`);
+    assert.match(sqlAll, new RegExp(`grant execute on function public\\.${f}\\s+to service_role`), `${f} deveria ser interna`);
+  }
+  assert.match(sqlAll, /create index if not exists daily_results_scenario_idx on public\.daily_results \(day, game_id, level, slot\)/);
+  assert.match(sqlAll, /'percentile', case when \(select players from tot\) <= 1 then 100/);             // sozinho = 100%
+  assert.match(sqlAll, /'avgSeconds', round\(\(select avg_seconds from tot\)\)::int/);                    // média do mesmo cenário
+  assert.match(sqlAll, /'regionRank',\s+case when p_region is null then null else \(select rank_region from mine\) end/);
+  assert.match(sqlAll, /join public\.profiles p on p\.id = d\.user_id[\s\S]*?and p\.role <> 'admin'/);    // admin fica de fora, como no ranking
+  assert.match(sqlAll, /'stats',\s+public\.daily_my_stats\(auth\.uid\(\), g\.id\)/);                      // o dia já vem decorado
+  assert.match(sqlAll, /'stats', public\.daily_scenario_stats\(p_uid, p_game, p_slot, v_run\.level/);      // e o fim devolve o troféu do slot
+  assert.match(sqlAll, /row_number\(\) over \(order by f\.seconds asc, f\.points desc/);                   // ranking do dia com o mesmo desempate
 });
 
 test("a configuração do Supabase é válida quando preenchida (ou vazia, no modo local) e nunca leva chave secreta", () => {

@@ -17,6 +17,7 @@ import {
   setDigit, toggleNote,
 } from "./domain.js";
 import { fmtTime } from "../../shared/ranking-list.js";
+import { nextScenario as nextScenarioOf, renderDailyPanel } from "../../shared/daily.js";
 
 const GAME_ID = "sudoku";
 Music.play(GAME_ID);
@@ -285,39 +286,12 @@ function lockBoard() {
 let dailySlot = 0;
 const dailyEl = document.getElementById("daily");
 
-const dailySlots = info => info?.slots ?? Cloud.config()?.coinsPerDay ?? COINS_PER_DAY;
-const slotsOf = info => Array.from({ length: dailySlots(info) }, (_, i) => ({ slot: i + 1, seconds: info?.results?.[i + 1] ?? null }));
-const bestDaily = info => { const v = slotsOf(info).map(s => s.seconds).filter(s => s != null); return v.length ? Math.min(...v) : null; };
-/** Próximo cenário a jogar = o primeiro ainda não concluído hoje. Não dá para escolher: o servidor serve esse. */
-const nextScenario = () => {
-  const info = Cloud.daily(GAME_ID);
-  const done = new Set(Object.keys(info?.results ?? {}).map(Number));
-  return slotsOf(info).map(s => s.slot).find(s => !done.has(s)) ?? null;
-};
+const nextScenario = () => nextScenarioOf(GAME_ID);
 
-/** Painel do desafio: mostra o progresso do dia (um cenário por coin). É só leitura: o cenário é servido pelo servidor. */
+/** Painel do desafio: progresso do dia e troféus dos cenários vencidos (shared/daily.js). */
 function renderDaily() {
   if (mode !== "daily") return;
-  const info = Cloud.daily(GAME_ID) ?? { coins: 0, slots: dailySlots(null), results: {}, level: 0 };
-  dailyEl.replaceChildren();
-  const status = document.createElement("div");
-  status.className = "slots";
-  for (const { slot, seconds } of slotsOf(info)) {
-    const done = seconds != null;
-    const playing = !done && slot === dailySlot && !solved;
-    const chip = document.createElement("span");
-    chip.className = "slot" + (done ? " done" : playing ? " current" : " pending");
-    chip.textContent = done ? `Cenário ${slot}: ${fmtTime(seconds)}` : playing ? `Cenário ${slot}: jogando` : `Cenário ${slot}: pendente`;
-    status.append(chip);
-  }
-  dailyEl.append(status);
-  const tip = document.createElement("p");
-  tip.className = "daily-tip";
-  const best = bestDaily(info);
-  tip.textContent = (info.coins ?? 0) > 0
-    ? `${info.coins} ${info.coins === 1 ? "coin" : "coins"} do dia · melhor tempo: ${best != null ? fmtTime(best) : "—"}.`
-    : "Sem coins do dia: voltam à meia-noite (Brasília).";
-  dailyEl.append(tip);
+  renderDailyPanel({ el: dailyEl, gameId: GAME_ID, info: Cloud.daily(GAME_ID), slot: dailySlot, won: solved });
 }
 
 async function openDaily(slot) {
