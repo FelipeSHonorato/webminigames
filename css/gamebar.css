@@ -3,5 +3,5 @@
 .sitebar > a{padding:6px 12px;border:2px solid var(--grid);border-radius:8px;color:var(--fg);font-weight:700;text-decoration:none}
 .sitebar > a:hover{border-color:var(--accent,var(--path))}
 .sitebar strong{color:var(--fg)}
-/* Tela estreita: a barra fica com "← Jogos", o saldo de coins e o menu sanduíche (o título do jogo sai). */
-@media (max-width:720px){.sitebar strong{display:none}}
+/* Tela estreita: a barra fica com "← Jogos", o saldo de coins, o ranking, o tema e o menu sanduíche (o título sai). */
+@media (max-width:720px){.sitebar{gap:8px;padding:8px 12px}.sitebar strong{display:none}.sitebar > a{padding:6px 10px}}

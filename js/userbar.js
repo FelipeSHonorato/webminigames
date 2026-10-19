@@ -45,7 +45,9 @@ export function mountUserBar(host, { base = "" } = {}) {
     gear.innerHTML = GEAR + `<span class="lbl">Configurações</span>`;   // o rótulo só aparece dentro do menu
     menu.append(gear);
   }
-  menu.append(themeSwitch());                     // sempre depois da engrenagem (ou do nome, em anônimos) e antes de Deslogar
+  const theme = themeSwitch();                    // no desktop fica no meio das ações (como antes); no celular vai para a barra
+  menu.append(theme);
+  let auth;                                       // 1º item de Entrar/Deslogar: o tema volta para antes dele em telas largas
   if (!account) {                                 // anônimo: em vez de Deslogar, volta para a entrada já na aba escolhida
     const link = (label, mode, primary) => {
       const a = document.createElement("a");
@@ -53,12 +55,13 @@ export function mountUserBar(host, { base = "" } = {}) {
       a.href = `${base}index.html?modo=${mode}`;
       return a;
     };
-    menu.append(link("Entrar", "entrar"), link("Criar conta", "conta", true));
+    auth = link("Entrar", "entrar");
+    menu.append(auth, link("Criar conta", "conta", true));
   } else {
-    const out = document.createElement("button");
-    out.type = "button"; out.className = "out"; out.textContent = "Deslogar";
-    out.onclick = async () => { out.disabled = true; await Auth.logout(); location.assign(base + "index.html"); };
-    menu.append(out);
+    auth = document.createElement("button");
+    auth.type = "button"; auth.className = "out"; auth.textContent = "Deslogar";
+    auth.onclick = async () => { auth.disabled = true; await Auth.logout(); location.assign(base + "index.html"); };
+    menu.append(auth);
   }
 
   const toggle = document.createElement("button");
@@ -75,7 +78,22 @@ export function mountUserBar(host, { base = "" } = {}) {
   const onKey = e => { if (e.key === "Escape") close(); };
   document.addEventListener("click", onDoc);
   document.addEventListener("keydown", onKey);
-  teardown = () => { document.removeEventListener("click", onDoc); document.removeEventListener("keydown", onKey); };
+
+  /* O alternador de tema fica sempre visível na barra: no celular vai para o lado do sanduíche (fora do menu),
+     em telas largas volta para o meio das ações, antes de Entrar/Deslogar. */
+  const narrow = matchMedia("(max-width:720px)");
+  const placeTheme = () => {
+    if (narrow.matches) host.insertBefore(theme, toggle);
+    else if (theme.parentNode !== menu) menu.insertBefore(theme, auth);
+  };
+  narrow.addEventListener?.("change", placeTheme);
+
+  teardown = () => {
+    document.removeEventListener("click", onDoc);
+    document.removeEventListener("keydown", onKey);
+    narrow.removeEventListener?.("change", placeTheme);
+  };
 
   host.append(toggle, menu);
+  placeTheme();
 }
