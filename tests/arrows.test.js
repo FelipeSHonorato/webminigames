@@ -28,18 +28,18 @@ const dirOf = (n, a, b) => {
 };
 
 /* ---------- regras ---------- */
-test("blocked/removable: peça travada quando OUTRA peça está no caminho de saída de qualquer casa", () => {
+test("blocked/removable: travada só quando OUTRA peça está no corredor da ponta", () => {
   /* Duas peças de 1 casa na coluna 0 de um 3x3: a de cima aponta para baixo (S) e bate na de baixo. */
   const pieces = [{ cells: [cellOf(0, 0)], dir: 2 }, { cells: [cellOf(1, 0)], dir: 2 }];
   const occ = occAll(pieces);
   assert.equal(blocked(CELLS, pieces, occ, 0), true, "a de cima bate na de baixo");
-  assert.equal(removable(CELLS, pieces, occ, 1), true, "a de baixo tem caminho livre até a borda");
+  assert.equal(removable(CELLS, pieces, occ, 1), true, "a de baixo tem corredor da ponta livre");
   /* A mesma peça apontando para cima fica livre. */
   const up = [{ cells: [cellOf(2, 2)], dir: 0 }];
   assert.equal(removable(CELLS, up, occAll(up), 0), true);
 });
 
-test("blocked: a própria peça não bloqueia (as casas dela movem junto)", () => {
+test("blocked: a própria peça não bloqueia o corredor da ponta", () => {
   /* Peça de duas casas na horizontal (ponta em (1,2), corpo em (1,1)) apontando para a direita. */
   const pieces = [{ cells: [cellOf(1, 2), cellOf(1, 1)], dir: 1 }];
   assert.equal(removable(CELLS, pieces, occAll(pieces), 0), true);
@@ -48,9 +48,20 @@ test("blocked: a própria peça não bloqueia (as casas dela movem junto)", () =
   assert.equal(removable(CELLS, bend, occAll(bend), 0), true);
 });
 
+test("blocked: peça encostada no corpo não trava — só o corredor da ponta importa", () => {
+  /* L azul com a ponta em (0,0) apontando para cima (corredor livre, já na borda) e o corpo descendo pela
+     coluna 0 e virando para a direita na base. A peça verde fica logo ACIMA da base do corpo (coluna 1),
+     fora do corredor da ponta — não pode travar a azul. */
+  const blue = { cells: [cellOf(0, 0), cellOf(1, 0), cellOf(2, 0), cellOf(2, 1)], dir: 0 };
+  const green = { cells: [cellOf(0, 1)], dir: 3 };
+  const pieces = [blue, green];
+  assert.equal(blocked(CELLS, pieces, occAll(pieces), 0), false, "a ponta da azul está livre; o corpo não conta");
+  assert.equal(removable(CELLS, pieces, occAll(pieces), 0), true);
+});
+
 test("solveOrder: limpa o tabuleiro quando há solução e devolve null quando não há", () => {
-  /* 2x2 em anel: cada peça aponta para a vizinha → todas travadas para sempre. */
-  const stuck = [{ cells: [0], dir: 2 }, { cells: [1], dir: 3 }, { cells: [2], dir: 0 }, { cells: [3], dir: 1 }];
+  /* Duas peças que apontam uma para a outra: o corredor de cada ponta tem a outra → nenhuma sai nunca. */
+  const stuck = [{ cells: [0], dir: 1 }, { cells: [1], dir: 3 }];
   assert.equal(solveOrder(2, stuck), null);
   /* 2x2 em cadeia: a de baixo sai, libera a de cima, etc. */
   const ok = [{ cells: [0], dir: 0 }, { cells: [2], dir: 0 }, { cells: [1], dir: 0 }, { cells: [3], dir: 0 }];

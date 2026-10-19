@@ -1,9 +1,10 @@
 /* Regras, solver e gerador do jogo de setas ("Fuga das Setas"): código puro, sem DOM (testável no Node).
 
    Mecânica: cada SETA é uma peça (polilinha) de uma ou mais casas ligadas, com curvas. A ponta aponta numa
-   direção (0 = cima, 1 = direita, 2 = baixo, 3 = esquerda). Ao tocar, a peça inteira DESLIZA na direção da
-   ponta e sai do tabuleiro — mas só se NENHUMA outra peça estiver no caminho de saída de nenhuma das suas
-   casas. Travada, a seta avança um pouco e "bate" na outra (perde-se uma vida). Objetivo: tirar todas.
+   direção (0 = cima, 1 = direita, 2 = baixo, 3 = esquerda). Ao tocar, o corpo escoa pelo próprio caminho até a
+   ponta e a seta sai do tabuleiro na direção apontada — mas só se o caminho da PONTA (o corredor reto da
+   cabeça até fora do tabuleiro) estiver livre. Outra peça encostada no corpo não trava (o corpo escoa por
+   dentro da própria peça). Travada, a seta balança e "bate" na outra (perde-se uma vida). Objetivo: tirar todas.
 
    Como sortear peças e direções ao acaso quase nunca dá um tabuleiro solucionável, o gerador CONSTRÓI a fase:
    monta as peças da última removida para a primeira (de dentro para fora) e só aceita uma peça cujo caminho de
@@ -53,17 +54,15 @@ function rayClear(n, cell, d, used) {
   for (r += dr, c += dc; r >= 0 && c >= 0 && r < n && c < n; r += dr, c += dc) if (used.has(r * n + c)) return false;
   return true;
 }
-/** A peça `i` está travada agora? (alguma casa tem OUTRA peça presente no caminho de saída) */
+/** A peça `i` está travada agora? Só conta o corredor da PONTA: o corpo escoa pelo próprio caminho até a
+    ponta (como a água no cano), então outras peças encostadas no corpo não impedem a saída — só barra quem
+    está no caminho reto da seta, da cabeça até fora do tabuleiro. Casas da própria peça não contam. */
 export function blocked(n, pieces, occ, i) {
-  const p = pieces[i], [dr, dc] = DIRS[p.dir];
-  for (const cell of p.cells) {
-    let r = (cell / n) | 0, c = cell % n;
-    for (r += dr, c += dc; r >= 0 && c >= 0 && r < n && c < n; r += dr, c += dc) {
-      const o = occ.get(r * n + c);
-      if (o === undefined) continue;   // casa vazia: segue
-      if (o !== i) return true;        // outra peça: travada (colisão)
-      break;                           // casa da própria peça: a ponta desta casa cobre o resto do caminho
-    }
+  const p = pieces[i], [dr, dc] = DIRS[p.dir], head = p.cells[0];
+  let r = (head / n) | 0, c = head % n;
+  for (r += dr, c += dc; r >= 0 && c >= 0 && r < n && c < n; r += dr, c += dc) {
+    const o = occ.get(r * n + c);
+    if (o !== undefined && o !== i) return true;   // outra peça no caminho da ponta: travada
   }
   return false;
 }
