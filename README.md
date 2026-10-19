@@ -15,17 +15,28 @@ Os seis têm quatro níveis (Fácil, Médio, Difícil e Genius). O nível sobe a
 
 Cada partida vencida vale pontos conforme o nível em que a fase foi gerada: **Fácil 5, Médio 10, Difícil 15, Genius 20**. Os pontos só são gravados quando o cenário é concluído. Só contas pontuam; jogadores anônimos veem o ranking, mas não aparecem nele.
 
-Cada jogo tem um painel lateral de ranking, aberto ao entrar (em telas largas) e recolhível pela aba "Ranking". Ele tem duas visões: **Geral** e **Minha região** (a região é escolhida no cadastro e pode ser ajustada depois, no **Meu perfil**). Empates são resolvidos por quem chegou primeiro à pontuação. Cada linha mostra a posição, a foto do jogador (ou um avatar padrão), o nome e os pontos. Na página de jogos (`jogos.html`) há também o **Ranking geral**, que soma os pontos de todos os jogos, numa janela fixa ao lado dos jogos (sempre visível, sem opção de ocultar; em telas estreitas ela passa para baixo dos jogos).
+Cada jogo tem um painel lateral de ranking, aberto ao entrar (em telas largas) e recolhível pela aba "Ranking". No modo local ele tem duas visões: **Geral** e **Minha região** (a região é escolhida no cadastro e pode ser ajustada depois, no **Meu perfil**). Empates são resolvidos por quem chegou primeiro à pontuação. Cada linha mostra a posição, a foto do jogador (ou um avatar padrão), o nome e os pontos. Na página de jogos (`jogos.html`) há também o **Ranking geral**, que soma os pontos de todos os jogos, numa janela fixa ao lado dos jogos (sempre visível, sem opção de ocultar; em telas estreitas ela passa para baixo dos jogos). Com a **nuvem ligada**, o painel ganha ainda a visão **Tempo do dia** (veja [Desafio diário](#desafio-diário)).
+
+## Desafio diário
+
+Com o **Supabase ligado**, os jogos passam a ser **só o desafio do dia** (a fase aleatória continua no modo local/visitante). Todo mundo pega o **mesmo cenário do dia** — na verdade, o mesmo cenário **por nível**: a seed é derivada no servidor de `dia | jogo | nível | slot` e **nunca** chega ao navegador, então ninguém recebe a solução antes de jogar.
+
+- **Coins do dia = cenários:** cada jogador recebe um número de coins por dia igual ao número de cenários daquele dia (**um coin abre um cenário**). O valor é **global e configurável pelo administrador**, no painel (`admin.html`, seção "Desafio diário"), de 1 a 10 — hoje o padrão é **2**. Os coins do dia zeram à **meia-noite de Brasília**.
+- **Sem escolher cenário:** ao entrar, o servidor serve **sozinho** o próximo cenário que ainda falta (gastando o coin na hora) e o botão do jogo vira **"Próximo cenário"**, que avança para o próximo não concluído. O painel ao lado mostra, por cenário, `pendente` / `jogando` / o tempo, e o melhor tempo do dia.
+- **Ranking por tempo:** o tempo é medido no **servidor** (`now() − started_at`), e cada dica soma **+30 s**. Vale o **melhor tempo** entre os cenários concluídos. Abandonar (fechar antes de concluir) **perde o coin e não entra no ranking** — reabrir consome outro coin.
+- **Dois rankings:** concluir também **pontua e sobe a progressão** (uma vez por cenário/dia), então o painel alterna entre **Tempo do dia** e **Pontos** (o de pontos é o mesmo de sempre). A conta administradora progride, mas não entra em ranking nenhum.
 
 ## Reiniciar
 
-Zip, Patches, Sudoku e Conexão de Canos têm o botão **Reiniciar**. Ele só funciona enquanto o cenário **não foi concluído**: com a fase vencida (ou ao recarregar uma fase já concluída) o botão fica desabilitado e só resta **Nova fase**. Reiniciar limpa o tabuleiro **sem zerar o cronômetro**: nos três jogos de contagem crescente o tempo segue de onde estava; no Canos, com a contagem regressiva em andamento, os canos voltam à posição inicial e o relógio continua correndo. No Canos, depois que a água vaza, o botão vira **Tentar de novo** e abre uma tentativa nova, com o relógio cheio (a contagem recomeça no primeiro giro). Sopa de Letras e Palavras Cruzadas não têm Reiniciar.
+Zip, Patches, Sudoku e Conexão de Canos têm o botão **Reiniciar**. Ele só funciona enquanto o cenário **não foi concluído**: com a fase vencida (ou ao recarregar uma fase já concluída) o botão fica desabilitado e só resta **Nova fase**. Reiniciar limpa o tabuleiro **sem zerar o cronômetro**: nos três jogos de contagem crescente o tempo segue de onde estava; no Canos, com a contagem regressiva em andamento, os canos voltam à posição inicial e o relógio continua correndo. No Canos, depois que a água vaza, o botão vira **Tentar de novo** e abre uma tentativa nova, com o relógio cheio (a contagem recomeça no primeiro giro). Sopa de Letras e Palavras Cruzadas não têm Reiniciar. Com o **Supabase** ligado a fase aleatória dá lugar ao **Desafio diário** (veja acima).
 
 ## Coins
 
-Cada jogador recebe **2 coins por jogo a cada 24 horas**; não acumulam (o saldo nunca passa de 2). **O coin só é gasto quando a fase é concluída.** O botão **Nova fase** só habilita com a fase atual concluída e pelo menos 1 coin; sem coins, o saldo mostra quando chegam os próximos. O saldo aparece como `[moeda] x 2` ao lado do nome do jogo, nos cards de `jogos.html` e na barra superior de cada jogo.
+**No modo local**, cada jogador recebe **2 coins por jogo a cada 24 horas**; não acumulam (o saldo nunca passa de 2). **O coin só é gasto quando a fase é concluída.** O botão **Nova fase** só habilita com a fase atual concluída e pelo menos 1 coin; sem coins, o saldo mostra quando chegam os próximos. O saldo aparece como `[moeda] x 2` ao lado do nome do jogo, nos cards de `jogos.html` e na barra superior de cada jogo.
 
-A fase atual é salva por seed (`shared/run.js`): recarregar a página devolve a mesma fase, e uma fase concluída volta mostrando a solução, sem pontuar nem gastar coin de novo. A lógica fica em `shared/coins.js`. No **modo local** os coins ficam no `localStorage` — mudar o relógio ou o `localStorage` burla o limite; com o **Supabase** ligado, a recarga e o gasto são calculados no servidor.
+A fase atual é salva por seed (`shared/run.js`): recarregar a página devolve a mesma fase, e uma fase concluída volta mostrando a solução, sem pontuar nem gastar coin de novo. A lógica fica em `shared/coins.js`. No **modo local** os coins ficam no `localStorage` — mudar o relógio ou o `localStorage` burla o limite.
+
+Com o **Supabase** ligado, o jogo é o **desafio do dia** e a regra muda: valem os **coins do dia** (um coin abre um cenário, valor global configurável, zeram à meia-noite de Brasília) — veja [Desafio diário](#desafio-diário). Recarga, gasto, tempo e validação das jogadas são calculados no servidor.
 
 ## Conta administradora
 
@@ -34,15 +45,16 @@ No **modo local** existe uma conta administradora, criada automaticamente na pri
 - **Jogo desligado:** os jogadores não entram nele (o card fica como "Desligado" e a página redireciona); o administrador continua entrando.
 - **Pontos preservados:** desligar não remove nada. Os pontos continuam no ranking do jogo, no ranking geral e no perfil de cada jogador.
 - **Nível para testar:** em cada jogo da lista há os botões Fácil · Médio · Difícil · Genius. Escolher um nível coloca o jogo, **só para a conta do administrador**, no início desse nível (0/15) e descarta a fase salva dela; ao abrir o jogo, nasce uma fase nova nesse nível. Assim dá para testar todos os níveis sem jogar até lá. Jogadores, pontos e rankings não mudam (`shared/admin-level.js`).
+- **Desafio diário:** a seção "Desafio diário" do painel define quantos **coins (e cenários) por dia** cada jogador recebe, de 1 a 10 — vale para todos os jogos. É o mesmo valor global que aparece em `shared/admin-config.js` e no snapshot da nuvem.
 - **Atenção:** a senha está no código-fonte (`js/auth.js`) e a chave fica no `localStorage` de quem a mudou, então só vale neste navegador. Em produção, crie o administrador no servidor com senha forte e guarde o estado dos jogos no servidor.
 
 ## Backend (Supabase)
 
-As contas e os registros podem ficar no **Supabase** (Postgres + login): preencha `SUPABASE_URL` e `SUPABASE_ANON_KEY` em `shared/backend/config.js` e rode no SQL Editor os arquivos de `supabase/migrations/` na ordem (`20261014000000_init.sql` e, depois, `20261017000000_delete_account.sql`). Vazio, o site continua no **modo local** (tudo no navegador). Com a nuvem ligada: contas reais (e-mail/senha e Google), progresso, pontos, coins, fases salvas, rankings e liga/desliga de jogos compartilhados por todos, e o **servidor** decide pontos, nível e coins. Passo a passo e funcionamento: [docs/SUPABASE.md](docs/SUPABASE.md). O e-mail de confirmação em português está em `supabase/templates/` (como colar e como trocar o remetente: mesma doc). Senha de conta nova: mínimo de 8 caracteres, com 1 número e 1 letra maiúscula.
+As contas e os registros podem ficar no **Supabase** (Postgres + login): preencha `SUPABASE_URL` e `SUPABASE_ANON_KEY` em `shared/backend/config.js` e rode no SQL Editor os arquivos de `supabase/migrations/` na ordem, do `20261014000000_init.sql` ao `20261022000000_diario_configuravel.sql`. Vazio, o site continua no **modo local** (tudo no navegador). Com a nuvem ligada: contas reais (e-mail/senha e Google), progresso, pontos, **coins do dia**, o **desafio diário**, rankings e liga/desliga de jogos compartilhados por todos; o **servidor** decide pontos, nível e coins, e a **Edge Function `play`** serve e valida cada jogada. Passo a passo e funcionamento: [docs/SUPABASE.md](docs/SUPABASE.md). O e-mail de confirmação em português está em `supabase/templates/` (como colar e como trocar o remetente: mesma doc). Senha de conta nova: mínimo de 8 caracteres, com 1 número e 1 letra maiúscula.
 
 ## Perfil
 
-Depois do login, a barra superior mostra a foto do usuário (ou um avatar padrão), um link com engrenagem para as configurações um **switch de modo escuro** (sol e lua) e o botão **Deslogar**. Em `perfil.html` a conta pode definir um **apelido** (único, 3 a 20 caracteres, usado no ranking), enviar uma **foto** (recortada e reduzida no navegador), **trocar a senha** (informando a atual) e ver a lista de jogos com o **último horário jogado** e a **pontuação** de cada um. No fim da página fica **Excluir conta**: um popup pede a senha atual e apaga a conta e **todos** os dados dela. Anônimos não têm perfil: a barra deles mostra "Anônimo" e, no lugar de Deslogar, os botões **Entrar** e **Criar conta**, que voltam à tela de entrada já na aba escolhida (`index.html?modo=entrar` ou `?modo=conta`), sem perder a sessão anônima até o login.
+Depois do login, a barra superior mostra a foto do usuário (ou um avatar padrão), um link com engrenagem para as configurações um **switch de modo escuro** (sol e lua) e o botão **Deslogar**. Em `perfil.html` a conta pode definir um **apelido** (único, 3 a 20 caracteres, usado no ranking), enviar uma **foto** (recortada e reduzida no navegador), **trocar a senha** (informando a atual) e ver a lista de jogos com o **último horário jogado** e a **pontuação** de cada um. Os campos de senha (entrada, perfil e nova senha) têm um botão de **olho** para mostrar ou ocultar o que foi digitado. No fim da página fica **Excluir conta**: um popup pede a senha atual e apaga a conta e **todos** os dados dela. Anônimos não têm perfil: a barra deles mostra "Anônimo" e, no lugar de Deslogar, os botões **Entrar** e **Criar conta**, que voltam à tela de entrada já na aba escolhida (`index.html?modo=entrar` ou `?modo=conta`), sem perder a sessão anônima até o login.
 
 ## Recuperar senha
 
@@ -95,22 +107,22 @@ Como no modo local não há backend, o site fica totalmente estático. O workflo
 index.html            página de entrada (criar conta, Google simulado, anônimo, "Esqueceu a senha?")
 jogos.html            página com os jogos disponíveis (exige sessão)
 perfil.html           perfil: apelido, foto, senha, meus jogos e excluir conta (exige conta)
-admin.html            painel do administrador: liga/desliga de cada jogo e nível de teste
+admin.html            painel do administrador: liga/desliga de cada jogo, nível de teste e desafio diário (coins/cenários por dia)
 confirmar.html        confirma o e-mail pelo link enviado e abre a sessão
 redefinir.html        cria a nova senha, aberto pelo link do "Esqueceu a senha?"
 assets/               favicon.svg e email-logo.png (ícones e logotipo dos e-mails)
-css/                  site.css, gamebar.css (barra dos jogos), ranking.css (painel lateral) e ranking-list.css (linhas e abas do ranking), coins.css, userbar.css
+css/                  site.css, gamebar.css (barra dos jogos), ranking.css (painel lateral) e ranking-list.css (linhas e abas do ranking), daily.css (painel do desafio diário), coins.css, userbar.css
 js/                   login.js, hub.js, perfil.js, admin.js, confirmar.js e redefinir.js (uma por página), auth.js (contas), password-rules.js (requisitos da senha), userbar.js, games.js (catálogo)
 shared/               roles.js, game-switch.js (liga/desliga dos jogos), coins.js, run.js, coin-badge.js (coins e fase atual), theme.js e theme-init.js (modo escuro), rng.js, storage.js, session.js, progress.js (níveis e pontos), admin-level.js (nível de teste do administrador), regions.js, ranking-list.js (linhas e abas do ranking),
                       scores.js (pontuação e ranking), ranking-panel.js (painel lateral),
-                      profile.js (apelido, foto, atividade), avatar.js (redimensiona a foto), password.js (regra de senha), capture-auth-hash.js (guarda o "#" do link), file-warning.js (aviso no file://)
+                      profile.js (apelido, foto, atividade), avatar.js (redimensiona a foto), password.js (regra de senha), password-toggle.js (botão de mostrar/ocultar senha), admin-config.js (config do desafio diário no painel), capture-auth-hash.js (guarda o "#" do link), file-warning.js (aviso no file://)
   backend/            config.js (URL/chave do Supabase; vazio = modo local), boot.js (carrega a conta), cloud.js (acesso ao Supabase), auth-redirect.js (lê o link do e-mail)
 games/<jogo>/
   domain.js           regras, solver e gerador (puro, sem DOM)
   ui.js               renderização e entrada (Pointer Events)
   index.html, style.css
   words.js            vocabulário de Sopa de Letras e Palavras Cruzadas
-supabase/             migrations/ (esquema do banco), templates/ (e-mails em pt-BR) e tests/database/ (pgTAP)
+supabase/             migrations/ (esquema do banco), functions/play/ (Edge Function que serve e valida as fases e o desafio do dia), templates/ (e-mails em pt-BR) e tests/database/ (pgTAP)
 vendor/               supabase-js.mjs (biblioteca do Supabase, versão fixa, sem CDN)
 tests/                testes com o runner nativo do Node
 docs/                 CONTINUAR.md (estado e próximos passos) e SUPABASE.md (passo a passo do backend)
