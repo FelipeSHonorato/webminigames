@@ -2,7 +2,7 @@ import "../../shared/backend/boot.js";
 import { Scores } from "../../shared/scores.js";
 import { mountRanking } from "../../shared/ranking-panel.js";
 import { Activity } from "../../shared/profile.js";
-import { Coins } from "../../shared/coins.js";
+import { Coins, COINS_PER_DAY } from "../../shared/coins.js";
 import { gameAllowed } from "../../shared/game-switch.js";
 import { Run } from "../../shared/run.js";
 import { coinBadge, fmtDuration } from "../../shared/coin-badge.js";
@@ -12,6 +12,7 @@ import { makeRng } from "../../shared/rng.js";
 import { Cloud } from "../../shared/backend/cloud.js";
 import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/progress.js";
 import { LEVELS, N, STORE_KEY, TOTAL, applyMove, generatePuzzle, isSolved, setSize } from "./domain.js";
+import { fmtTime } from "../../shared/ranking-list.js";
 
 const sessionUser = requireSession("../../index.html");   // sem sessão, volta para o login
 if (sessionUser && !gameAllowed("zip", sessionUser)) location.replace("../../jogos.html");   // jogo desligado pelo administrador
@@ -19,16 +20,30 @@ mountUserBar(document.getElementById("userbar"), { base: "../../" });
 const ranking = mountRanking({ gameId: "zip", title: "Zip" });
 const GAME_ID = "zip";
 const uid = sessionUser?.id ?? "guest";
+const isCloud = Cloud.owns(uid);                          // o desafio diário só existe na nuvem (a seed é do servidor)
 const coinsEl = document.getElementById("coinBadge");
+let mode = "random";                                      // "random" (fase aleatória) ou "daily" (desafio do dia)
 
-/* Coins: saldo ao lado do nome do jogo e liberação do botão "Nova fase" (só com fase concluída e coin disponível). */
+/* Meia-noite de Brasília (UTC-3, sem horário de verão): quando o desafio do dia e os coins do dia recomeçam. */
+function nextSpMidnight() {
+  const [y, m, d] = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date()).split("-").map(Number);
+  return Date.UTC(y, m - 1, d + 1) + 3 * 3600 * 1000;
+}
+
+/* Coins: saldo ao lado do nome do jogo e liberação do botão "Nova fase" (só com fase concluída e coin disponível).
+   No desafio diário o saldo mostrado é o do dia (2 por jogo, repostos à meia-noite de Brasília). */
 function renderCoins() {
-  const balance = Coins.get(uid, GAME_ID), next = document.getElementById("next");
-  coinsEl.replaceChildren(coinBadge(balance));
-  const canNext = solved && balance.coins > 0;
-  next.disabled = !canNext;
-  next.title = canNext ? "" : !solved ? "Conclua a fase atual para liberar a próxima." : `Sem coins por agora: novos em ${fmtDuration(balance.nextRefillAt - Date.now())}.`;
-  const reset = document.getElementById("reset");
+  const next = document.getElementById("next"), reset = document.getElementById("reset");
+  if (mode === "daily") {
+    const d = Cloud.daily(GAME_ID) ?? { coins: 0 };
+    coinsEl.replaceChildren(coinBadge({ coins: d.coins ?? 0, max: COINS_PER_DAY, nextRefillAt: nextSpMidnight() }));
+  } else {
+    const balance = Coins.get(uid, GAME_ID);
+    coinsEl.replaceChildren(coinBadge(balance));
+    const canNext = solved && balance.coins > 0;
+    next.disabled = !canNext;
+    next.title = canNext ? "" : !solved ? "Conclua a fase atual para liberar a próxima." : `Sem coins por agora: novos em ${fmtDuration(balance.nextRefillAt - Date.now())}.`;
+  }
   reset.disabled = solved;                       // cenário concluído: não dá para reiniciar
   reset.title = solved ? "Reiniciar só está disponível enquanto a fase não é concluída." : "";
 }
@@ -183,11 +198,12 @@ function tick(t) {
 }
 
 const formatTime = ms => { const s = Math.floor(ms / 1000); return `${String((s / 60) | 0).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`; };
-function startTimer() {
+function startTimer(at = Date.now()) {
   if (timerId) return;
-  startedAt = Date.now();
+  startedAt = at;                                            // no desafio do dia, o relógio começa quando o servidor abriu a fase
   if (sessionUser) Activity.played(sessionUser.id, "zip");   // alimenta "último jogo" no perfil
   timerId = setInterval(() => (timerEl.textContent = formatTime(Date.now() - startedAt)), 250);
+  timerEl.textContent = formatTime(Date.now() - startedAt);
 }
 function stopTimer() { clearInterval(timerId); timerId = null; }
 
@@ -200,7 +216,8 @@ function update(newPath) {
   if (path.length && !solved) startTimer();
   if (isSolved(puzzle, path)) {
     solved = true; dragging = false; stopTimer();
-    msg.textContent = `Resolvido em ${formatTime(Date.now() - startedAt)}!` + creditWin();
+    if (mode === "daily") finishDaily();        // desafio do dia: o SERVIDOR mede o tempo (não pontua em pontos)
+    else msg.textContent = `Resolvido em ${formatTime(Date.now() - startedAt)}!` + creditWin();
   } else msg.textContent = "";
   svg.classList.toggle("done", solved);
   syncNodes(); computeAim();
@@ -285,11 +302,96 @@ function lockBoard() {
   renderCoins();
 }
 
-/* Fase inicial. Na nuvem a fase é SERVIDA pelo servidor (open): retoma a fase em aberto que veio no snapshot ou pede uma nova.
-   No modo local, volta a fase salva (mesma seed); sem fase salva, sorteia uma no nível atual se houver coin. */
+/* ===================== Desafio diário =====================
+   Mesmo cenário do dia para todos (por nível), ranking por TEMPO. Só na nuvem: a seed é derivada no servidor. */
+let dailySlot = 0;
+const modesEl = document.getElementById("modes"), dailyEl = document.getElementById("daily");
+
+const slotsOf = info => [1, 2].map(slot => ({ slot, seconds: info?.results?.[slot] ?? null }));
+const bestDaily = info => { const v = slotsOf(info).map(s => s.seconds).filter(s => s != null); return v.length ? Math.min(...v) : null; };
+
+/** Painel do desafio: dois tabuleiros do dia (1 e 2), cada um custando 1 coin do dia. */
+function renderDaily() {
+  if (mode !== "daily") return;
+  const info = Cloud.daily(GAME_ID) ?? { coins: 0, results: {}, level: 0 };
+  dailyEl.replaceChildren();
+  for (const { slot, seconds } of slotsOf(info)) {
+    const done = seconds != null;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "slot" + (done ? " done" : (slot === dailySlot && !solved ? " current" : ""));
+    btn.textContent = done ? `Tabuleiro ${slot} · ${fmtTime(seconds)}` : `Tabuleiro ${slot}`;
+    btn.disabled = done || (info.coins ?? 0) <= 0;
+    btn.title = done ? "Concluído hoje." : info.coins > 0 ? "Abrir (gasta 1 coin do dia)." : "Sem coins do dia.";
+    btn.onclick = () => openDaily(slot);
+    dailyEl.append(btn);
+  }
+  const tip = document.createElement("p");
+  tip.className = "daily-tip";
+  const best = bestDaily(info);
+  tip.textContent = (info.coins ?? 0) > 0
+    ? `${info.coins} ${info.coins === 1 ? "coin" : "coins"} do dia · melhor tempo: ${best != null ? fmtTime(best) : "—"}.`
+    : "Sem coins do dia: voltam à meia-noite (Brasília).";
+  dailyEl.append(tip);
+}
+
+async function openDaily(slot) {
+  try {
+    const d = await Cloud.dailyOpen(GAME_ID, slot);
+    dailySlot = slot;
+    loadPuzzle(serverPuzzle(d.puzzle, d.level));
+    startTimer(d.startedAt ? Number(d.startedAt) : Date.now());
+    msg.textContent = `Desafio do dia · ${LEVELS[d.level].name}. Faça o menor tempo!`;
+    renderDaily(); renderCoins();
+  } catch (e) {
+    msg.textContent = e?.code === "no_coins" ? "Sem coins do dia: voltam à meia-noite (Brasília)." : "Não foi possível abrir o desafio. Tente de novo.";
+  }
+}
+
+/** Conclui o tabuleiro do dia: o SERVIDOR mede o tempo (relógio de parede, +30 s por dica) e guarda o melhor por slot. */
+function finishDaily() {
+  const localMs = Date.now() - startedAt;
+  msg.textContent = `Resolvido em ${formatTime(localMs)}! Registrando…`;
+  Cloud.dailyFinish(GAME_ID, dailySlot, { path })
+    .then(r => {
+      msg.textContent = r.ok
+        ? `Tempo do dia: ${fmtTime(r.ok.seconds)}.` + (r.ok.best != null && r.ok.best < r.ok.seconds ? ` Melhor do dia: ${fmtTime(r.ok.best)}.` : "")
+        : `Tempo enviado (${formatTime(localMs)}); será confirmado quando a conexão voltar.`;
+      renderDaily(); renderCoins(); ranking.refresh();
+    })
+    .catch(() => { msg.textContent = `Resolvido em ${formatTime(localMs)}, mas não deu para registrar o tempo. Tente de novo.`; });
+}
+
+/** Tabuleiro neutro enquanto o jogador não escolhe um slot (não é jogável e não registra tempo). */
+function dailyPlaceholder() {
+  loadPuzzle(lockedPuzzle());
+  credited = true; solved = true;
+  msg.textContent = "Escolha um tabuleiro do dia para começar.";
+  renderCoins(); renderDaily();
+}
+
+/** Botões "Aleatório / Desafio diário" (só na nuvem). A troca recarrega a página para não misturar os dois modos. */
+function buildModes() {
+  if (!isCloud) return;
+  const go = m => { const u = new URL(location.href); if (m === "daily") u.searchParams.set("modo", "diario"); else u.searchParams.delete("modo"); location.assign(u); };
+  const mk = (m, label) => { const b = document.createElement("button"); b.type = "button"; b.className = "mode" + (mode === m ? " on" : ""); b.textContent = label; b.onclick = () => go(m); return b; };
+  modesEl.append(mk("random", "Aleatório"), mk("daily", "Desafio diário"));
+  modesEl.hidden = false;
+}
+
+/* Fase inicial. No modo diário, começa sem tabuleiro aberto (o jogador escolhe o slot). Na nuvem a fase aleatória é
+   SERVIDA pelo servidor (open): retoma a fase em aberto do snapshot ou pede uma nova. No modo local, volta a fase salva. */
 renderLevel();
 const lockedPuzzle = () => buildPuzzle((Math.random() * 2 ** 32) >>> 0, levelOf(wins));
-if (Cloud.owns(uid)) {
+mode = new URLSearchParams(location.search).get("modo") === "diario" && isCloud ? "daily" : "random";
+buildModes();
+if (mode === "daily") {
+  document.getElementById("next").hidden = true;                  // "Nova fase" é do modo aleatório
+  dailyEl.hidden = false;
+  ranking.setMode("daily");
+  dailyPlaceholder();
+  Cloud.dailyStatus().then(() => { renderDaily(); renderCoins(); });
+} else if (isCloud) {
   const cached = Cloud.phase(GAME_ID);
   if (cached) loadPuzzle(serverPuzzle(cached.puzzle, cached.level));
   else if (Coins.get(uid, GAME_ID).coins > 0) freshPuzzle().then(p => loadPuzzle(p)).catch(e => { loadPuzzle(lockedPuzzle()); e?.code === "no_coins" ? lockBoard() : msg.textContent = "Não foi possível carregar a fase. Recarregue a página."; });

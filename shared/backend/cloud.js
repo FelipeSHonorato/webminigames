@@ -12,7 +12,7 @@ import { PASSWORD_HINT } from "../password.js";
 
 const SESSION_KEY = "wmg.session", OUTBOX_KEY = "wmg.outbox";
 const RUN_DELAY_MS = 700, RETRY_MS = 5000;
-const empty = () => ({ profile: null, wins: {}, runs: {}, phases: {}, coins: {}, scores: {}, activity: {}, games: {} });
+const empty = () => ({ profile: null, wins: {}, runs: {}, phases: {}, coins: {}, scores: {}, activity: {}, games: {}, daily: {} });
 const fresh = () => ({ active: false, client: null, uid: null, degraded: false, reason: null, cache: empty(), dirty: new Set(), removed: new Set(), timer: null, runLock: null, outboxTimer: null, outboxLock: null, wired: false });
 let S = fresh();
 
@@ -120,6 +120,12 @@ function applyWin(game, data) {
   S.cache.wins[game] = data.wins; S.cache.scores[game] = data.score; S.cache.coins[game] = data.coins;
   delete S.cache.phases[game];   // a fase foi consumida (ou já estava): não há o que retomar
 }
+/** Resultado do desafio diário: guarda os coins do dia e o melhor tempo por slot. */
+function applyDaily(game, slot, data) {
+  const g = (S.cache.daily[game] ??= { day: null, level: 0, coins: 0, results: {}, open: [] });
+  if (data?.coins != null) g.coins = data.coins;
+  if (data?.seconds != null) g.results[slot] = Math.min(g.results[slot] ?? Infinity, data.seconds);
+}
 function scheduleOutboxRetry() { clearTimeout(S.outboxTimer); S.outboxTimer = setTimeout(() => { S.outboxTimer = null; flushOutbox(); }, RETRY_MS); }
 function flushOutbox() {
   S.outboxLock = (S.outboxLock ?? Promise.resolve()).then(async () => {
@@ -129,13 +135,16 @@ function flushOutbox() {
       const item = readOutbox().find(i => i.uid === S.uid);
       if (!item) return last;
       let data = null;
-      try { data = await invoke("finish", { game: item.game, state: item.state, op: item.op }); }
-      catch (e) {
+      try {
+        data = item.slot
+          ? await invoke("daily_finish", { game: item.game, slot: item.slot, state: item.state, op: item.op })
+          : await invoke("finish", { game: item.game, state: item.state, op: item.op });
+      } catch (e) {
         if (isRetryable(e)) { console.warn("[WebMiniGames] vitória na fila (será reenviada):", e.code); scheduleOutboxRetry(); return last; }
         console.warn("[WebMiniGames] vitória recusada:", e.code);   // tabuleiro inválido / sem fase: sai da fila
       }
       writeOutbox(readOutbox().filter(i => i.op !== item.op));
-      if (data) { applyWin(item.game, data); last = data.score; }
+      if (data) { if (item.slot) applyDaily(item.game, item.slot, data); else applyWin(item.game, data); last = data.score ?? data.seconds; }
     }
   });
   return S.outboxLock;
@@ -255,6 +264,42 @@ export const Cloud = {
       throw e;
     }
   },
+  /* ----- desafio diário (mesmo cenário do dia para todos, por nível; ranking por tempo) ----- */
+  daily: g => S.cache.daily[g] ?? null,
+  /** Carrega o status do dia (coins, slots abertos e melhores tempos) de todos os jogos. */
+  async dailyStatus() {
+    if (!S.client || S.degraded || S.uid === null) return S.cache.daily;
+    const { data, error } = await S.client.rpc("daily_status");
+    if (error) { console.warn("[WebMiniGames] status do dia indisponível:", error.message); return S.cache.daily; }
+    S.cache.daily = data ?? {};
+    return S.cache.daily;
+  },
+  /** Abre o tabuleiro do dia (slot 1 ou 2): o servidor cobra 1 coin, marca o início e devolve o puzzle (sem a seed). */
+  async dailyOpen(game, slot) {
+    const d = await invoke("daily_open", { game, slot });
+    const g = (S.cache.daily[game] ??= { day: null, level: 0, coins: 0, results: {}, open: [] });
+    g.day = d.day; g.level = d.level; g.coins = d.coins;
+    if (!g.open.includes(slot)) g.open.push(slot);
+    return d;
+  },
+  dailyHint(game, slot, state) { return invoke("daily_hint", { game, slot, state }); },
+  /** Conclui o tabuleiro do dia: o SERVIDOR mede o tempo (relógio de parede) e guarda o melhor por slot. */
+  async dailyFinish(game, slot, state) {
+    const item = { uid: S.uid, game, slot, state, op: crypto.randomUUID() };
+    try { const data = await invoke("daily_finish", item); applyDaily(game, slot, data); return { ok: data }; }
+    catch (e) {
+      if (isRetryable(e)) { writeOutbox([...readOutbox(), item]); scheduleOutboxRetry(); return { pending: true }; }
+      throw e;
+    }
+  },
+  /** Ranking por tempo do dia (mesmo jogo e nível). Qualquer um vê. */
+  async dailyLeaderboard(game, level, scope, limit) {
+    if (!S.client || S.degraded) return { top: [], me: null, total: 0 };
+    const { data, error } = await S.client.rpc("daily_leaderboard", { p_game: game, p_level: level ?? null, p_scope: scope, p_limit: limit });
+    if (error) { console.warn("[WebMiniGames] ranking do dia indisponível:", error.message); return { top: [], me: null, total: 0 }; }
+    return data;
+  },
+
   recordPlay(g) {
     const a = (S.cache.activity[g] ??= { plays: 0, lastPlayedAt: 0 });
     a.plays += 1; a.lastPlayedAt = Date.now();

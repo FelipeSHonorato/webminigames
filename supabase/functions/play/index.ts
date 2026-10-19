@@ -71,6 +71,41 @@ Deno.serve(async (req) => {
       return json(data);
     }
 
+    /* ---- Desafio diário: mesmo cenário do dia para todos (por nível), ranking por tempo. A seed do dia
+       (derivada de dia/jogo/nível/slot no banco) também nunca vai ao cliente; só o puzzle público. ---- */
+    if (action !== "daily_open" && action !== "daily_hint" && action !== "daily_finish") return json({ error: "unknown_action" }, 400);
+    const slot = body?.slot;
+    if (slot !== 1 && slot !== 2) return json({ error: "bad_slot" }, 400);
+
+    if (action === "daily_open") {
+      const { data, error } = await svc.rpc("daily_open", { p_uid: uid, p_game: game, p_slot: slot });
+      if (error) return json({ error: error.message }, error.message === "no_coins" ? 409 : 400);
+      const view = publicView(game, Number(data.seed), Number(data.level));
+      return json({ day: data.day, level: data.level, slot: data.slot, startedAt: data.startedAt, puzzle: view, coins: data.coins });
+    }
+
+    if (action === "daily_hint") {
+      if (!hasHints(game)) return json({ error: "no_hints" }, 400);
+      const { data: run, error: re } = await svc.rpc("daily_run", { p_uid: uid, p_game: game, p_slot: slot });
+      if (re) return json({ error: re.message }, 400);
+      if (!run) return json({ error: "no_phase" }, 409);
+      const h = hint(game, Number(run.seed), run.level, run.hints, body?.state);
+      if (!h) return json({ error: "no_hint" }, 409);
+      const { data, error } = await svc.rpc("daily_hint", { p_uid: uid, p_game: game, p_slot: slot });
+      if (error) return json({ error: error.message }, 409);
+      return json({ ...h, hints: data.hints });
+    }
+
+    if (action === "daily_finish") {
+      const { data: run, error: re } = await svc.rpc("daily_run", { p_uid: uid, p_game: game, p_slot: slot });
+      if (re) return json({ error: re.message }, 400);
+      if (!run) return json({ error: "no_phase" }, 409);
+      if (!validate(game, Number(run.seed), run.level, body?.state)) return json({ error: "invalid" }, 422);
+      const { data, error } = await svc.rpc("daily_finish", { p_uid: uid, p_game: game, p_slot: slot, p_op: body?.op ?? null });
+      if (error) return json({ error: error.message }, 400);
+      return json(data);
+    }
+
     return json({ error: "unknown_action" }, 400);
   } catch (e) {
     return json({ error: "server_error", detail: String((e as Error)?.message ?? e) }, 500);

@@ -34,6 +34,19 @@ p.help{color:var(--muted);font-size:.9rem;line-height:1.4}
 
 button:disabled,button:disabled:hover{opacity:.45;cursor:not-allowed;border-color:var(--grid)}
 
+/* Alternador de modo (Aleatório / Desafio diário) e painel dos dois tabuleiros do dia. */
+.modes{display:flex;gap:8px;margin:0 0 12px}
+.mode{flex:1;padding:8px;font-weight:700;color:var(--muted);background:var(--btn);border:2px solid var(--grid);border-radius:8px;cursor:pointer}
+.mode.on{color:var(--fg);border-color:var(--path)}
+.daily{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}
+.slot{padding:10px 8px;font:inherit;font-weight:700;color:var(--fg);background:var(--btn);border:2px solid var(--grid);border-radius:8px;cursor:pointer}
+.slot:hover:not(:disabled){border-color:var(--path)}
+.slot.current{border-color:var(--path)}
+.slot.done{opacity:.85;border-style:dashed}
+.slot:disabled{opacity:.5;cursor:not-allowed}
+.daily-tip{grid-column:1 / -1;margin:0;font-size:.85rem;color:var(--muted);text-align:center}
+[hidden]{display:none!important}
+
 /* Celular: mais área útil para o tabuleiro (menos margem e títulos menores). */
 @media (max-width:720px){
 main{padding:12px 12px 20px}

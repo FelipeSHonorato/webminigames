@@ -283,6 +283,26 @@ select lives_ok($$select public.finalize_win('11111111-1111-1111-1111-1111111111
 select public.open_phase('11111111-1111-1111-1111-111111111111','patches', 124, '{}'::jsonb);
 update public.phase_runs set started_at = now() - interval '10 seconds' where user_id = '11111111-1111-1111-1111-111111111111' and game_id = 'patches';
 select throws_ok($$select public.finalize_win('11111111-1111-1111-1111-111111111111','patches','bbbbbbbb-0000-0000-0000-000000000002')$$, 'P0001', 'too_fast', 'duas vitórias coladas no mesmo jogo são recusadas');
+-- ---------- desafio diário: cenário do dia (por nível/slot), coins do dia e melhor tempo ----------
+select public.tap_super();
+select is(public.daily_day(), (now() at time zone 'America/Sao_Paulo')::date, 'o dia do desafio é o de Brasília');
+select is(public.daily_seed('2026-01-01'::date, 'zip', 1, 1), public.daily_seed('2026-01-01'::date, 'zip', 1, 1), 'a seed do dia é determinística');
+select isnt(public.daily_seed('2026-01-01'::date, 'zip', 1, 1), public.daily_seed('2026-01-01'::date, 'zip', 1, 2), 'slots diferentes têm cenários diferentes');
+select isnt(public.daily_seed('2026-01-01'::date, 'zip', 1, 1), public.daily_seed('2026-01-01'::date, 'sopa', 1, 1), 'jogos diferentes têm cenários diferentes');
+
+select is((public.daily_open('11111111-1111-1111-1111-111111111111', 'zip', 1)) ->> 'coins', '1', 'abrir o tabuleiro do dia gasta 1 coin do dia');
+select is((public.daily_finish('11111111-1111-1111-1111-111111111111', 'zip', 1, null)) ->> 'duplicate', 'false', 'concluir guarda o tempo do dia');
+insert into public.tap_res select 'dfin', public.daily_finish('11111111-1111-1111-1111-111111111111', 'zip', 1, null);
+select is((select v ->> 'duplicate' from public.tap_res where k = 'dfin'), 'true', 'reenviar a conclusão do dia não conta duas vezes');
+select is((public.daily_open('11111111-1111-1111-1111-111111111111', 'zip', 2)) ->> 'coins', '0', 'o segundo tabuleiro do dia usa o segundo coin');
+select throws_ok($$select public.daily_open('11111111-1111-1111-1111-111111111111', 'zip', 1)$$, '22023', 'no_coins', 'sem coins do dia não abre outro tabuleiro');
+select lives_ok($$select public.daily_leaderboard('zip', 0, 'global', 10)$$, 'o ranking por tempo do dia é lido');
+select throws_ok($$select public.daily_open('11111111-1111-1111-1111-111111111111', 'zip', 9)$$, '22023', 'bad_slot', 'slot fora de 1..2 é recusado');
+
+-- O cliente (authenticated) não pode escrever a fase do dia direto.
+select public.tap_as('11111111-1111-1111-1111-111111111111');
+select throws_ok($$select public.daily_open('11111111-1111-1111-1111-111111111111', 'zip', 1)$$, '42501', null, 'o jogador não abre a fase do dia direto');
+select throws_ok('select * from public.daily_results', '42501', null, 'o jogador não lê a tabela do dia direto');
 select public.tap_super();
 
 select * from finish();

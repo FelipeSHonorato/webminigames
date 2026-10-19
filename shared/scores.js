@@ -44,6 +44,12 @@ export const Scores = {
     return rank(rows, scope, limit);
   },
 
+  /** Ranking por TEMPO do desafio diário (mesmo dia/jogo/nível). Só existe na nuvem. */
+  async dailyLeaderboard(gameId, { level = null, scope = "global", limit = 10 } = {}) {
+    if (Cloud.active) return Cloud.dailyLeaderboard(gameId, level, scope, limit);
+    return { top: [], me: null, total: 0 };
+  },
+
   /** Ranking geral: soma dos pontos de todos os jogos de cada jogador. */
   async overall({ scope = "global", limit = 10 } = {}) {
     if (Cloud.active) return Cloud.ranking(null, scope, limit);

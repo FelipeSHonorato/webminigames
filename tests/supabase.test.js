@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrations = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql"]
+const migrations = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql"]
   .map(f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8"));
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
 const sqlAll = migrations.join("\n");          // estrutura (RLS, permissões, search_path): todas as migrações
@@ -51,8 +51,8 @@ test("SQL: funções security definer fixam o search_path (sem sequestro por esq
 
 test("SQL: o visitante (anon) só recebe a lista de jogos e o ranking; o papel (role) não é editável pelo cliente", () => {
   const toAnon = [...sqlAll.matchAll(/^grant [^;]* to ([^;]*anon[^;]*);/gm)].map(m => m[0]);
-  assert.equal(toAnon.length, 2, toAnon.join("\n"));
-  assert.ok(toAnon.some(g => /select on public\.games/.test(g)) && toAnon.some(g => /function public\.ranking/.test(g)));
+  assert.equal(toAnon.length, 3, toAnon.join("\n"));
+  assert.ok(toAnon.some(g => /select on public\.games/.test(g)) && toAnon.some(g => /function public\.ranking/.test(g)) && toAnon.some(g => /function public\.daily_leaderboard/.test(g)));
   const upd = sql.match(/grant update \(([^)]*)\) on public\.profiles/)[1];
   assert.ok(!/\brole\b/.test(upd) && !/\bid\b/.test(upd), `colunas editáveis: ${upd}`);
 });
@@ -73,6 +73,21 @@ test("SQL: a fase e os pontos são decididos no servidor (o cliente não pontua 
   for (const f of ["level_for\\(uuid, text\\)", "open_phase\\(uuid, text, bigint, jsonb\\)", "use_hint\\(uuid, text\\)", "finalize_win\\(uuid, text, uuid\\)"])
     assert.match(sqlAll, new RegExp(`grant execute on function public\\.${f}\\s+to service_role`), `${f} deveria ser exclusiva do service_role`);
   assert.match(sqlAll, /'phases',\s+coalesce\(\(select jsonb_object_agg\(game_id, jsonb_build_object\('level', level, 'hints', hints, 'puzzle', puzzle\)\)/);
+});
+
+test("SQL: o desafio diário tem tabelas, funções e só a Edge escreve a fase", () => {
+  for (const t of ["daily_coins", "daily_runs", "daily_results"]) {
+    assert.match(sqlAll, new RegExp(`create table public\\.${t} \\(`), `${t} ausente`);
+    assert.match(sqlAll, new RegExp(`alter table public\\.${t}\\s+enable row level security`), `${t} sem RLS`);
+    assert.match(sqlAll, new RegExp(`revoke all on public\\.${t}`), `${t} sem revoke`);
+  }
+  for (const f of ["daily_open\\(uuid, text, int\\)", "daily_hint\\(uuid, text, int\\)", "daily_finish\\(uuid, text, int, uuid\\)", "daily_run\\(uuid, text, int\\)"]) {
+    assert.match(sqlAll, new RegExp(`revoke all on function public\\.${f}\\s+from public, anon, authenticated`), `${f} acessível ao cliente`);
+    assert.match(sqlAll, new RegExp(`grant execute on function public\\.${f}\\s+to service_role`), `${f} deveria ser da Edge`);
+  }
+  assert.match(sqlAll, /America\/Sao_Paulo/);                       // o dia é o de Brasília
+  assert.match(sqlAll, /daily_hint_seconds\(\)[^$]*\$\$ select 30/); // +30 s por dica
+  assert.match(sqlAll, /day\s+date not null/);                       // o reset à meia-noite é por dia contado
 });
 
 test("a configuração do Supabase é válida quando preenchida (ou vazia, no modo local) e nunca leva chave secreta", () => {

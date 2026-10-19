@@ -9,8 +9,9 @@ const TROPHY = `<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="tru
   <path d="M9.6 6.4v2.6" stroke="#fff" stroke-opacity=".6" stroke-width="1.4" stroke-linecap="round"/>
 </svg>`;
 
-/** Painel lateral de ranking: visível ao entrar (em telas largas) e recolhível pela aba. */
-export function mountRanking({ gameId, title, loginUrl = "../../index.html?modo=conta" }) {
+/** Painel lateral de ranking: visível ao entrar (em telas largas) e recolhível pela aba.
+    `mode = "daily"` mostra o ranking por TEMPO do desafio diário (troca pelo `setMode` devolvido). */
+export function mountRanking({ gameId, title, loginUrl = "../../index.html?modo=conta", mode = "points" }) {
   const aside = el("aside", "ranking");
   aside.setAttribute("aria-label", `Ranking do ${title}`);
 
@@ -18,9 +19,12 @@ export function mountRanking({ gameId, title, loginUrl = "../../index.html?modo=
   body.id = "ranking-body";
   const scopes = el("div", "ranking-scopes");
   const tabs = scopeTabs(scopes, () => refresh());
+  const heading = el("h2", "", `Ranking · ${title}`);
   const list = el("ol", "ranking-list"), note = el("p", "ranking-note");
-  body.append(el("h2", "", `Ranking · ${title}`), scopes, list, note);
+  body.append(heading, scopes, list, note);
   aside.append(body);
+  let kind = mode;
+  const syncHeading = () => { heading.textContent = kind === "daily" ? `Desafio do dia · ${title}` : `Ranking · ${title}`; };
 
   const tab = el("button", "ranking-tab");
   tab.type = "button";
@@ -57,10 +61,12 @@ export function mountRanking({ gameId, title, loginUrl = "../../index.html?modo=
   tab.onclick = () => setOpen(aside.classList.contains("closed"));
 
   async function refresh() {
-    tabs.sync();
-    const data = await Scores.leaderboard(gameId, { scope: tabs.scope, limit: 10 });
-    renderLeaderboard({ list, note, data, scope: tabs.scope, loginUrl });
+    tabs.sync(); syncHeading();
+    const data = kind === "daily"
+      ? await Scores.dailyLeaderboard(gameId, { scope: tabs.scope, limit: 10 })
+      : await Scores.leaderboard(gameId, { scope: tabs.scope, limit: 10 });
+    renderLeaderboard({ list, note, data, scope: tabs.scope, loginUrl, kind });
   }
   refresh();
-  return { refresh };
+  return { refresh, setMode(m) { kind = m; refresh(); } };
 }
