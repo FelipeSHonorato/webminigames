@@ -12,6 +12,13 @@ export const dailySlots = info => info?.slots ?? Cloud.config()?.coinsPerDay ?? 
 export const slotsOf = info => Array.from({ length: dailySlots(info) }, (_, i) => ({ slot: i + 1, seconds: info?.results?.[i + 1] ?? null }));
 export const bestDaily = info => { const v = slotsOf(info).map(s => s.seconds).filter(s => s != null); return v.length ? Math.min(...v) : null; };
 
+/* Dia e meia-noite de Brasília (UTC-3, sem horário de verão): quando o desafio e os coins do dia viram. */
+export const spDay = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+export function nextSpMidnight() {
+  const [y, m, d] = spDay().split("-").map(Number);
+  return Date.UTC(y, m - 1, d + 1) + 3 * 3600 * 1000;
+}
+
 /** Próximo cenário a jogar = o primeiro ainda não concluído hoje. Não dá para escolher: o servidor serve esse. */
 export function nextScenario(gameId) {
   const info = Cloud.daily(gameId);

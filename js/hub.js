@@ -2,6 +2,8 @@ import "../shared/backend/boot.js";
 import { mountUserBar } from "./userbar.js";
 import { Scores } from "../shared/scores.js";
 import { Coins } from "../shared/coins.js";
+import { Cloud } from "../shared/backend/cloud.js";
+import { nextSpMidnight, spDay } from "../shared/daily.js";
 import { GameSwitch } from "../shared/game-switch.js";
 import { isAdmin } from "../shared/roles.js";
 import { coinBadge } from "../shared/coin-badge.js";
@@ -15,6 +17,16 @@ const user = requireSession("index.html");
 
 const winsOf = (game, uid) => Progress.wins(game.key, uid);
 const PROVIDER_NOTE = { password: "", google: "", "google-demo": "Google (simulação)", anonymous: "Anônimo: o progresso fica só neste navegador" };
+
+/** O saldo do card é o MESMO que o jogo usa: na nuvem, os coins do dia; no local/visitante, os coins locais.
+    Se o status do dia ainda não carregou, cai no saldo local (o card é atualizado assim que ele chega). */
+function balanceBadge(uid, id) {
+  if (Cloud.owns(uid)) {
+    const d = Cloud.daily(id);
+    if (d) return coinBadge({ coins: d.coins ?? 0, max: d.slots ?? Cloud.config()?.coinsPerDay, nextRefillAt: nextSpMidnight() });
+  }
+  return coinBadge(Coins.get(uid, id));
+}
 
 function renderHub() {
   mountUserBar($("userbar"));
@@ -32,7 +44,7 @@ function renderHub() {
       <span class="play">${playable ? "Jogar" : "Indisponível"}</span>`;
     const title = btn.querySelector("h3");
     title.dataset.game = id;
-    title.append(coinBadge(Coins.get(user.id, id)));   // coins na frente do nome do jogo
+    title.append(balanceBadge(user.id, id));   // coins na frente do nome do jogo
     if (!on) {
       const tag = document.createElement("span");
       tag.className = "offtag"; tag.textContent = isAdmin(user) ? "Desligado (só administrador)" : "Desligado";
@@ -50,8 +62,20 @@ async function refreshOverall() {
   renderLeaderboard({ list: $("overallList"), note: $("overallNote"), data, scope: overallTabs.scope, loginUrl: "index.html?modo=conta" });
 }
 
-/* A recarga de 24 h pode chegar com a página aberta: atualiza só os selos de coins. */
-setInterval(() => document.querySelectorAll("h3[data-game]").forEach(h3 =>
-  h3.querySelector(".coins")?.replaceWith(coinBadge(Coins.get(user.id, h3.dataset.game)))), 30000);
+if (user) {
+  /* Mantém os selos de coins iguais aos do jogo: na nuvem, recarrega a situação do dia quando ela vira (ou ao
+     voltar para a aba) e atualiza só os selos, sem redesenhar o hub inteiro. */
+  const refreshBadges = () => document.querySelectorAll("h3[data-game]").forEach(h3 =>
+    h3.querySelector(".coins")?.replaceWith(balanceBadge(user.id, h3.dataset.game)));
+  setInterval(() => {
+    const stale = Cloud.owns(user.id) && Cloud.daily(Object.keys(GAMES)[0])?.day !== spDay();
+    if (stale) Cloud.dailyStatus().catch(() => {}).then(refreshBadges); else refreshBadges();
+  }, 30000);
+  if (Cloud.owns(user.id)) document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") Cloud.dailyStatus().catch(() => {}).then(refreshBadges);
+  });
 
-if (user) { refreshOverall(); renderHub(); $("hub-title").focus({ preventScroll: true }); }
+  refreshOverall();
+  const ready = Cloud.owns(user.id) ? Cloud.dailyStatus().catch(() => {}) : Promise.resolve();
+  ready.then(() => { renderHub(); $("hub-title").focus({ preventScroll: true }); });
+}
