@@ -25,7 +25,8 @@
   .userbar .theme-switch{width:48px;height:30px;padding:0 5px}
   .userbar .theme-switch .ico{width:14px;height:14px}
   .userbar .theme-switch .knob{width:22px;height:22px}
-  .userbar .theme-switch[aria-checked="true"] .knob{transform:translateX(22px)}
+  /* padding box = 48−4 = 44; centro da lua em 32 → deslocamento = 32 − left(2) − raio(11) = 19 */
+  .userbar .theme-switch[aria-checked="true"] .knob{transform:translateX(19px)}
   .usermenu{position:absolute;top:calc(100% + 8px);right:0;left:auto;display:none;flex-direction:column;align-items:stretch;gap:4px;min-width:min(240px,calc(100vw - 24px));padding:10px;background:var(--surface,var(--cell));border:1px solid var(--line,var(--grid));border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.22);z-index:45}
   .usermenu.open{display:flex}
   .usermenu .me,.usermenu .out,.usermenu .icon-btn{width:100%;height:auto;min-height:44px;display:flex;align-items:center;justify-content:flex-start;gap:10px;padding:10px 12px;border-radius:8px;text-align:left}
