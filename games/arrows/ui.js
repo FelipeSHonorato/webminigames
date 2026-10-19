@@ -11,7 +11,7 @@ import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
 import { Cloud } from "../../shared/backend/cloud.js";
 import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/progress.js";
-import { DIRS, LEVELS, STORE_KEY, clearDir, generatePuzzle, tileCells } from "./domain.js";
+import { DIRS, LEVELS, LIVES, STORE_KEY, blocked, buildOcc, generatePuzzle } from "./domain.js";
 import { fmtTime } from "../../shared/ranking-list.js";
 
 const sessionUser = requireSession("../../index.html");   // sem sessão, volta para o login
@@ -101,7 +101,7 @@ function buildPuzzle(seed, level) {
   return p;
 }
 /** Fase servida pelo servidor: chega SEM a solução (a seed fica no servidor), então a tela não sabe a ordem certa. */
-const serverPuzzle = (view, level) => ({ n: view.n, dirs: view.dirs.slice(), level, server: true });
+const serverPuzzle = (view, level) => ({ n: view.n, pieces: view.pieces.map(p => ({ cells: p.cells.slice(), dir: p.dir })), level, server: true });
 /** Fase nova no modo local: a seed fica salva, então recarregar a página devolve a mesma fase até ela ser concluída. */
 function localFresh() {
   const seed = (Math.random() * 2 ** 32) >>> 0, level = levelOf(wins);
@@ -112,29 +112,98 @@ function localFresh() {
 const freshPuzzle = () => (Cloud.owns(uid) ? Cloud.open(GAME_ID).then(d => serverPuzzle(d.puzzle, d.level)) : Promise.resolve(localFresh()));
 
 let puzzle, present = new Set(), order = [], solved = false, startedAt = 0, timerId = null;
-let tileEls = [];
-const ARROW = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 L21 12.5 H15.6 V21.5 H8.4 V12.5 H3 Z"/></svg>`;
+let pieceEls = [], lives = LIVES;
+const SVGNS = "http://www.w3.org/2000/svg";
 const DIR_NAMES = ["cima", "direita", "baixo", "esquerda"];
 const DIR_COLORS = ["#3f8fd6", "#23b3a4", "#e4572e", "#e0a020"];   // cima, direita, baixo, esquerda
+const center = cell => { const n = puzzle.n; return [(cell % n) + 0.5, ((cell / n) | 0) + 0.5]; };
 
+/** Triângulo da ponta: fica na casa da cabeça, apontando a direção de saída. */
+function tipPath(cell, d) {
+  const [cx, cy] = center(cell), [dr, dc] = DIRS[d], px = -dc, py = dr;
+  const tx = cx + dc * 0.40, ty = cy + dr * 0.40, bx = cx - dc * 0.08, by = cy - dr * 0.08, w = 0.26;
+  return `M${tx} ${ty} L${bx + px * w} ${by + py * w} L${bx - px * w} ${by - py * w} Z`;
+}
+
+/** Desenha cada seta como uma polilinha (com curvas) e a ponta na cabeça. A grade é sempre cheia; casas sem
+    seta simplesmente ficam vazias (o gerador deixa poucas). */
 function buildBoard() {
-  board.style.setProperty("--n", puzzle.n);
+  const n = puzzle.n;
+  board.style.setProperty("--n", n);
   board.replaceChildren();
-  tileEls = new Array(puzzle.n * puzzle.n);
-  const frag = document.createDocumentFragment();
-  for (let cell = 0; cell < puzzle.n * puzzle.n; cell++) {
-    const d = puzzle.dirs[cell];
-    if (d < 0) { const hole = document.createElement("span"); hole.className = "hole"; frag.append(hole); tileEls[cell] = hole; continue; }
-    const tile = document.createElement("button");
-    tile.type = "button"; tile.className = "tile"; tile.dataset.cell = cell;
-    tile.style.setProperty("--d", d);
-    tile.style.setProperty("--c", DIR_COLORS[d]);
-    tile.setAttribute("aria-label", `Seta apontando para ${DIR_NAMES[d]}`);
-    tile.innerHTML = `<span class="arw">${ARROW}</span>`;
-    tile.addEventListener("click", () => tap(cell));
-    frag.append(tile); tileEls[cell] = tile;
+  pieceEls = new Array(puzzle.pieces.length);
+  const svg = document.createElementNS(SVGNS, "svg");
+  svg.setAttribute("viewBox", `0 0 ${n} ${n}`);
+  svg.setAttribute("class", "pieces");
+  svg.setAttribute("role", "group");
+  svg.setAttribute("aria-label", "Tabuleiro de setas");
+
+  for (let i = 0; i <= n; i++) {
+    for (const [x1, y1, x2, y2] of [[i, 0, i, n], [0, i, n, i]]) {
+      const ln = document.createElementNS(SVGNS, "line");
+      ln.setAttribute("x1", x1); ln.setAttribute("y1", y1); ln.setAttribute("x2", x2); ln.setAttribute("y2", y2);
+      ln.setAttribute("class", "grid");
+      svg.append(ln);
+    }
   }
-  board.append(frag);
+
+  puzzle.pieces.forEach((p, i) => {
+    const g = document.createElementNS(SVGNS, "g");
+    g.setAttribute("class", "piece"); g.dataset.i = i;
+    g.setAttribute("role", "button"); g.setAttribute("tabindex", "0");
+    g.setAttribute("aria-label", `Seta apontando para ${DIR_NAMES[p.dir]}`);
+    g.style.setProperty("--c", DIR_COLORS[p.dir]);
+
+    const points = p.cells.map(c => { const [x, y] = center(c); return `${x},${y}`; }).join(" ");
+    let hit, body;
+    if (p.cells.length === 1) {
+      const [x, y] = center(p.cells[0]);
+      hit = document.createElementNS(SVGNS, "circle");
+      hit.setAttribute("cx", x); hit.setAttribute("cy", y); hit.setAttribute("r", 0.5);
+      body = document.createElementNS(SVGNS, "circle");
+      body.setAttribute("cx", x); body.setAttribute("cy", y); body.setAttribute("r", 0.17);
+    } else {
+      hit = document.createElementNS(SVGNS, "polyline"); hit.setAttribute("points", points);
+      body = document.createElementNS(SVGNS, "polyline"); body.setAttribute("points", points);
+    }
+    hit.setAttribute("class", "hit"); body.setAttribute("class", "body");
+    const tip = document.createElementNS(SVGNS, "path");
+    tip.setAttribute("d", tipPath(p.cells[0], p.dir)); tip.setAttribute("class", "tip");
+
+    g.append(hit, body, tip);
+    g.addEventListener("click", () => tap(i));
+    g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tap(i); } });
+    svg.append(g); pieceEls[i] = g;
+  });
+
+  board.append(svg);
+  renderLives();
+}
+
+/** Corações das vidas: cheios enquanto restam; ao zerar, o tabuleiro volta e elas recarregam (o tempo continua). */
+function renderLives() {
+  const el = document.getElementById("lives");
+  if (!el) return;
+  el.replaceChildren(...Array.from({ length: LIVES }, (_, i) => {
+    const h = document.createElement("span");
+    h.className = "heart" + (i < lives ? " on" : "");
+    h.textContent = i < lives ? "♥" : "♡";
+    h.setAttribute("aria-hidden", "true");
+    return h;
+  }));
+  el.setAttribute("aria-label", `Vidas: ${lives} de ${LIVES}`);
+}
+
+/** Perdeu uma vida batendo numa seta travada; ao chegar a zero, reinicia o tabuleiro SEM parar o cronômetro. */
+function loseLife() {
+  lives--;
+  renderLives();
+  if (lives > 0) { setMessage(`Seta travada! Vidas restantes: ${lives}.`, true); return; }
+  present = new Set(puzzle.pieces.map((_, i) => i));
+  order = []; lives = LIVES; solved = false;
+  buildBoard();
+  setMessage("Vidas esgotadas: o tabuleiro voltou ao início (o tempo continua).", true);
+  renderCoins();
 }
 
 const formatTime = ms => { const s = Math.floor(ms / 1000); return `${String((s / 60) | 0).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`; };
@@ -150,29 +219,36 @@ function setMessage(text, isError = false) { msg.textContent = text; msg.classLi
 /** keepTimer: o Reiniciar devolve as setas, mas o cronômetro segue de onde está (e só começa no primeiro toque). */
 function loadPuzzle(p, { keepTimer = false } = {}) {
   if (p !== puzzle) credited = false;
-  puzzle = p; present = new Set(tileCells(p.dirs)); order = []; solved = false;
+  puzzle = p; present = new Set(puzzle.pieces.map((_, i) => i)); order = []; solved = false; lives = LIVES;
   if (!keepTimer) { stopTimer(); timerEl.textContent = "00:00"; }
   setMessage("");
   buildBoard();
   renderCoins();
 }
 
-/** Um toque: se o caminho estiver livre a seta sai voando; senão balança e avisa. Tirar a última seta vence. */
-function tap(cell) {
-  if (solved || !present.has(cell)) return;
+/** Um toque: se o caminho estiver livre a seta inteira desliza e sai; senão balança e custa uma vida.
+    Tirar a última seta vence. */
+function tap(i) {
+  if (solved || !present.has(i)) return;
   startTimer();
-  const el = tileEls[cell];
-  if (!clearDir(puzzle.n, puzzle.dirs, present, cell, puzzle.dirs[cell])) {
-    el.classList.remove("shake"); void el.offsetWidth; el.classList.add("shake");
-    setMessage("Essa seta está bloqueada: tire antes as que estão no caminho.", true);
+  const occ = buildOcc(puzzle.pieces, [...present]);
+  if (blocked(puzzle.n, puzzle.pieces, occ, i)) {
+    const el = pieceEls[i];
+    if (el) { el.classList.remove("shake"); void el.getBoundingClientRect(); el.classList.add("shake"); }
+    loseLife();
     return;
   }
   setMessage("");
-  present.delete(cell); order.push(cell);
-  const [dr, dc] = DIRS[puzzle.dirs[cell]];
-  el.style.setProperty("--tx", dc * 220 + "%");
-  el.style.setProperty("--ty", dr * 220 + "%");
-  el.classList.add("out"); el.disabled = true;
+  present.delete(i); order.push(i);
+  const el = pieceEls[i];
+  if (el) {
+    const [dr, dc] = DIRS[puzzle.pieces[i].dir], dist = puzzle.n + 2;
+    el.style.transform = `translate(${dc * dist}px, ${dr * dist}px)`;
+    el.style.opacity = "0";
+    el.classList.add("out");
+    el.style.pointerEvents = "none";
+    el.setAttribute("aria-hidden", "true");
+  }
   if (present.size === 0) {
     solved = true; stopTimer();
     if (mode === "daily") finishDaily();                       // desafio do dia: o SERVIDOR mede o tempo e pontua/progride
@@ -197,7 +273,7 @@ function restoreSolved() {
   credited = true; solved = true;
   present = new Set(); order = puzzle.solution.slice();
   buildBoard();
-  for (let c = 0; c < puzzle.n * puzzle.n; c++) if (puzzle.dirs[c] >= 0) tileEls[c].classList.add("out");
+  for (const el of pieceEls) if (el) { el.classList.add("out"); el.style.opacity = "0"; el.style.pointerEvents = "none"; }
   setMessage("Fase já concluída. Use “Nova fase” para continuar.");
   renderCoins();
 }

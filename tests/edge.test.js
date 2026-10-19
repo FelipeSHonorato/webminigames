@@ -76,10 +76,10 @@ test("arrows: a ordem que limpa o tabuleiro é aceita; uma ordem travada é recu
   assert.equal(validate("arrows", seed, lvl, { order: p.solution }), true);
   assert.equal(validate("arrows", seed, lvl, { order: p.solution.slice(0, -1) }), false);
   assert.equal(validate("arrows", seed, lvl, {}), false);
-  const cells = arrows.tileCells(p.dirs), present = new Set(cells);
-  const blocked = cells.find(c => !arrows.removable(p.n, p.dirs, present, c));
-  assert.notEqual(blocked, undefined, "o teste precisa de uma seta travada no início");
-  assert.equal(validate("arrows", seed, lvl, { order: [blocked, ...cells.filter(c => c !== blocked)] }), false, "começar por uma seta travada deveria ser recusado");
+  const occ = arrows.buildOcc(p.pieces, p.pieces.map((_, i) => i));
+  const blocked = p.pieces.findIndex((_, i) => arrows.blocked(p.n, p.pieces, occ, i));
+  assert.notEqual(blocked, -1, "o teste precisa de uma seta travada no início");
+  assert.equal(validate("arrows", seed, lvl, { order: [blocked, ...p.pieces.map((_, i) => i).filter(i => i !== blocked)] }), false, "começar por uma seta travada deveria ser recusado");
 });
 
 test("patches: a partição solução é aceita; um retângulo fora do lugar é recusado", () => {

@@ -21,7 +21,7 @@ export function publicView(game, seed, level) {
   const p = build(game, seed, level);
   switch (game) {
     case "sudoku":   return { cells: p.cells, givens: p.givens };
-    case "arrows":   return { n: p.n, dirs: p.dirs };
+    case "arrows":   return { n: p.n, pieces: p.pieces };
     case "canos":    return { n: p.n, tiles: p.tiles.map(t => ({ type: t.type, rot: t.rot })), inlet: p.inlet, outlet: p.outlet };
     case "patches":  return { n: patches.N, clues: p.clues };
     case "zip":      return { n: zip.N, total: zip.TOTAL, waypoints: [...p.waypoints], walls: [...p.walls], max: p.max };
@@ -47,7 +47,7 @@ export function validate(game, seed, level, data) {
     case "sudoku":
       return ints(data?.grid, sudoku.TOTAL, 1, 9) && sudoku.isSolved(data.grid);
     case "arrows":
-      return arrows.isSolved(p.n, p.dirs, data?.order);
+      return arrows.isSolved(p.n, p.pieces, data?.order);
     case "canos":
       return ints(data?.rots, p.n * p.n, 0, 3) && canos.simulate(p, data.rots).status === "win";
     case "zip": {
