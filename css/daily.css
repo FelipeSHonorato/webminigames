@@ -20,8 +20,10 @@
 .mini .mini-ico{display:inline-grid;place-items:center;width:12px;height:12px;color:var(--accent)}
 .mini .mini-ico svg{display:block;width:12px;height:12px}
 .daily-tip{margin:8px 0 0;font-size:.85rem;color:var(--muted);text-align:center}
-/* Premiação do cenário: um popover ancorado no quadrado, por cima dele (a cor do quadrado fica atrás). */
-.trophies{position:absolute;z-index:30;top:0;left:50%;width:min(560px,calc(100vw - 32px));padding:14px 12px 12px;transform:translateX(-50%);border:1px solid var(--grid);border-radius:14px;background:var(--surface,var(--cell));box-shadow:0 14px 34px rgba(0,0,0,.35)}
+/* Premiação do cenário: um véu translúcido sobre o tabuleiro (o "quadrado" do jogo) com os troféus no meio. */
+.wmg-veil{position:absolute;z-index:50;display:grid;place-items:center;padding:10px;overflow:hidden;background:rgba(10,17,26,.28);background:color-mix(in srgb,var(--accent) 32%,transparent)}
+.wmg-veil-inner{display:grid;place-items:center;width:100%;max-width:100%;max-height:100%}
+.trophies{position:relative;width:min(560px,100%);max-height:100%;overflow:auto;margin:0 auto;padding:14px 12px 12px;border:1px solid var(--grid);border-radius:14px;background:var(--surface,var(--cell));box-shadow:0 14px 34px rgba(0,0,0,.35)}
 .trophies-close{position:absolute;top:6px;right:8px;display:grid;place-items:center;width:26px;height:26px;padding:0;font:inherit;font-size:1.15rem;line-height:1;color:var(--muted);background:none;border:0;border-radius:8px;cursor:pointer}
 .trophies-close:hover{color:var(--fg);background:var(--btn)}
 .trophies-head{display:flex;align-items:baseline;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
@@ -34,4 +36,4 @@
 .trophy-main{font-size:.95rem;color:var(--fg)}
 .trophy-sub{font-size:.75rem;color:var(--muted)}
 .trophy-detail{font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums}
-@media (max-width:420px){.slot{min-width:96px;padding:8px 9px}.trophies{width:calc(100vw - 24px);padding:12px 10px}}
+@media (max-width:420px){.slot{min-width:96px;padding:8px 9px}.trophies{padding:12px 10px}.trophy-cards{grid-template-columns:repeat(auto-fit,minmax(100px,1fr))}}

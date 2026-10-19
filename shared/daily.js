@@ -86,6 +86,7 @@ function appendTrophies(panel, slot, stats) {
     cenário selecionado, a premiação — que abre ao vencer e fecha no ×, no próprio quadrado ou clicando fora. */
 export function renderDailyPanel({ el: host, gameId, info, slot, won }) {
   if (!host) return;
+  hideVeil();
   const data = info ?? { coins: 0, slots: dailySlots(null), results: {}, level: 0, stats: {} };
   host.__dailyArgs = { el: host, gameId, info: data, slot, won };
   const list = slotsOf(data);
@@ -106,7 +107,6 @@ export function renderDailyPanel({ el: host, gameId, info, slot, won }) {
   host.replaceChildren();
   if (!list.length) return;
 
-  const slotEls = new Map();
   const status = node("div", "slots");
   for (const s of list) {
     const isDone = s.seconds != null;
@@ -135,7 +135,6 @@ export function renderDailyPanel({ el: host, gameId, info, slot, won }) {
         if (t.regionRank != null) row.append(mini("globe", `#${t.regionRank}`, `Nº ${t.regionRank} na sua região`));
         if (row.children.length) item.append(row);
       }
-      slotEls.set(s.slot, item);
     } else {
       item.append(node("span", "slot-status", playing ? "jogando" : "pendente"));
     }
@@ -150,49 +149,72 @@ export function renderDailyPanel({ el: host, gameId, info, slot, won }) {
     : "Sem coins do dia: voltam à meia-noite (Brasília).";
   host.append(tip);
 
-  if (open && data.stats?.[open]) {
-    const panel = node("div", "trophies");
-    const close = node("button", "trophies-close", "×");
-    close.type = "button";
-    close.setAttribute("aria-label", "Fechar os troféus");
-    close.onclick = () => { host.dataset.open = ""; renderDailyPanel(host.__dailyArgs); };
-    panel.append(close);
-    appendTrophies(panel, open, data.stats[open]);
+  const close = () => { host.dataset.open = ""; renderDailyPanel(host.__dailyArgs); };
+  if (open && data.stats?.[open]) showVeil(host, open, data.stats[open], close);
+}
+
+/** O "quadrado" do jogo: o tabuleiro que recebe o véu dos troféus. */
+const boardOf = host => host.closest("main")?.querySelector("#board") ?? document.getElementById("board");
+
+let veil = null;               // véu atual; fica no body para cobrir o tabuleiro sem mexer no DOM do jogo
+let veilCleanup = null;
+
+/** Tira o véu do tabuleiro (e solta os listeners). */
+function hideVeil() {
+  if (veilCleanup) { veilCleanup(); veilCleanup = null; }
+  veil?.remove();
+  veil = null;
+}
+
+/** Mostra os troféus no meio do tabuleiro, sobre uma cor translúcida. Fecha no ×, no véu, no Esc ou fora. */
+function showVeil(host, slot, stats, close) {
+  hideVeil();
+  const board = boardOf(host);
+  const panel = node("div", "trophies");
+  const x = node("button", "trophies-close", "×");
+  x.type = "button";
+  x.setAttribute("aria-label", "Fechar os troféus");
+  x.onclick = close;
+  panel.append(x);
+  appendTrophies(panel, slot, stats);
+  if (!board) {                       // sem tabuleiro (página inesperada): cai no painel normal do dia
     host.append(panel);
-    placePanel(host, panel, slotEls.get(open));
-    watchOutside(host);
-    watchResize(host);
+    return;
   }
-}
 
-/** Centraliza o painel sobre o quadrado do cenário (e o mantém dentro da largura da seção). O painel cresce
-    para cima, cobrindo o quadrado, para não esconder os botões que ficam logo abaixo do painel do dia. */
-function placePanel(host, panel, slotEl) {
-  if (!slotEl) return;
-  const width = panel.offsetWidth;
-  const center = slotEl.offsetLeft + slotEl.offsetWidth / 2;
-  const half = width / 2;
-  const left = host.clientWidth > width + 16
-    ? Math.max(half + 8, Math.min(host.clientWidth - half - 8, center))
-    : host.clientWidth / 2;
-  panel.style.left = `${Math.round(left)}px`;
-  panel.style.top = `${Math.round(slotEl.offsetTop + slotEl.offsetHeight - panel.offsetHeight)}px`;
-}
+  const inner = node("div", "wmg-veil-inner");
+  inner.append(panel);
+  veil = node("div", "wmg-veil");
+  veil.append(inner);
+  document.body.append(veil);
 
-/** Fecha os troféus ao clicar fora da seção do dia (o painel cobre o quadrado, então precisa de outra saída). */
-function watchOutside(host) {
-  if (host.__dailyOutside) return;
-  host.__dailyOutside = e => {
-    if (!host.dataset.open || host.contains(e.target)) return;
-    host.dataset.open = "";
-    renderDailyPanel(host.__dailyArgs);
+  const place = () => {
+    const r = board.getBoundingClientRect();
+    veil.style.left = `${Math.round(r.left + window.scrollX)}px`;
+    veil.style.top = `${Math.round(r.top + window.scrollY)}px`;
+    veil.style.width = `${Math.round(r.width)}px`;
+    veil.style.height = `${Math.round(r.height)}px`;
+    const radius = getComputedStyle(board).borderRadius;
+    if (radius) veil.style.borderRadius = radius;
   };
-  document.addEventListener("click", host.__dailyOutside, true);
-}
+  place();
 
-/** Reposiciona o painel se a janela mudar de tamanho. */
-function watchResize(host) {
-  if (host.__dailyResize) return;
-  host.__dailyResize = () => { if (host.dataset.open) renderDailyPanel(host.__dailyArgs); };
-  window.addEventListener("resize", host.__dailyResize);
+  const onDown = e => {
+    if (panel.contains(e.target) || host.contains(e.target)) return;   // cartão ou quadrados do dia: não fecha
+    close();
+  };
+  const onKey = e => { if (e.key === "Escape") close(); };
+  const ro = typeof ResizeObserver === "function" ? new ResizeObserver(place) : null;
+  ro?.observe(board);
+  document.addEventListener("click", onDown, true);
+  document.addEventListener("keydown", onKey);
+  window.addEventListener("scroll", place, true);
+  window.addEventListener("resize", place);
+  veilCleanup = () => {
+    ro?.disconnect();
+    document.removeEventListener("click", onDown, true);
+    document.removeEventListener("keydown", onKey);
+    window.removeEventListener("scroll", place, true);
+    window.removeEventListener("resize", place);
+  };
 }
