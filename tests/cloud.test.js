@@ -9,6 +9,7 @@ import { Profile, Activity } from "../shared/profile.js";
 import { GameSwitch } from "../shared/game-switch.js";
 import { Progress } from "../shared/progress.js";
 import { AdminLevel } from "../shared/admin-level.js";
+import { AdminCoins } from "../shared/admin-coins.js";
 import { store } from "../shared/storage.js";
 
 const UID = "00000000-0000-4000-8000-00000000000a";
@@ -262,6 +263,24 @@ test("administrador: nível e liga/desliga passam pelo servidor; recusa vira men
   await boot({ tables: { update: () => ({ data: [], error: null }) } });
   await assert.rejects(async () => GameSwitch.set("zip", false), /administrador/);
   await assert.rejects(async () => AdminLevel.set({ id: UID, role: "user" }, "zip", "zip.wins", 1), /administrador/);
+});
+
+test("administrador: dar coins do dia (por e-mail) passa pelo servidor; validação em português", async () => {
+  const admin = { ...SNAP, profile: { ...SNAP.profile, role: "admin" } };
+  const r = { email: "bia@t.com", name: "Bia", day: "2026-10-19", coins: 10, games: ["zip", "patches"] };
+  const c = await boot({ snapshot: admin, rpc: { admin_grant_coins: () => ({ data: r, error: null }) } });
+  const session = JSON.parse(store.get("wmg.session"));
+  assert.deepEqual(await AdminCoins.grant(session, "bia@t.com", null, 10), r);
+  assert.deepEqual(c.calls.find(x => x[1] === "admin_grant_coins")[2], { p_email: "bia@t.com", p_game: null, p_coins: 10 });
+  await assert.rejects(AdminCoins.grant({ id: UID, role: "user" }, "bia@t.com", "zip", 10), /administrador/);
+  await assert.rejects(AdminCoins.grant(session, "sem-arroba", "zip", 10), /e-mail/);
+  await assert.rejects(AdminCoins.grant(session, "bia@t.com", "zip", -1), /0 a 99999/);
+  await boot({ snapshot: admin, rpc: { admin_grant_coins: () => ({ data: null, error: { code: "42501", message: "forbidden" } }) } });
+  await assert.rejects(AdminCoins.grant(JSON.parse(store.get("wmg.session")), "bia@t.com", null, 5), /administrador/);
+  await boot({ snapshot: admin, rpc: { admin_grant_coins: () => ({ data: null, error: { code: "22023", message: "unknown_user" } }) } });
+  await assert.rejects(AdminCoins.grant(JSON.parse(store.get("wmg.session")), "bia@t.com", null, 5), /Confira o e-mail/);
+  Cloud._reset();
+  await assert.rejects(AdminCoins.grant(session, "bia@t.com", "zip", 10), /nuvem/);
 });
 
 test("falha ao carregar a conta: modo degradado, volta ao armazenamento local e NÃO grava na nuvem", async () => {

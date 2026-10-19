@@ -130,6 +130,8 @@ div.game.off:hover{border-color:var(--line)}
 .coinsrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
 .coinsrow label{color:var(--muted);font-size:.9rem}
 .coinsrow input{width:72px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg);font:inherit;font-variant-numeric:tabular-nums}
+.coinsrow select{padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg);font:inherit;cursor:pointer}
+.coinsrow input[type=email]{width:min(240px,100%)}
 .coinsrow button{padding:8px 16px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg);font-weight:700;cursor:pointer}
 .coinsrow button:hover{border-color:var(--accent);color:var(--accent)}
 

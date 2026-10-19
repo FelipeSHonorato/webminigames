@@ -26,6 +26,8 @@ Depois rode, também no SQL Editor, as demais migrações, **nesta ordem**:
 - `20261021000000_desafio_diario.sql`: **desafio diário** — mesmo cenário do dia por nível, rankeado por tempo.
 - `20261022000000_diario_configuravel.sql`: o **nº de cenários do dia = coins do dia** (configurável pelo administrador, global) e concluir o dia também **pontua**.
 - `20261023000000_jogo_setas.sql`: registra o jogo **Fuga das Setas** (`arrows`) no catálogo (sem tabela nova; a fase é servida/validada pela Edge).
+- `20261024000000_trofeus_diarios.sql`: **troféus do cenário** (percentual, média do dia e posição regional) — `daily_status`/`daily_finish` já devolvem os `stats` por slot.
+- `20261025000000_admin_coins.sql`: **coins de teste por conta** no painel (`admin_grant_coins`, restrita ao administrador): recarrega os coins do dia de um jogador pelo e-mail do login, sem tocar em pontos/nível.
 
 Para conferir o que já está aplicado:
 
@@ -36,7 +38,8 @@ select
   to_regproc('public.finalize_win')    as finalize_win,
   to_regproc('public.daily_open')      as daily_open,
   to_regproc('public.daily_finish')    as daily_finish,
-  to_regproc('public.set_coins_per_day') as set_coins_per_day;
+  to_regproc('public.set_coins_per_day') as set_coins_per_day,
+  to_regproc('public.admin_grant_coins') as admin_grant_coins;
 ```
 
 O que der `null` ainda falta rodar (re-rodar é seguro: os arquivos são idempotentes). Com a CLI, `supabase db push` aplica todas na ordem.
@@ -92,6 +95,10 @@ Faça commit e push: a Vercel publica sozinha. Esses dois valores são **públic
 3. Saia e entre de novo: o link **Painel** aparece.
 
 A conta administradora **não pontua nem concorre em rankings** (migração `20261020000000_admin_sem_pontos.sql`): ao vencer, `finalize_win` consome a fase e conta a progressão, mas não grava em `scores` nem em `win_log`, e `ranking(...)` exclui `role = 'admin'`. Serve para testar os jogos à vontade — os coins continuam sendo cobrados (99999, recarregados por dia).
+
+No painel, a seção **"Coins de teste"** (migração `20261025000000_admin_coins.sql`) recarrega os **coins do dia** de qualquer conta pelo e-mail do login, em um jogo ou em todos (`admin_grant_coins`): útil para testar uma conta normal sem esperar a virada do dia. Mexe só em `daily_coins`; pontos, nível e rankings não mudam. Sozinho, isso não cria cenários novos — o nº de cenários do dia continua sendo `coins_per_day`.
+
+Para dar coins de teste pelo **SQL Editor** (sem passar pelo painel): `select public.admin_grant_coins('jogador@exemplo.com', null, 10);` (o 2º argumento é o jogo, ou `null` para todos).
 
 (A conta de administrador de protótipo que está no código, `administrador@administrador.com.br`, só existe no modo local e não vale nada na nuvem.)
 

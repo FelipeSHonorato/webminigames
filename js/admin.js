@@ -4,6 +4,7 @@ import { isAdmin } from "../shared/roles.js";
 import { GameSwitch } from "../shared/game-switch.js";
 import { AdminLevel } from "../shared/admin-level.js";
 import { AdminConfig } from "../shared/admin-config.js";
+import { AdminCoins } from "../shared/admin-coins.js";
 import { Scores } from "../shared/scores.js";
 import { GAMES } from "./games.js";
 import { mountUserBar } from "./userbar.js";
@@ -78,5 +79,24 @@ function wireConfig() {
   };
 }
 
+/** Coins de teste: o administrador recarrega o saldo do dia de uma conta, pelo e-mail do login. */
+function renderGrant() {
+  const sel = $("grantGame");
+  sel.replaceChildren(new Option("Todos os jogos", ""));
+  for (const [id, g] of Object.entries(GAMES)) sel.append(new Option(g.title, id));
+  $("grantMsg").textContent = "";
+}
+function wireGrant() {
+  renderGrant();
+  $("grantSave").onclick = async () => {
+    const msg = $("grantMsg"); msg.className = "fmsg";
+    try {
+      const r = await AdminCoins.grant(session, $("grantEmail").value, $("grantGame").value || null, Number($("grantAmount").value));
+      const n = Array.isArray(r.games) ? r.games.length : 0;
+      msg.textContent = `Pronto: ${r.coins} ${r.coins === 1 ? "coin" : "coins"} do dia para ${r.name || r.email} em ${n} ${n === 1 ? "jogo" : "jogos"}.`;
+    } catch (err) { msg.className = "fmsg err"; msg.textContent = err.message; }
+  };
+}
+
 if (session && !isAdmin(session)) location.replace("jogos.html");        // só o administrador
-else if (session) { mountUserBar($("userbar")); render(); wireConfig(); $("admin-title").focus({ preventScroll: true }); }
+else if (session) { mountUserBar($("userbar")); render(); wireConfig(); wireGrant(); $("admin-title").focus({ preventScroll: true }); }

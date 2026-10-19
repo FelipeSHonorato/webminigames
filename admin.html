@@ -44,6 +44,22 @@
     </div>
     <p class="fmsg" id="coinsMsg" role="status"></p>
   </section>
+  <section class="pcard">
+    <h2>Coins de teste</h2>
+    <p>Recarrega os <strong>coins do dia</strong> de uma conta, pelo e-mail do login, para testar sem esperar a virada do dia. Não mexe em pontos, nível nem vitórias — só no saldo do dia. Só funciona com a nuvem ligada.</p>
+    <div class="coinsrow">
+      <label for="grantEmail">E-mail da conta:</label>
+      <input id="grantEmail" type="email" autocomplete="off" spellcheck="false" placeholder="jogador@exemplo.com" aria-describedby="grantMsg">
+    </div>
+    <div class="coinsrow">
+      <label for="grantGame">Jogo:</label>
+      <select id="grantGame" aria-describedby="grantMsg"></select>
+      <label for="grantAmount">Coins:</label>
+      <input id="grantAmount" type="number" min="0" max="99999" step="1" inputmode="numeric" value="10" aria-describedby="grantMsg">
+      <button type="button" id="grantSave">Dar coins</button>
+    </div>
+    <p class="fmsg" id="grantMsg" role="status"></p>
+  </section>
 </main>
 <script src="shared/file-warning.js"></script>
 <script type="module" src="js/admin.js"></script>

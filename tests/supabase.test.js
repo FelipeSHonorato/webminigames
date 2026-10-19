@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrations = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql"]
+const migrations = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql"]
   .map(f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8"));
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
 const sqlAll = migrations.join("\n");          // estrutura (RLS, permissões, search_path): todas as migrações
@@ -116,6 +116,14 @@ test("SQL: troféus do cenário diário (percentual, média e região) sem expor
   assert.match(sqlAll, /'stats',\s+public\.daily_my_stats\(auth\.uid\(\), g\.id\)/);                      // o dia já vem decorado
   assert.match(sqlAll, /'stats', public\.daily_scenario_stats\(p_uid, p_game, p_slot, v_run\.level/);      // e o fim devolve o troféu do slot
   assert.match(sqlAll, /row_number\(\) over \(order by f\.seconds asc, f\.points desc/);                   // ranking do dia com o mesmo desempate
+});
+
+test("SQL: o administrador pode dar coins do dia a uma conta (por e-mail), só para teste", () => {
+  assert.match(sqlAll, /create function public\.admin_grant_coins\(p_email text, p_game text default null, p_coins int default 10\)/);
+  assert.match(sqlAll, /revoke all on function public\.admin_grant_coins\(text, text, int\) from public, anon, authenticated;/);
+  assert.match(sqlAll, /grant execute on function public\.admin_grant_coins\(text, text, int\) to authenticated;/);
+  assert.match(sqlAll, /where lower\(u\.email\) = v_email/);                                   // o e-mail é resolvido em auth.users
+  assert.match(sqlAll, /insert into public\.daily_coins \(user_id, day, game_id, coins\)[\s\S]*?on conflict \(user_id, day, game_id\) do update set coins = excluded\.coins/);
 });
 
 test("a configuração do Supabase é válida quando preenchida (ou vazia, no modo local) e nunca leva chave secreta", () => {

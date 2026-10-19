@@ -50,11 +50,12 @@ No **modo local** existe uma conta administradora, criada automaticamente na pri
 - **Pontos preservados:** desligar não remove nada. Os pontos continuam no ranking do jogo, no ranking geral e no perfil de cada jogador.
 - **Nível para testar:** em cada jogo da lista há os botões Fácil · Médio · Difícil · Genius. Escolher um nível coloca o jogo, **só para a conta do administrador**, no início desse nível (0/15) e descarta a fase salva dela; ao abrir o jogo, nasce uma fase nova nesse nível. Assim dá para testar todos os níveis sem jogar até lá. Jogadores, pontos e rankings não mudam (`shared/admin-level.js`).
 - **Desafio diário:** a seção "Desafio diário" do painel define quantos **coins (e cenários) por dia** cada jogador recebe, de 1 a 10 — vale para todos os jogos. É o mesmo valor global que aparece em `shared/admin-config.js` e no snapshot da nuvem.
+- **Coins de teste:** a seção "Coins de teste" recarrega os **coins do dia** de uma conta, pelo e-mail do login (só com a nuvem ligada), em um jogo ou em todos. Usa a função `admin_grant_coins` (restrita ao administrador, migração `20261025000000_admin_coins.sql`): mexe só no saldo do dia (`daily_coins`), sem tocar em pontos, nível, vitórias nem no resultado dos cenários — útil para testar sem esperar a virada do dia (`shared/admin-coins.js`).
 - **Atenção:** a senha está no código-fonte (`js/auth.js`) e a chave fica no `localStorage` de quem a mudou, então só vale neste navegador. Em produção, crie o administrador no servidor com senha forte e guarde o estado dos jogos no servidor.
 
 ## Backend (Supabase)
 
-As contas e os registros podem ficar no **Supabase** (Postgres + login): preencha `SUPABASE_URL` e `SUPABASE_ANON_KEY` em `shared/backend/config.js` e rode no SQL Editor os arquivos de `supabase/migrations/` na ordem, do `20261014000000_init.sql` ao `20261023000000_jogo_setas.sql`. Vazio, o site continua no **modo local** (tudo no navegador). Com a nuvem ligada: contas reais (e-mail/senha e Google), progresso, pontos, **coins do dia**, o **desafio diário**, rankings e liga/desliga de jogos compartilhados por todos; o **servidor** decide pontos, nível e coins, e a **Edge Function `play`** serve e valida cada jogada. Passo a passo e funcionamento: [docs/SUPABASE.md](docs/SUPABASE.md). O e-mail de confirmação em português está em `supabase/templates/` (como colar e como trocar o remetente: mesma doc). Senha de conta nova: mínimo de 8 caracteres, com 1 número e 1 letra maiúscula.
+As contas e os registros podem ficar no **Supabase** (Postgres + login): preencha `SUPABASE_URL` e `SUPABASE_ANON_KEY` em `shared/backend/config.js` e rode no SQL Editor os arquivos de `supabase/migrations/` na ordem, do `20261014000000_init.sql` ao `20261025000000_admin_coins.sql`. Vazio, o site continua no **modo local** (tudo no navegador). Com a nuvem ligada: contas reais (e-mail/senha e Google), progresso, pontos, **coins do dia**, o **desafio diário**, rankings e liga/desliga de jogos compartilhados por todos; o **servidor** decide pontos, nível e coins, e a **Edge Function `play`** serve e valida cada jogada. Passo a passo e funcionamento: [docs/SUPABASE.md](docs/SUPABASE.md). O e-mail de confirmação em português está em `supabase/templates/` (como colar e como trocar o remetente: mesma doc). Senha de conta nova: mínimo de 8 caracteres, com 1 número e 1 letra maiúscula.
 
 ## Perfil
 
@@ -111,7 +112,7 @@ Como no modo local não há backend, o site fica totalmente estático. O workflo
 index.html            página de entrada (criar conta, Google simulado, anônimo, "Esqueceu a senha?")
 jogos.html            página com os jogos disponíveis (exige sessão)
 perfil.html           perfil: apelido, foto, senha, meus jogos e excluir conta (exige conta)
-admin.html            painel do administrador: liga/desliga de cada jogo, nível de teste e desafio diário (coins/cenários por dia)
+admin.html            painel do administrador: liga/desliga de cada jogo, nível de teste, desafio diário (coins/cenários por dia) e coins de teste por conta
 confirmar.html        confirma o e-mail pelo link enviado e abre a sessão
 redefinir.html        cria a nova senha, aberto pelo link do "Esqueceu a senha?"
 assets/               favicon.svg e email-logo.png (ícones e logotipo dos e-mails)
@@ -119,7 +120,7 @@ css/                  site.css, gamebar.css (barra dos jogos), ranking.css (pain
 js/                   login.js, hub.js, perfil.js, admin.js, confirmar.js e redefinir.js (uma por página), auth.js (contas), password-rules.js (requisitos da senha), userbar.js, games.js (catálogo)
 shared/               roles.js, game-switch.js (liga/desliga dos jogos), coins.js, run.js, coin-badge.js (coins e fase atual), theme.js e theme-init.js (modo escuro), rng.js, storage.js, session.js, progress.js (níveis e pontos), admin-level.js (nível de teste do administrador), regions.js, ranking-list.js (linhas e abas do ranking),
                       scores.js (pontuação e ranking), ranking-panel.js (painel lateral),
-                      profile.js (apelido, foto, atividade), avatar.js (redimensiona a foto), password.js (regra de senha), password-toggle.js (botão de mostrar/ocultar senha), admin-config.js (config do desafio diário no painel), capture-auth-hash.js (guarda o "#" do link), file-warning.js (aviso no file://)
+                      profile.js (apelido, foto, atividade), avatar.js (redimensiona a foto), password.js (regra de senha), password-toggle.js (botão de mostrar/ocultar senha), admin-config.js (config do desafio diário no painel), admin-coins.js (coins de teste por conta no painel), capture-auth-hash.js (guarda o "#" do link), file-warning.js (aviso no file://)
   backend/            config.js (URL/chave do Supabase; vazio = modo local), boot.js (carrega a conta), cloud.js (acesso ao Supabase), auth-redirect.js (lê o link do e-mail)
 games/<jogo>/
   domain.js           regras, solver e gerador (puro, sem DOM)

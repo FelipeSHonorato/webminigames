@@ -72,6 +72,7 @@ npm test      # 225 testes, Node 20+
 - Nível por jogo (painel do administrador, `js/admin.js` + `shared/admin-level.js`): `AdminLevel.set(session, gameId, gameKey, nível)` grava `winsForLevel(nível)` (= nível × 15) em `<jogo>.wins:u-admin` e chama `Run.clear` (a fase salva é descartada; sem isso a fase em andamento ficaria no nível antigo). Só aceita a sessão do administrador e nível 0 a 3. O Genius (último nível) mostra "45 vitórias" em vez de 0/15. Um teste confere que a `key` de `js/games.js` é igual à `STORE_KEY` de cada jogo: jogo novo precisa das duas iguais e de 4 níveis para aparecer certo no painel.
 - **Sem pontuação na nuvem** (migração `20261020000000_admin_sem_pontos.sql`): a conta `role = 'admin'` não grava em `scores` nem `win_log` — vence num "sandbox" (consome a fase, conta a progressão, sem ritmo anti-farm) e `ranking(...)` a exclui. Coins continuam sendo gastos ao abrir a fase (teto 99999). No modo local não há essa separação. No desafio diário vale o mesmo: o admin progride, mas não entra nos rankings de tempo nem de pontos.
 - **Coins/cenários por dia** (`admin.html`, seção "Desafio diário"): `AdminConfig.setCoinsPerDay` grava em `settings` via `set_coins_per_day` (só admin; 1 a 10). Vale para todos os jogos e define quantos cenários diários por nível cada jogador recebe. Na nuvem o valor chega pelo snapshot (`Cloud.config().coinsPerDay`); no modo local é só um valor de protótipo.
+- **Coins de teste por conta** (`admin.html`, seção "Coins de teste"; migração `20261025000000_admin_coins.sql` + `shared/admin-coins.js`): o administrador recarrega os **coins do dia** de uma conta pelo **e-mail do login**, em um jogo ou em todos (`Cloud.adminGrantCoins` → RPC `admin_grant_coins`). A função resolve o e-mail em `auth.users` (o `profiles` não guarda e-mail), é `security definer`, checa `is_admin()` e só faz upsert em `daily_coins` do dia — não toca em pontos, nível, vitórias nem resultados. Saldo pode passar do limite normal; quem decide o nº de cenários é `coins_cap()`. Só funciona na nuvem (no modo local não há contas reais). Em `tests/cloud.test.js` há o caminho feliz e as validações (não-admin, e-mail inválido, valor fora de 0–99999, `unknown_user`).
 
 ## Limitações e próximos passos sugeridos
 
@@ -79,7 +80,7 @@ npm test      # 225 testes, Node 20+
 2. Gerar as fases do Zip nos níveis altos num **Web Worker** (pode levar alguns segundos no Genius).
 3. Suporte a **teclado** no Patches (o Sudoku já tem).
 4. Centralizar as cores (tokens) num `tokens.css` compartilhado (hoje cada jogo repete os seus).
-5. Ideias já levantadas: mostrar pontos nos cards da página de jogos; o administrador ajustar coins e ver a lista de contas; recarga de coins à meia-noite em vez de 24 h depois do primeiro acesso.
+5. Ideias já levantadas: mostrar pontos nos cards da página de jogos; o administrador ver a **lista de contas** no painel (dar coins por e-mail já existe, em "Coins de teste"); recarga de coins à meia-noite em vez de 24 h depois do primeiro acesso.
 
 ## Prompt sugerido para abrir o novo chat
 

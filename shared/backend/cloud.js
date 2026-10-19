@@ -339,6 +339,16 @@ export const Cloud = {
     S.cache.config = { ...S.cache.config, coinsPerDay: data.coinsPerDay };
     return data.coinsPerDay;
   },
+  /** Administrador: recarrega os coins do dia de uma conta (pelo e-mail), em um jogo ou em todos. Só para teste. */
+  async adminGrantCoins(email, game, coins) {
+    const { data, error } = await S.client.rpc("admin_grant_coins", { p_email: email, p_game: game, p_coins: coins });
+    if (error) {
+      if (error.code === "42501") throw new Error("Só o administrador pode dar coins.");
+      if (/unknown_user/.test(error.message)) throw new Error("Não encontrei essa conta. Confira o e-mail.");
+      throw new Error("Não foi possível dar os coins agora.");
+    }
+    return data;
+  },
   /** Ranking de um jogo (gameId) ou geral (null). Qualquer um pode ver, inclusive quem joga como anônimo. */
   async ranking(gameId, scope, limit) {
     if (!S.client || S.degraded) return { top: [], me: null, total: 0 };
