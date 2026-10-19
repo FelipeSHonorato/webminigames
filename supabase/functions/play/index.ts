@@ -11,7 +11,7 @@ const URL = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const GAMES = new Set(["canos", "cruzadas", "patches", "sopa", "sudoku", "zip"]);
+const GAMES = new Set(["arrows", "canos", "cruzadas", "patches", "sopa", "sudoku", "zip"]);
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",

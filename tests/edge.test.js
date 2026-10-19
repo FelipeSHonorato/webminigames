@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { makeRng } from "../shared/rng.js";
 import { publicView, validate, GAMES } from "../supabase/functions/play/_shared/board.js";
+import * as arrows from "../games/arrows/domain.js";
 import * as canos from "../games/canos/domain.js";
 import * as cruzadas from "../games/cruzadas/domain.js";
 import * as patches from "../games/patches/domain.js";
@@ -21,7 +22,7 @@ const normPoints = s => s.replace(/"(?:\.\.\/)+(?:shared\/)?points\.js"/g, '"POI
 
 /* ---------- paridade entre games/ e a cópia usada pela Edge Function ---------- */
 test("cópias dos domínios na Edge Function batem com games/ (paridade)", () => {
-  for (const g of ["canos", "cruzadas", "patches", "sopa", "sudoku", "zip"]) {
+  for (const g of ["arrows", "canos", "cruzadas", "patches", "sopa", "sudoku", "zip"]) {
     assert.equal(normPoints(read(`supabase/functions/play/_shared/${g}/domain.js`)), normPoints(read(`games/${g}/domain.js`)), `domain de ${g} divergiu`);
   }
   for (const g of ["cruzadas", "sopa"]) {
@@ -33,7 +34,7 @@ test("cópias dos domínios na Edge Function batem com games/ (paridade)", () =>
 
 /* ---------- o puzzle público NUNCA carrega a solução ---------- */
 test("visão pública não vaza a solução (jogos fortes)", () => {
-  for (const g of ["sudoku", "canos", "patches", "zip"]) {
+  for (const g of ["sudoku", "arrows", "canos", "patches", "zip"]) {
     const view = JSON.stringify(publicView(g, 12345, 0));
     assert.ok(!view.includes("solution"), `${g} vazou a solução`);
     assert.ok(!view.includes("\"path\""), `${g} vazou o caminho`);
@@ -67,6 +68,18 @@ test("canos: giros da solução são aceitos; giros iniciais embaralhados são r
   const p = canos.generatePuzzle(makeRng(seed), canos.LEVELS[lvl]);
   assert.equal(validate("canos", seed, lvl, { rots: canos.solutionRots(p) }), true);
   assert.equal(validate("canos", seed, lvl, { rots: canos.initialRots(p) }), false);
+});
+
+test("arrows: a ordem que limpa o tabuleiro é aceita; uma ordem travada é recusada", () => {
+  const seed = 271, lvl = 0;
+  const p = arrows.generatePuzzle(makeRng(seed), arrows.LEVELS[lvl]);
+  assert.equal(validate("arrows", seed, lvl, { order: p.solution }), true);
+  assert.equal(validate("arrows", seed, lvl, { order: p.solution.slice(0, -1) }), false);
+  assert.equal(validate("arrows", seed, lvl, {}), false);
+  const cells = arrows.tileCells(p.dirs), present = new Set(cells);
+  const blocked = cells.find(c => !arrows.removable(p.n, p.dirs, present, c));
+  assert.notEqual(blocked, undefined, "o teste precisa de uma seta travada no início");
+  assert.equal(validate("arrows", seed, lvl, { order: [blocked, ...cells.filter(c => c !== blocked)] }), false, "começar por uma seta travada deveria ser recusado");
 });
 
 test("patches: a partição solução é aceita; um retângulo fora do lugar é recusado", () => {
@@ -122,6 +135,6 @@ test("puzzles diferentes têm a mesma seed mas níveis diferentes mudam a dificu
   assert.ok(a.givens >= b.givens, "nível maior deveria ter menos pistas");
 });
 
-test("GAMES agrupa os seis domínios", () => {
-  assert.deepEqual(Object.keys(GAMES).sort(), ["canos", "cruzadas", "patches", "sopa", "sudoku", "zip"]);
+test("GAMES agrupa os sete domínios", () => {
+  assert.deepEqual(Object.keys(GAMES).sort(), ["arrows", "canos", "cruzadas", "patches", "sopa", "sudoku", "zip"]);
 });

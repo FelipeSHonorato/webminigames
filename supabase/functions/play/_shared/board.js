@@ -3,6 +3,7 @@
    Usa as CÓPIAS dos domínios em _shared/<jogo>/domain.js, que precisam ficar idênticas às de games/<jogo>
    (o teste tests/edge.test.js compara as duas e falha se divergirem). */
 import { makeRng } from "./rng.js";
+import * as arrows from "./arrows/domain.js";
 import * as canos from "./canos/domain.js";
 import * as cruzadas from "./cruzadas/domain.js";
 import * as patches from "./patches/domain.js";
@@ -10,7 +11,7 @@ import * as sopa from "./sopa/domain.js";
 import * as sudoku from "./sudoku/domain.js";
 import * as zip from "./zip/domain.js";
 
-export const GAMES = { canos, cruzadas, patches, sopa, sudoku, zip };
+export const GAMES = { arrows, canos, cruzadas, patches, sopa, sudoku, zip };
 export const hasHints = game => game === "cruzadas" || game === "sopa";
 
 const build = (game, seed, level) => GAMES[game].generatePuzzle(makeRng(seed), GAMES[game].LEVELS[level]);
@@ -20,6 +21,7 @@ export function publicView(game, seed, level) {
   const p = build(game, seed, level);
   switch (game) {
     case "sudoku":   return { cells: p.cells, givens: p.givens };
+    case "arrows":   return { n: p.n, dirs: p.dirs };
     case "canos":    return { n: p.n, tiles: p.tiles.map(t => ({ type: t.type, rot: t.rot })), inlet: p.inlet, outlet: p.outlet };
     case "patches":  return { n: patches.N, clues: p.clues };
     case "zip":      return { n: zip.N, total: zip.TOTAL, waypoints: [...p.waypoints], walls: [...p.walls], max: p.max };
@@ -44,6 +46,8 @@ export function validate(game, seed, level, data) {
   switch (game) {
     case "sudoku":
       return ints(data?.grid, sudoku.TOTAL, 1, 9) && sudoku.isSolved(data.grid);
+    case "arrows":
+      return arrows.isSolved(p.n, p.dirs, data?.order);
     case "canos":
       return ints(data?.rots, p.n * p.n, 0, 3) && canos.simulate(p, data.rots).status === "win";
     case "zip": {

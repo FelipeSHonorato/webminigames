@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fuga das Setas</title>
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/email-logo.png" type="image/png" sizes="96x96">
+<link rel="apple-touch-icon" href="../../assets/email-logo.png">
+<script src="../../shared/theme-init.js"></script>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../css/gamebar.css">
+<link rel="stylesheet" href="../../css/ranking-list.css">
+<link rel="stylesheet" href="../../css/ranking.css">
+<link rel="stylesheet" href="../../css/userbar.css">
+<link rel="stylesheet" href="../../css/coins.css">
+<link rel="stylesheet" href="../../css/daily.css">
+</head>
+<body>
+<nav class="sitebar"><a href="../../jogos.html">← Jogos</a><div class="gametitle"><strong>Fuga das Setas</strong><span id="coinBadge"></span></div><div id="userbar"></div></nav>
+<main>
+  <header><h1>Fuga das Setas</h1><span id="timer">00:00</span></header>
+  <div id="level"><b id="levelName"></b><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
+  <div id="board" aria-label="Tabuleiro de setas"></div>
+  <div id="msg" role="status"></div>
+  <div id="daily" class="daily" hidden></div>
+  <div class="actions">
+    <button id="reset">Reiniciar</button>
+    <button id="next">Nova fase</button>
+  </div>
+  <p class="help">Toque numa seta para fazê-la sair voando na direção em que aponta. Ela só sai se o caminho até fora do tabuleiro estiver livre — se estiver bloqueada, ela balança e nada acontece. Tire todas as setas para vencer. Cada direção tem uma cor: cima, direita, baixo e esquerda.</p>
+</main>
+<script src="../../shared/file-warning.js"></script>
+<script type="module" src="./ui.js"></script>
+</body>
+</html>
