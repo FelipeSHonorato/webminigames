@@ -122,8 +122,8 @@ const center = cell => { const n = puzzle.n; return [(cell % n) + 0.5, ((cell / 
     `perp` é o vetor perpendicular em coordenadas de tela (x = coluna, y = linha). */
 function tipPath(cell, d) {
   const [cx, cy] = center(cell), [dr, dc] = DIRS[d], px = dr, py = -dc;
-  const tipx = cx + dc * 0.46, tipy = cy + dr * 0.46;   // ápice à frente
-  const bx = cx + dc * 0.10, by = cy + dr * 0.10;       // base logo à frente do centro
+  const tipx = cx + dc * 0.42, tipy = cy + dr * 0.42;   // ápice à frente
+  const bx = cx - dc * 0.08, by = cy - dr * 0.08;       // base atrás do centro: encosta no corpo (sem vão)
   const w = 0.27;
   return `M${tipx} ${tipy} L${bx + px * w} ${by + py * w} L${bx - px * w} ${by - py * w} Z`;
 }
@@ -148,18 +148,23 @@ function buildBoard() {
     g.setAttribute("aria-label", `Seta apontando para ${DIR_NAMES[p.dir]}`);
     g.style.setProperty("--c", DIR_COLORS[p.dir]);
 
-    const points = p.cells.map(c => { const [x, y] = center(c); return `${x},${y}`; }).join(" ");
-    let hit, body;
+    /* Peça de uma casa vira uma setinha curta: corpo reto atrás da ponta (com início na ponta, para escoar
+       da cauda para a cabeça) e fundo reto. As demais seguem as casas. */
+    let points;
+    if (p.cells.length === 1) {
+      const [cx, cy] = center(p.cells[0]), [dr, dc] = DIRS[p.dir];
+      points = `${cx},${cy} ${cx - dc * 0.36},${cy - dr * 0.36}`;
+    } else points = p.cells.map(c => { const [x, y] = center(c); return `${x},${y}`; }).join(" ");
+
+    let hit;
     if (p.cells.length === 1) {
       const [x, y] = center(p.cells[0]);
       hit = document.createElementNS(SVGNS, "circle");
       hit.setAttribute("cx", x); hit.setAttribute("cy", y); hit.setAttribute("r", 0.5);
-      body = document.createElementNS(SVGNS, "circle");
-      body.setAttribute("cx", x); body.setAttribute("cy", y); body.setAttribute("r", 0.17);
     } else {
       hit = document.createElementNS(SVGNS, "polyline"); hit.setAttribute("points", points);
-      body = document.createElementNS(SVGNS, "polyline"); body.setAttribute("points", points);
     }
+    const body = document.createElementNS(SVGNS, "polyline"); body.setAttribute("points", points);
     hit.setAttribute("class", "hit"); body.setAttribute("class", "body");
     const tip = document.createElementNS(SVGNS, "path");
     tip.setAttribute("d", tipPath(p.cells[0], p.dir)); tip.setAttribute("class", "tip");
@@ -220,19 +225,25 @@ function loadPuzzle(p, { keepTimer = false } = {}) {
   renderCoins();
 }
 
-/** Animação de saída no estilo "água no cano": a peça escoa pelo próprio caminho, da ponta oposta
-    (cauda) até a ponta da seta, e some no fim. Um traço com `stroke-dasharray` normalizado
-    (`pathLength=100`) é "esvaziado" pelo `stroke-dashoffset`, como a água percorrendo o cano. */
+/** Animação de saída no estilo "água no cano", em duas etapas:
+    1) o corpo escoa pelo próprio caminho (cauda → ponta) via `stroke-dashoffset`;
+    2) a ponta segue a direção apontada, percorrendo o corredor livre até a borda do quadrado, e só lá some. */
 function flyOut(el, piece) {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) { el.style.display = "none"; return; }
-  const body = el.querySelector("polyline.body"), circle = el.querySelector("circle.body"), tip = el.querySelector(".tip");
-  const dur = 480, t0 = performance.now();
+  const n = puzzle.n, head = piece.cells[0], [dr, dc] = DIRS[piece.dir];
+  const hr = (head / n) | 0, hc = head % n;
+  const toEdge = [hr + 0.5, n - hc - 0.5, n - hr - 0.5, hc + 0.5][piece.dir];   // casas até a borda na direção da ponta
+  const body = el.querySelector("polyline.body"), tip = el.querySelector(".tip");
+  const dur = 620, drainEnd = 0.45, t0 = performance.now();
+  const clamp01 = v => Math.max(0, Math.min(1, v)), smooth = t => t * t * (3 - 2 * t);
   if (body) { body.setAttribute("pathLength", "100"); body.setAttribute("stroke-dasharray", "100"); }
   const step = now => {
-    const t = Math.min(1, (now - t0) / dur), e = t * t * (3 - 2 * t);   // suave nas pontas
-    if (body) body.setAttribute("stroke-dashoffset", (e * 100).toFixed(2));   // esvazia da cauda para a ponta
-    if (circle) circle.setAttribute("r", (0.17 * (1 - e)).toFixed(4));         // peça de uma casa: encolhe
-    if (tip) tip.style.opacity = String(Math.max(0, 1 - Math.max(0, (t - 0.7) / 0.3)));
+    const t = Math.min(1, (now - t0) / dur);
+    const drain = smooth(clamp01(t / drainEnd));               // etapa 1: esvazia da cauda para a cabeça
+    if (body) body.setAttribute("stroke-dashoffset", (drain * 100).toFixed(2));
+    const move = smooth(clamp01((t - drainEnd) / (1 - drainEnd)));   // etapa 2: a ponta vai até a borda
+    el.setAttribute("transform", `translate(${(dc * toEdge * move).toFixed(3)} ${(dr * toEdge * move).toFixed(3)})`);
+    if (tip) tip.style.opacity = String(t < 0.8 ? 1 : Math.max(0, 1 - (t - 0.8) / 0.2));   // some perto da borda
     if (t < 1) requestAnimationFrame(step);
     else el.style.display = "none";
   };
