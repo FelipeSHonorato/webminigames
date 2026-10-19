@@ -2,7 +2,7 @@ import "../../shared/backend/boot.js";
 import { Scores } from "../../shared/scores.js";
 import { mountRanking } from "../../shared/ranking-panel.js";
 import { Activity } from "../../shared/profile.js";
-import { Coins } from "../../shared/coins.js";
+import { Coins, COINS_PER_DAY } from "../../shared/coins.js";
 import { gameAllowed } from "../../shared/game-switch.js";
 import { Run } from "../../shared/run.js";
 import { coinBadge, fmtDuration } from "../../shared/coin-badge.js";
@@ -12,22 +12,43 @@ import { makeRng } from "../../shared/rng.js";
 import { Cloud } from "../../shared/backend/cloud.js";
 import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/progress.js";
 import { BIT, DELTA, E, GEN, LEVELS, N, S, STORE_KEY, W, firstLeaks, generatePuzzle, initialRots, maskOf, opposite, rotateTile, simulate, solutionRots } from "./domain.js";
+import { fmtTime } from "../../shared/ranking-list.js";
 
 const GAME_ID = "canos";
 const sessionUser = requireSession("../../index.html");   // sem sessão, volta para o login
 if (sessionUser && !gameAllowed(GAME_ID, sessionUser)) location.replace("../../jogos.html");   // jogo desligado pelo administrador
 mountUserBar(document.getElementById("userbar"), { base: "../../" });
-const ranking = mountRanking({ gameId: GAME_ID, title: "Conexão de Canos" });
 const uid = sessionUser?.id ?? "guest";
+const isCloud = Cloud.owns(uid);                          // o desafio diário só existe na nuvem (a seed é do servidor)
+const ranking = mountRanking({ gameId: GAME_ID, title: "Conexão de Canos", modes: isCloud ? ["daily", "points"] : ["points"] });
 const coinsEl = document.getElementById("coinBadge");
+/* Na nuvem o jogo é SÓ o desafio do dia (a fase aleatória deixou de existir); no modo local/visitante continua aleatória. */
+const mode = isCloud ? "daily" : "random";
 
 /* Estado da partida (declarado antes de qualquer função que o use).
    phase: "ready" (esperando o 1º giro) · "counting" (contagem regressiva) · "flowing" (água correndo) · "won" · "lost" · "locked" (sem coins). */
 let puzzle, rots = [], angles = [], phase = "locked", moves = 0, deadline = 0, total = 0, sim = null, credited = false, clockId = null, flowId = null;
 
-/* Coins: saldo ao lado do nome do jogo e liberação do botão "Nova fase" (só com fase concluída e coin disponível). */
+/* Meia-noite de Brasília (UTC-3, sem horário de verão): quando o desafio do dia e os coins do dia recomeçam. */
+function nextSpMidnight() {
+  const [y, m, d] = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date()).split("-").map(Number);
+  return Date.UTC(y, m - 1, d + 1) + 3 * 3600 * 1000;
+}
+
+/* Coins: saldo ao lado do nome do jogo e liberação do botão "Nova fase" (só com fase concluída e coin disponível).
+   No desafio diário o saldo mostrado é o do dia (reposto à meia-noite de Brasília; a quantidade é configurável). */
 function renderCoins() {
-  const balance = Coins.get(uid, GAME_ID), next = document.getElementById("next");
+  const next = document.getElementById("next");
+  if (mode === "daily") {
+    const d = Cloud.daily(GAME_ID) ?? { coins: 0 };
+    coinsEl.replaceChildren(coinBadge({ coins: d.coins ?? 0, max: d.slots ?? Cloud.config()?.coinsPerDay ?? COINS_PER_DAY, nextRefillAt: nextSpMidnight() }));
+    const left = nextScenario();                       // o botão só avança para o PRÓXIMO cenário (não há escolha)
+    const canNext = phase === "won" && left != null && (d.coins ?? 0) > 0;
+    next.disabled = !canNext;
+    next.title = left == null ? "Você já concluiu os cenários do dia." : (d.coins ?? 0) <= 0 ? "Sem coins do dia." : phase === "won" ? "Abrir o próximo cenário." : "Conclua a fase atual para liberar a próxima.";
+    return;
+  }
+  const balance = Coins.get(uid, GAME_ID);
   coinsEl.replaceChildren(coinBadge(balance));
   const canNext = phase === "won" && balance.coins > 0;
   next.disabled = !canNext;
@@ -311,7 +332,8 @@ function releaseWater() {
 function finish() {
   if (sim.status === "win") {
     phase = "won"; svg.classList.add("won");
-    setMessage("A água chegou à saída!" + creditWin());
+    if (mode === "daily") { setMessage("A água chegou à saída! Registrando…"); finishDaily(); }   // o SERVIDOR mede o tempo e pontua
+    else setMessage("A água chegou à saída!" + creditWin());
   } else {
     phase = "lost"; svg.classList.add("lost");
     firstLeaks(sim).forEach(showLeak);
@@ -338,6 +360,11 @@ retryBtn.onclick = () => {
   else if (phase === "ready" || phase === "lost") reset();      // tentativa nova (a água já correu, ou ainda nem começou): relógio cheio, volta a contar no 1º giro
 };   // "won", "flowing" e "locked": não reinicia
 document.getElementById("next").onclick = async () => {
+  if (mode === "daily") {                              // desafio do dia: avança para o próximo cenário (sem escolher)
+    const left = nextScenario();
+    if (phase !== "won" || left == null || (Cloud.daily(GAME_ID)?.coins ?? 0) <= 0) return;
+    return openDaily(left);
+  }
   if (phase !== "won" || Coins.get(uid, GAME_ID).coins <= 0) return;
   try { loadPuzzle(await freshPuzzle()); }
   catch (e) { setMessage(e?.code === "no_coins" ? "Sem coins por agora." : "Não foi possível abrir a fase. Tente de novo.", true); }
@@ -358,15 +385,95 @@ function lockBoard() {
   setMessage(`Sem coins por agora: novos em ${fmtDuration(Coins.get(uid, GAME_ID).nextRefillAt - Date.now())}.`);
 }
 
-/* Fase inicial. Na nuvem a fase é SERVIDA pelo servidor (open): retoma a fase em aberto que veio no snapshot ou pede uma nova.
-   No modo local, volta a fase salva (mesma seed); sem fase salva, sorteia uma no nível atual se houver coin. */
+/* ===================== Desafio diário =====================
+   Mesmo cenário do dia para todos (por nível), ranking por TEMPO. Só na nuvem: a seed é derivada no servidor.
+   A quantidade de cenários do dia é igual aos coins do dia (configurável pelo administrador). */
+let dailySlot = 0;
+const dailyEl = document.getElementById("daily");
+
+const dailySlots = info => info?.slots ?? Cloud.config()?.coinsPerDay ?? COINS_PER_DAY;
+const slotsOf = info => Array.from({ length: dailySlots(info) }, (_, i) => ({ slot: i + 1, seconds: info?.results?.[i + 1] ?? null }));
+const bestDaily = info => { const v = slotsOf(info).map(s => s.seconds).filter(s => s != null); return v.length ? Math.min(...v) : null; };
+/** Próximo cenário a jogar = o primeiro ainda não concluído hoje. Não dá para escolher: o servidor serve esse. */
+const nextScenario = () => {
+  const info = Cloud.daily(GAME_ID);
+  const done = new Set(Object.keys(info?.results ?? {}).map(Number));
+  return slotsOf(info).map(s => s.slot).find(s => !done.has(s)) ?? null;
+};
+
+/** Painel do desafio: mostra o progresso do dia (um cenário por coin). É só leitura: o cenário é servido pelo servidor. */
+function renderDaily() {
+  if (mode !== "daily") return;
+  const info = Cloud.daily(GAME_ID) ?? { coins: 0, slots: dailySlots(null), results: {}, level: 0 };
+  dailyEl.replaceChildren();
+  const status = document.createElement("div");
+  status.className = "slots";
+  for (const { slot, seconds } of slotsOf(info)) {
+    const done = seconds != null;
+    const playing = !done && slot === dailySlot && phase !== "won";
+    const chip = document.createElement("span");
+    chip.className = "slot" + (done ? " done" : playing ? " current" : " pending");
+    chip.textContent = done ? `Cenário ${slot}: ${fmtTime(seconds)}` : playing ? `Cenário ${slot}: jogando` : `Cenário ${slot}: pendente`;
+    status.append(chip);
+  }
+  dailyEl.append(status);
+  const tip = document.createElement("p");
+  tip.className = "daily-tip";
+  const best = bestDaily(info);
+  tip.textContent = (info.coins ?? 0) > 0
+    ? `${info.coins} ${info.coins === 1 ? "coin" : "coins"} do dia · melhor tempo: ${best != null ? fmtTime(best) : "—"}.`
+    : "Sem coins do dia: voltam à meia-noite (Brasília).";
+  dailyEl.append(tip);
+}
+
+async function openDaily(slot) {
+  try {
+    const d = await Cloud.dailyOpen(GAME_ID, slot);
+    dailySlot = slot;
+    loadPuzzle(serverPuzzle(d.puzzle, d.level));
+    setMessage(`Desafio do dia · ${LEVELS[d.level].name}. Ligue a entrada à saída!`);
+    renderDaily(); renderCoins();
+  } catch (e) {
+    setMessage(e?.code === "no_coins" ? "Sem coins do dia: voltam à meia-noite (Brasília)." : "Não foi possível abrir o desafio. Tente de novo.", true);
+  }
+}
+
+/** Conclui o tabuleiro do dia: o SERVIDOR mede o tempo (relógio de parede) e guarda o melhor por slot. */
+function finishDaily() {
+  Cloud.dailyFinish(GAME_ID, dailySlot, { rots })
+    .then(r => {
+      setMessage(r.ok
+        ? `Tempo do dia: ${fmtTime(r.ok.seconds)}.` + (r.ok.best != null && r.ok.best < r.ok.seconds ? ` Melhor do dia: ${fmtTime(r.ok.best)}.` : "")
+        : "Tempo enviado; será confirmado quando a conexão voltar.");
+      wins = loadWins(); renderLevel();                  // concluir o cenário do dia também sobe a progressão (pontos)
+      renderDaily(); renderCoins(); ranking.refresh();
+    })
+    .catch(() => setMessage("A água chegou à saída, mas não deu para registrar o tempo. Tente de novo.", true));
+}
+
+/** Cenário neutro enquanto o desafio do dia é servido pelo servidor (travado e sem contar o tempo do jogo). */
+function dailyPlaceholder() {
+  loadPuzzle(lockedPuzzle());
+  credited = true; phase = "locked"; renderPhase();
+  phaseEl.textContent = "Preparando o cenário do dia…";
+  renderDaily();
+}
+
+/* Fase inicial. Na nuvem é o desafio do dia: o servidor serve o próximo cenário sozinho (sem escolha). No modo local,
+   a fase aleatória de sempre (o desafio diário depende do servidor). */
 renderLevel();
 const lockedPuzzle = () => buildPuzzle((Math.random() * 2 ** 32) >>> 0, levelOf(wins));
-if (Cloud.owns(uid)) {
-  const cached = Cloud.phase(GAME_ID);
-  if (cached) loadPuzzle(serverPuzzle(cached.puzzle, cached.level));
-  else if (Coins.get(uid, GAME_ID).coins > 0) freshPuzzle().then(p => loadPuzzle(p)).catch(e => { loadPuzzle(lockedPuzzle()); e?.code === "no_coins" ? lockBoard() : setMessage("Não foi possível carregar a fase. Recarregue a página.", true); });
-  else { loadPuzzle(lockedPuzzle()); lockBoard(); }
+if (mode === "daily") {
+  document.getElementById("next").textContent = "Próximo cenário";   // não há escolha: o jogo avança para o próximo
+  dailyEl.hidden = false;
+  dailyPlaceholder();
+  Cloud.dailyStatus().then(() => {
+    renderDaily(); renderCoins();
+    const slot = nextScenario();
+    if (slot == null) { credited = true; phase = "locked"; renderPhase(); phaseEl.textContent = "Você já concluiu os cenários do dia. Novos à meia-noite (Brasília)."; renderCoins(); }
+    else if ((Cloud.daily(GAME_ID)?.coins ?? 0) <= 0) { credited = true; phase = "locked"; renderPhase(); phaseEl.textContent = "Sem coins do dia: voltam à meia-noite (Brasília)."; renderCoins(); }
+    else openDaily(slot);                                             // abre sozinho o próximo cenário do dia (gasta 1 coin)
+  });
 } else {
   const saved = Run.get(uid, GAME_ID);
   if (saved) {

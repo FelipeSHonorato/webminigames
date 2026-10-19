@@ -34,14 +34,6 @@ p.help{color:var(--muted);font-size:.9rem;line-height:1.4}
 
 button:disabled,button:disabled:hover{opacity:.45;cursor:not-allowed;border-color:var(--grid)}
 
-/* Painel dos cenários do dia (um por coin do dia). Só leitura: o cenário é servido pelo servidor, sem escolha. */
-.daily{margin:0 0 12px}
-.slots{display:flex;flex-wrap:wrap;gap:6px}
-.slot{padding:6px 10px;font-size:.85rem;font-weight:700;color:var(--muted);background:var(--btn);border:2px solid var(--grid);border-radius:999px}
-.slot.current{border-color:var(--path);color:var(--fg)}
-.slot.done{color:var(--fg);border-style:dashed;opacity:.9}
-.slot.pending{opacity:.7}
-.daily-tip{margin:8px 0 0;font-size:.85rem;color:var(--muted);text-align:center}
 [hidden]{display:none!important}
 
 /* Celular: mais área útil para o tabuleiro (menos margem e títulos menores). */
