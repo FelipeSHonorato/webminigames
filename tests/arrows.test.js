@@ -6,7 +6,9 @@ import { DIRS, GEN, LEVELS, LIVES, STORE_KEY, blocked, buildOcc, generatePuzzle,
 /* ---------- níveis e constantes ---------- */
 test("níveis: quatro níveis crescentes, sem formatos e com limite de tamanho/dobras", () => {
   assert.deepEqual(LEVELS.map(l => l.name), ["Fácil", "Médio", "Difícil", "Genius"]);
-  assert.deepEqual(LEVELS.map(l => l.n), [6, 8, 10, 12]);
+  assert.deepEqual(LEVELS.map(l => l.n), [8, 10, 12, 14]);
+  assert.deepEqual(LEVELS.map(l => l.target), [40, 56, 64, 80]);
+  assert.deepEqual(LEVELS.map(l => l.walls), [4, 6, 8, 12]);
   assert.ok(LEVELS.every(l => l.maxLen >= 1 && l.maxBends >= 0 && l.maxBends < l.maxLen));
   assert.ok(LEVELS.every(l => l.shape === undefined), "o formato fixo foi removido: a grade é sempre cheia");
   assert.equal(STORE_KEY, "arrows.wins");
@@ -59,6 +61,13 @@ test("blocked: peça encostada no corpo não trava — só o corredor da ponta i
   assert.equal(removable(CELLS, pieces, occAll(pieces), 0), true);
 });
 
+test("obstáculo fixo no corredor da ponta trava a seta", () => {
+  /* Seta em (0,0) apontando para baixo; um bloco fixo em (1,0) fica bem no corredor da ponta. */
+  const pieces = [{ cells: [cellOf(0, 0)], dir: 2 }];
+  assert.equal(blocked(CELLS, pieces, buildOcc(pieces, [0]), 0), false, "sem obstáculo, a ponta está livre");
+  assert.equal(blocked(CELLS, pieces, buildOcc(pieces, [0], new Set([cellOf(1, 0)])), 0), true, "o bloco trava");
+});
+
 test("solveOrder: limpa o tabuleiro quando há solução e devolve null quando não há", () => {
   /* Duas peças que apontam uma para a outra: o corredor de cada ponta tem a outra → nenhuma sai nunca. */
   const stuck = [{ cells: [0], dir: 1 }, { cells: [1], dir: 3 }];
@@ -94,15 +103,20 @@ const bendsOf = (n, cells) => {
   }
   return bends;
 };
-const freeCount = (n, pieces) => { const occ = occAll(pieces); return pieces.filter((_, i) => removable(n, pieces, occ, i)).length; };
+const freeCount = (n, pieces, walls) => { const occ = buildOcc(pieces, pieces.map((_, i) => i), walls); return pieces.filter((_, i) => removable(n, pieces, occ, i)).length; };
 
 for (const [i, level] of LEVELS.entries()) {
-  test(`gera fase válida, cheia e solucionável no nível ${level.name} (${level.n}x${level.n})`, () => {
+  test(`gera fase válida, com o dobro de setas, obstáculos e solução no nível ${level.name} (${level.n}x${level.n})`, () => {
     for (let seed = 1; seed <= 40; seed++) {
       const p = generatePuzzle(makeRng(seed * 977 + i), level);
       assert.equal(p.n, level.n);
-      assert.ok(p.pieces.length >= 5, `seed ${seed}: poucas peças`);
+      assert.ok(p.pieces.length >= Math.round(level.target * 0.9), `seed ${seed}: poucas peças (${p.pieces.length})`);
+      assert.ok(p.pieces.length <= level.target, `seed ${seed}: passou da meta de peças`);
       assert.equal(p.solution.length, p.pieces.length);
+
+      assert.ok(p.walls instanceof Set, `seed ${seed}: paredes deveriam ser um Set`);
+      assert.equal(p.walls.size, level.walls, `seed ${seed}: quantidade de obstáculos`);
+      for (const w of p.walls) assert.ok(Number.isInteger(w) && w >= 0 && w < level.n * level.n, `seed ${seed}: obstáculo fora do tabuleiro`);
 
       const all = new Set();
       for (const [k, piece] of p.pieces.entries()) {
@@ -115,12 +129,13 @@ for (const [i, level] of LEVELS.entries()) {
         if (piece.cells.length > 1) assert.equal(piece.dir, dirOf(level.n, piece.cells[1], piece.cells[0]), `seed ${seed}: ponta da peça ${k} diverge`);
         for (const c of piece.cells) {
           assert.ok(!all.has(c), `seed ${seed}: casa ${c} em duas peças`);
+          assert.ok(!p.walls.has(c), `seed ${seed}: seta ocupou o obstáculo ${c}`);
           all.add(c);
         }
       }
 
-      assert.equal(isSolved(level.n, p.pieces, p.solution), true, `seed ${seed}: a solução não limpa o tabuleiro`);
-      const free = freeCount(level.n, p.pieces);
+      assert.equal(isSolved(level.n, p.pieces, p.solution, p.walls), true, `seed ${seed}: a solução não limpa o tabuleiro`);
+      const free = freeCount(level.n, p.pieces, p.walls);
       assert.ok(free >= 1, `seed ${seed}: fase impossível de começar`);
       assert.ok(free < p.pieces.length, `seed ${seed}: a fase já começa resolvida`);
       assert.ok(free <= Math.max(8, Math.ceil(p.pieces.length * 0.4)), `seed ${seed}: fácil demais (${free}/${p.pieces.length} livres)`);

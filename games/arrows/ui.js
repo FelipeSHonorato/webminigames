@@ -101,7 +101,7 @@ function buildPuzzle(seed, level) {
   return p;
 }
 /** Fase servida pelo servidor: chega SEM a solução (a seed fica no servidor), então a tela não sabe a ordem certa. */
-const serverPuzzle = (view, level) => ({ n: view.n, pieces: view.pieces.map(p => ({ cells: p.cells.slice(), dir: p.dir })), level, server: true });
+const serverPuzzle = (view, level) => ({ n: view.n, pieces: view.pieces.map(p => ({ cells: p.cells.slice(), dir: p.dir })), walls: new Set(view.walls ?? []), level, server: true });
 /** Fase nova no modo local: a seed fica salva, então recarregar a página devolve a mesma fase até ela ser concluída. */
 function localFresh() {
   const seed = (Math.random() * 2 ** 32) >>> 0, level = levelOf(wins);
@@ -128,8 +128,8 @@ function tipPath(cell, d) {
   return `M${tipx} ${tipy} L${bx + px * w} ${by + py * w} L${bx - px * w} ${by - py * w} Z`;
 }
 
-/** Desenha cada seta como uma polilinha (com curvas) e a ponta na cabeça. A grade é sempre cheia; casas sem
-    seta simplesmente ficam vazias (o gerador deixa poucas). */
+/** Desenha cada seta como uma polilinha (com curvas) e a ponta na cabeça. Casas sem seta ficam vazias e as
+    casas fixas (`walls`) viram blocos escuros. */
 function buildBoard() {
   const n = puzzle.n;
   board.style.setProperty("--n", n);
@@ -140,6 +140,15 @@ function buildBoard() {
   svg.setAttribute("class", "pieces");
   svg.setAttribute("role", "group");
   svg.setAttribute("aria-label", "Tabuleiro de setas");
+
+  /* Obstáculos fixos: casas que nenhuma seta ocupa e que travam quem aponta para elas. */
+  if (puzzle.walls) for (const cell of puzzle.walls) {
+    const r = document.createElementNS(SVGNS, "rect");
+    r.setAttribute("x", (cell % n) + 0.12); r.setAttribute("y", ((cell / n) | 0) + 0.12);
+    r.setAttribute("width", 0.76); r.setAttribute("height", 0.76); r.setAttribute("rx", 0.14);
+    r.setAttribute("class", "wall");
+    svg.append(r);
+  }
 
   puzzle.pieces.forEach((p, i) => {
     const g = document.createElementNS(SVGNS, "g");
@@ -255,7 +264,7 @@ function flyOut(el, piece) {
 function tap(i) {
   if (solved || !present.has(i)) return;
   startTimer();
-  const occ = buildOcc(puzzle.pieces, [...present]);
+  const occ = buildOcc(puzzle.pieces, [...present], puzzle.walls);
   if (blocked(puzzle.n, puzzle.pieces, occ, i)) {
     const el = pieceEls[i];
     if (el) { el.classList.remove("shake"); void el.getBoundingClientRect(); el.classList.add("shake"); }
