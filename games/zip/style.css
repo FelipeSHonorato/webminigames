@@ -34,11 +34,8 @@ p.help{color:var(--muted);font-size:.9rem;line-height:1.4}
 
 button:disabled,button:disabled:hover{opacity:.45;cursor:not-allowed;border-color:var(--grid)}
 
-/* Alternador de modo (Aleatório / Desafio diário) e painel dos dois tabuleiros do dia. */
-.modes{display:flex;gap:8px;margin:0 0 12px}
-.mode{flex:1;padding:8px;font-weight:700;color:var(--muted);background:var(--btn);border:2px solid var(--grid);border-radius:8px;cursor:pointer}
-.mode.on{color:var(--fg);border-color:var(--path)}
-.daily{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 12px}
+/* Painel dos cenários do dia (um por coin do dia). */
+.daily{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:0 0 12px}
 .slot{padding:10px 8px;font:inherit;font-weight:700;color:var(--fg);background:var(--btn);border:2px solid var(--grid);border-radius:8px;cursor:pointer}
 .slot:hover:not(:disabled){border-color:var(--path)}
 .slot.current{border-color:var(--path)}

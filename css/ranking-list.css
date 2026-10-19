@@ -2,6 +2,10 @@
 .ranking-scopes{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;margin-bottom:12px;background:var(--bg);border-radius:10px}
 .ranking-scopes button{padding:8px;border:0;border-radius:8px;background:none;font:inherit;font-weight:700;color:var(--muted);cursor:pointer}
 .ranking-scopes button[aria-selected="true"]{background:var(--cell,var(--surface));color:var(--fg)}
+/* Alternador "Tempo do dia / Pontos" (jogos com desafio diário). */
+.ranking-kinds{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;margin-bottom:8px;background:var(--bg);border-radius:10px}
+.ranking-kinds button{padding:8px;border:0;border-radius:8px;background:none;font:inherit;font-weight:700;color:var(--muted);cursor:pointer}
+.ranking-kinds button[aria-selected="true"]{background:var(--cell,var(--surface));color:var(--fg)}
 .ranking-list{list-style:none;margin:0;padding:0;display:grid;gap:4px}
 .ranking-list li{display:grid;grid-template-columns:1.6em 22px minmax(0,1fr) auto;gap:8px;align-items:center;padding:8px 10px;border-radius:8px;background:var(--bg)}
 .ranking-list li.me{outline:2px solid var(--accent,var(--path))}

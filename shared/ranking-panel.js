@@ -10,21 +10,38 @@ const TROPHY = `<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="tru
 </svg>`;
 
 /** Painel lateral de ranking: visível ao entrar (em telas largas) e recolhível pela aba.
-    `mode = "daily"` mostra o ranking por TEMPO do desafio diário (troca pelo `setMode` devolvido). */
-export function mountRanking({ gameId, title, loginUrl = "../../index.html?modo=conta", mode = "points" }) {
+    `modes` lista os rankings disponíveis ("daily" = tempo do desafio do dia; "points" = pontuação). Com mais de um,
+    aparece um alternador "Tempo do dia / Pontos". O primeiro da lista é o que abre. */
+export function mountRanking({ gameId, title, loginUrl = "../../index.html?modo=conta", modes = ["points"] }) {
   const aside = el("aside", "ranking");
   aside.setAttribute("aria-label", `Ranking do ${title}`);
 
   const body = el("div", "ranking-body");
   body.id = "ranking-body";
+  let kind = modes[0];
+  const kinds = el("div", "ranking-kinds");
+  const kindButtons = {};
+  if (modes.length > 1) {
+    kinds.setAttribute("role", "tablist");
+    kinds.setAttribute("aria-label", "Tipo de ranking");
+    for (const [id, label] of [["daily", "Tempo do dia"], ["points", "Pontos"]]) {
+      if (!modes.includes(id)) continue;
+      const b = el("button", "", label);
+      b.type = "button"; b.setAttribute("role", "tab");
+      b.onclick = () => { kind = id; refresh(); };
+      kindButtons[id] = b; kinds.append(b);
+    }
+  }
   const scopes = el("div", "ranking-scopes");
   const tabs = scopeTabs(scopes, () => refresh());
   const heading = el("h2", "", `Ranking · ${title}`);
   const list = el("ol", "ranking-list"), note = el("p", "ranking-note");
-  body.append(heading, scopes, list, note);
+  body.append(heading);
+  if (modes.length > 1) body.append(kinds);      // só jogos com desafio diário têm o alternador
+  body.append(scopes, list, note);
   aside.append(body);
-  let kind = mode;
   const syncHeading = () => { heading.textContent = kind === "daily" ? `Desafio do dia · ${title}` : `Ranking · ${title}`; };
+  const syncKinds = () => { for (const [id, b] of Object.entries(kindButtons)) b.setAttribute("aria-selected", String(id === kind)); };
 
   const tab = el("button", "ranking-tab");
   tab.type = "button";
@@ -61,7 +78,7 @@ export function mountRanking({ gameId, title, loginUrl = "../../index.html?modo=
   tab.onclick = () => setOpen(aside.classList.contains("closed"));
 
   async function refresh() {
-    tabs.sync(); syncHeading();
+    tabs.sync(); syncHeading(); syncKinds();
     const data = kind === "daily"
       ? await Scores.dailyLeaderboard(gameId, { scope: tabs.scope, limit: 10 })
       : await Scores.leaderboard(gameId, { scope: tabs.scope, limit: 10 });

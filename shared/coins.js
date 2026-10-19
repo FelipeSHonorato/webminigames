@@ -7,8 +7,9 @@ import { Cloud } from "./backend/cloud.js";
    (`open_phase`, chamado por `Cloud.open`); aqui só mexemos na tela. Implementação LOCAL (localStorage), com o mesmo
    ponto de troca dos demais serviços. */
 const KEY = "wmg.coins";   // { [userId]: { [gameId]: { coins, anchor } } }
-export const COINS_PER_DAY = 2;
-const capFor = uid => (uid === ADMIN_ID || (Cloud.owns(uid) && Cloud.role() === "admin") ? ADMIN_COINS : COINS_PER_DAY);   // a conta administradora tem 99999 e também gasta ao concluir fases
+export const COINS_PER_DAY = 2;   // padrão/fallback (espelhado no SQL e usado no modo local); na nuvem vale a configuração do administrador
+const coinsPerDay = uid => (Cloud.owns(uid) ? (Cloud.config()?.coinsPerDay ?? COINS_PER_DAY) : COINS_PER_DAY);
+const capFor = uid => (uid === ADMIN_ID || (Cloud.owns(uid) && Cloud.role() === "admin") ? ADMIN_COINS : coinsPerDay(uid));   // a conta administradora tem 99999 e também gasta ao concluir fases
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** Recarga (pura): sem registro, já começa com o máximo; a cada 24 h inteiras o saldo volta ao máximo e a âncora avança em dias inteiros. */

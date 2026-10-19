@@ -74,14 +74,14 @@ Deno.serve(async (req) => {
     /* ---- Desafio diário: mesmo cenário do dia para todos (por nível), ranking por tempo. A seed do dia
        (derivada de dia/jogo/nível/slot no banco) também nunca vai ao cliente; só o puzzle público. ---- */
     if (action !== "daily_open" && action !== "daily_hint" && action !== "daily_finish") return json({ error: "unknown_action" }, 400);
-    const slot = body?.slot;
-    if (slot !== 1 && slot !== 2) return json({ error: "bad_slot" }, 400);
+    const slot = body?.slot;                                        // o limite real (coins do dia) é decidido no banco (daily_open)
+    if (!Number.isInteger(slot) || slot < 1 || slot > 10) return json({ error: "bad_slot" }, 400);
 
     if (action === "daily_open") {
       const { data, error } = await svc.rpc("daily_open", { p_uid: uid, p_game: game, p_slot: slot });
       if (error) return json({ error: error.message }, error.message === "no_coins" ? 409 : 400);
       const view = publicView(game, Number(data.seed), Number(data.level));
-      return json({ day: data.day, level: data.level, slot: data.slot, startedAt: data.startedAt, puzzle: view, coins: data.coins });
+      return json({ day: data.day, level: data.level, slot: data.slot, slots: data.slots, startedAt: data.startedAt, puzzle: view, coins: data.coins });
     }
 
     if (action === "daily_hint") {

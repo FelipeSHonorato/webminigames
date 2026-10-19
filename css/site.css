@@ -121,6 +121,11 @@ div.game.off:hover{border-color:var(--line)}
 .onoff[aria-checked="true"]{background:var(--accent);border-color:var(--accent)}
 .onoff[aria-checked="true"] .knob{transform:translateX(24px);background:#fff}
 @media (prefers-reduced-motion:reduce){.onoff,.onoff .knob{transition:none}}
+.coinsrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
+.coinsrow label{color:var(--muted);font-size:.9rem}
+.coinsrow input{width:72px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg);font:inherit;font-variant-numeric:tabular-nums}
+.coinsrow button{padding:8px 16px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--fg);font-weight:700;cursor:pointer}
+.coinsrow button:hover{border-color:var(--accent);color:var(--accent)}
 
 /* O atributo hidden precisa vencer qualquer `display` definido nas classes (.btn, .pwrules…), senão o elemento "escondido" aparece */
 [hidden]{display:none!important}

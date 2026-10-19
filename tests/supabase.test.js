@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrations = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql"]
+const migrations = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql"]
   .map(f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8"));
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
 const sqlAll = migrations.join("\n");          // estrutura (RLS, permissões, search_path): todas as migrações
@@ -88,6 +88,19 @@ test("SQL: o desafio diário tem tabelas, funções e só a Edge escreve a fase"
   assert.match(sqlAll, /America\/Sao_Paulo/);                       // o dia é o de Brasília
   assert.match(sqlAll, /daily_hint_seconds\(\)[^$]*\$\$ select 30/); // +30 s por dica
   assert.match(sqlAll, /day\s+date not null/);                       // o reset à meia-noite é por dia contado
+});
+
+test("SQL: coins por dia é configurável (settings) e manda no nº de cenários/cenários do dia", () => {
+  assert.match(sqlAll, /create table public\.settings \(/);
+  assert.match(sqlAll, /insert into public\.settings \(key, value\) values \('coins_per_day'/);
+  assert.match(sqlAll, /alter table public\.settings\s+enable row level security/);
+  assert.match(sqlAll, /create function public\.coins_cap\(\)/);                                        // valor efetivo (padrão = coins_per_day())
+  assert.match(sqlAll, /coalesce\(\(select \(value\)::int from public\.settings where key = 'coins_per_day'\), public\.coins_per_day\(\)\)/);
+  assert.match(sqlAll, /create function public\.set_coins_per_day\(p_n int\)/);
+  assert.match(sqlAll, /grant execute on function public\.set_coins_per_day\(int\) to authenticated/);
+  assert.match(sqlAll, /revoke all on function public\.coins_cap\(\)\s+from public, anon, authenticated/);
+  assert.match(sqlAll, /slot <= public\.max_scenarios\(\)/);                                            // slots acompanham o máximo de cenários
+  assert.match(sqlAll, /'config',\s+jsonb_build_object\('coinsPerDay', public\.coins_cap\(\)\)/);         // a tela recebe o valor
 });
 
 test("a configuração do Supabase é válida quando preenchida (ou vazia, no modo local) e nunca leva chave secreta", () => {

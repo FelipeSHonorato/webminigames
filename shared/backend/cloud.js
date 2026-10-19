@@ -12,7 +12,7 @@ import { PASSWORD_HINT } from "../password.js";
 
 const SESSION_KEY = "wmg.session", OUTBOX_KEY = "wmg.outbox";
 const RUN_DELAY_MS = 700, RETRY_MS = 5000;
-const empty = () => ({ profile: null, wins: {}, runs: {}, phases: {}, coins: {}, scores: {}, activity: {}, games: {}, daily: {} });
+const empty = () => ({ profile: null, config: { coinsPerDay: 2 }, wins: {}, runs: {}, phases: {}, coins: {}, scores: {}, activity: {}, games: {}, daily: {} });
 const fresh = () => ({ active: false, client: null, uid: null, degraded: false, reason: null, cache: empty(), dirty: new Set(), removed: new Set(), timer: null, runLock: null, outboxTimer: null, outboxLock: null, wired: false });
 let S = fresh();
 
@@ -120,11 +120,14 @@ function applyWin(game, data) {
   S.cache.wins[game] = data.wins; S.cache.scores[game] = data.score; S.cache.coins[game] = data.coins;
   delete S.cache.phases[game];   // a fase foi consumida (ou já estava): não há o que retomar
 }
-/** Resultado do desafio diário: guarda os coins do dia e o melhor tempo por slot. */
+/** Resultado do desafio diário: guarda os coins/cenários do dia, o melhor tempo por slot e a pontuação/progressão. */
 function applyDaily(game, slot, data) {
-  const g = (S.cache.daily[game] ??= { day: null, level: 0, coins: 0, results: {}, open: [] });
+  const g = (S.cache.daily[game] ??= { day: null, level: 0, coins: 0, slots: 2, results: {}, open: [] });
   if (data?.coins != null) g.coins = data.coins;
+  if (data?.slots != null) g.slots = data.slots;
   if (data?.seconds != null) g.results[slot] = Math.min(g.results[slot] ?? Infinity, data.seconds);
+  if (data?.wins != null) S.cache.wins[game] = data.wins;              // concluir o cenário do dia também pontua/progride
+  if (data?.score) S.cache.scores[game] = data.score;
 }
 function scheduleOutboxRetry() { clearTimeout(S.outboxTimer); S.outboxTimer = setTimeout(() => { S.outboxTimer = null; flushOutbox(); }, RETRY_MS); }
 function flushOutbox() {
@@ -277,8 +280,8 @@ export const Cloud = {
   /** Abre o tabuleiro do dia (slot 1 ou 2): o servidor cobra 1 coin, marca o início e devolve o puzzle (sem a seed). */
   async dailyOpen(game, slot) {
     const d = await invoke("daily_open", { game, slot });
-    const g = (S.cache.daily[game] ??= { day: null, level: 0, coins: 0, results: {}, open: [] });
-    g.day = d.day; g.level = d.level; g.coins = d.coins;
+    const g = (S.cache.daily[game] ??= { day: null, level: 0, coins: 0, slots: 2, results: {}, open: [] });
+    g.day = d.day; g.level = d.level; g.coins = d.coins; if (d.slots != null) g.slots = d.slots;
     if (!g.open.includes(slot)) g.open.push(slot);
     return d;
   },
@@ -325,6 +328,15 @@ export const Cloud = {
     const { data, error } = await S.client.from("games").update({ enabled: on }).eq("id", game).select("id");
     if (error || !data?.length) throw new Error("Só o administrador pode ligar ou desligar jogos.");
     S.cache.games[game] = on;
+  },
+  /** Configuração global (coins/cenários por dia). Vem no snapshot ao abrir a página. */
+  config() { return S.cache.config ?? { coinsPerDay: 2 }; },
+  /** Administrador: quantos coins (e cenários) por dia. Vale para todos os jogos. */
+  async setCoinsPerDay(n) {
+    const { data, error } = await S.client.rpc("set_coins_per_day", { p_n: n });
+    if (error) throw new Error(error.code === "42501" ? "Só o administrador pode mudar os coins por dia." : "Não foi possível salvar os coins por dia.");
+    S.cache.config = { ...S.cache.config, coinsPerDay: data.coinsPerDay };
+    return data.coinsPerDay;
   },
   /** Ranking de um jogo (gameId) ou geral (null). Qualquer um pode ver, inclusive quem joga como anônimo. */
   async ranking(gameId, scope, limit) {

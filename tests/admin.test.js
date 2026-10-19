@@ -8,7 +8,7 @@ import { Scores } from "../shared/scores.js";
 import { ADMIN_ID, ADMIN_EMAIL, isAdmin } from "../shared/roles.js";
 
 const T0 = Date.UTC(2026, 9, 7, 12);
-const reset = () => ["wmg.users", "wmg.coins", "wmg.scores", "wmg.games", "wmg.profiles"].forEach(k => store.set(k, "{}")) || store.set("wmg.session", "null");
+const reset = () => ["wmg.users", "wmg.coins", "wmg.scores", "wmg.games", "wmg.profiles", "wmg.config"].forEach(k => store.set(k, "{}")) || store.set("wmg.session", "null");
 
 test("o administrador entra com o e-mail e a senha definidos e tem o nome 'administrador'", async () => {
   reset();
@@ -54,6 +54,20 @@ test("desligar um jogo bloqueia jogadores, libera o administrador e NÃO remove 
   assert.equal(Scores.mine().zip.points, 20);                                    // pontos do usuário intactos
   GameSwitch.set("zip", true);
   assert.equal(GameSwitch.isOn("zip"), true);
+});
+
+/* ----- Coins (e cenários) por dia, configurados pelo administrador ----- */
+import { AdminConfig, DEFAULT_COINS_PER_DAY } from "../shared/admin-config.js";
+
+test("AdminConfig: só o administrador muda os coins por dia; valor padrão e limites", () => {
+  reset();
+  const admin = { id: ADMIN_ID, name: "administrador" };
+  assert.equal(AdminConfig.coinsPerDay(admin), DEFAULT_COINS_PER_DAY);
+  assert.equal(AdminConfig.setCoinsPerDay(admin, 4), 4);
+  assert.equal(AdminConfig.coinsPerDay(admin), 4);
+  assert.throws(() => AdminConfig.setCoinsPerDay({ id: "u1", name: "Ana" }, 3), /administrador/);
+  for (const bad of [0, 11, 1.5, NaN, undefined]) assert.throws(() => AdminConfig.setCoinsPerDay(admin, bad), /1 a 10/);
+  assert.equal(AdminConfig.coinsPerDay(admin), 4, "valor inválido não muda a configuração");
 });
 
 /* ----- Nível por jogo, escolhido pelo administrador ----- */

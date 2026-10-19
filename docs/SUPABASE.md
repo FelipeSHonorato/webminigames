@@ -23,7 +23,8 @@ Depois rode, também no SQL Editor, as demais migrações, **nesta ordem**:
 - `20261018000000_phase_runs.sql`: fase aberta em `phase_runs`, pontos e coins decididos no servidor e ritmo anti-farm.
 - `20261019000000_serve_phase.sql`: o **servidor passa a servir a fase** (seed secreta + puzzle público, sem a solução) e a **validar o tabuleiro** antes de pontuar.
 - `20261020000000_admin_sem_pontos.sql`: a conta administradora não pontua nem entra em rankings.
-- `20261021000000_desafio_diario.sql`: **desafio diário** — mesmo cenário do dia por nível (2 tabuleiros/dia, rankeado por tempo).
+- `20261021000000_desafio_diario.sql`: **desafio diário** — mesmo cenário do dia por nível, rankeado por tempo.
+- `20261022000000_diario_configuravel.sql`: o **nº de cenários do dia = coins do dia** (configurável pelo administrador, global) e concluir o dia também **pontua**.
 
 Para conferir o que já está aplicado:
 
@@ -33,7 +34,8 @@ select
   to_regproc('public.open_phase')      as open_phase,
   to_regproc('public.finalize_win')    as finalize_win,
   to_regproc('public.daily_open')      as daily_open,
-  to_regproc('public.daily_finish')    as daily_finish;
+  to_regproc('public.daily_finish')    as daily_finish,
+  to_regproc('public.set_coins_per_day') as set_coins_per_day;
 ```
 
 O que der `null` ainda falta rodar (re-rodar é seguro: os arquivos são idempotentes). Com a CLI, `supabase db push` aplica todas na ordem.
@@ -156,6 +158,7 @@ on conflict do nothing;
 | Tabela | Guarda | Quem escreve |
 |---|---|---|
 | `games` | lista de jogos e se estão ligados | só o administrador (`enabled`) |
+| `settings` | configuração global (hoje: `coins_per_day`) | só `set_coins_per_day` (administrador) |
 | `profiles` | nome, apelido, região, foto, papel (`role`) | o próprio dono (menos o `role`); criado por gatilho no cadastro |
 | `game_progress` | vitórias por jogo (o nível sobe a cada 15) | só funções |
 | `scores` | pontos do ranking | só `finalize_win` |
@@ -170,7 +173,7 @@ on conflict do nothing;
 
 O navegador **não consegue** escrever pontos, vitórias nem coins — e nem servir a própria fase. Quem decide tudo é a **Edge Function `play`** (só ela tem a chave `service_role` e chama as funções exclusivas do servidor): `open_phase` cobra 1 coin, escolhe o nível e guarda a **seed** (que **nunca** vai ao cliente) junto do **puzzle público sem solução**; `use_hint` conta as dicas; e `finalize_win` recebe o tabuleiro já **validado** pela função (ela regenera a fase a partir da seed e confere), **decide os pontos** pelo nível (a dica só reduz, nunca abaixo de 1), exige uma vitória por jogo a cada `phase_min_seconds` (anti-farm), consome a fase e ignora um reenvio (mesmo id, para a fila offline). `ranking(...)` monta os rankings no servidor e nunca expõe e-mail.
 
-**Desafio diário** (migração `20261021000000_desafio_diario.sql`). Todo mundo joga o **mesmo cenário do dia** por nível — a seed do dia é derivada de `dia + jogo + nível + slot` (nunca vai ao cliente) e o placar é o **tempo**, contado no servidor (`now() − started_at`). Cada jogador tem **2 coins do dia** (separados dos coins normais) e cada coin abre **um tabuleiro** (slots 1 e 2, cenários diferentes); vale o **melhor tempo** entre os dois. Cada dica soma **+30 s** ao tempo daquele tabuleiro. O dia (`daily_day()`) é o de **Brasília**, então os coins do dia zeram à meia-noite local. Abandonar (fechar sem concluir) **perde o coin e não entra no ranking** — reabrir consome outro coin. As ações `daily_open`/`daily_hint`/`daily_finish` rodam na Edge Function `play`; o cliente lê a situação com `daily_status()` e o placar com `daily_leaderboard(jogo, nível)` (essa liberada ao `anon`, como o `ranking`). `delete_my_account()` (migração `20261017000000_delete_account.sql`) apaga a própria conta em `auth.users`; o `on delete cascade` leva embora, junto, todo o rastro do jogador.
+**Desafio diário** (migrações `20261021000000_desafio_diario.sql` e `20261022000000_diario_configuravel.sql`). Na nuvem o jogo é **só o desafio do dia** (a fase aleatória saiu; no modo local/visitante ela continua). Todo mundo joga o **mesmo cenário do dia** por nível — a seed do dia é derivada de `dia + jogo + nível + slot` (nunca vai ao cliente) e o placar é o **tempo**, contado no servidor (`now() − started_at`). Cada jogador tem **coins do dia** (separados dos coins normais): **um coin abre um cenário** do dia, e a quantidade de cenários por nível é igual aos coins do dia. O valor é **global e configurável pelo administrador** (`settings.coins_per_day`, função `set_coins_per_day`, pelo painel) — hoje 2, de 1 a `max_scenarios()` (10); mudar o valor muda o nº de cenários sem gerar nada (são derivados). Vale o **melhor tempo** entre os cenários concluídos. Cada dica soma **+30 s** ao tempo daquele cenário. O dia (`daily_day()`) é o de **Brasília**, então os coins do dia zeram à meia-noite local. Abandonar (fechar sem concluir) **perde o coin e não entra no ranking** — reabrir consome outro coin. **Concluir também pontua e sobe a progressão** (uma vez por cenário/dia), então os DOIS rankings convivem: o de **tempo** do dia e o de **pontos** (a conta administradora segue sem pontuar). As ações `daily_open`/`daily_hint`/`daily_finish` rodam na Edge Function `play`; o cliente lê a situação com `daily_status()` (inclui `slots`) e o placar com `daily_leaderboard(jogo, nível)` (essa liberada ao `anon`, como o `ranking`). `delete_my_account()` (migração `20261017000000_delete_account.sql`) apaga a própria conta em `auth.users`; o `on delete cascade` leva embora, junto, todo o rastro do jogador.
 
 **Site** (`shared/backend/`; a biblioteca do Supabase vem do próprio repositório, `vendor/supabase-js.mjs`, sem CDN):
 - `boot.js` é importado como **primeira linha de cada página**. Ele carrega os dados da conta de uma vez para um cache em memória; os jogos continuam lendo coins, fase e nível de forma síncrona, e as escritas vão para o servidor em segundo plano.

@@ -34,6 +34,16 @@
     <p class="note"><strong>Nível para testar:</strong> escolher um nível coloca o jogo, para a conta do administrador, no início desse nível (0/15) e descarta a fase salva dele; ao abrir o jogo, nasce uma fase nova nesse nível. Só a conta do administrador é alterada: jogadores, pontos e rankings continuam iguais. Uma aba do jogo já aberta só muda ao recarregar.</p>
     <p class="note">Neste protótipo a chave é gravada só neste navegador. Para valer para todos os jogadores, o estado precisa ficar no servidor.</p>
   </section>
+  <section class="pcard">
+    <h2>Desafio diário</h2>
+    <p>Quantos <strong>cenários por nível</strong> cada jogador recebe por dia — e, portanto, quantos coins do dia. Vale para todos os jogos. O dia vira à meia-noite de Brasília.</p>
+    <div class="coinsrow">
+      <label for="coinsPerDay">Coins (e cenários) por dia:</label>
+      <input id="coinsPerDay" type="number" min="1" max="10" step="1" inputmode="numeric" aria-describedby="coinsMsg">
+      <button type="button" id="coinsSave">Salvar</button>
+    </div>
+    <p class="fmsg" id="coinsMsg" role="status"></p>
+  </section>
 </main>
 <script src="shared/file-warning.js"></script>
 <script type="module" src="js/admin.js"></script>

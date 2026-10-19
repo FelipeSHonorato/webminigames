@@ -290,8 +290,10 @@ select is(public.daily_seed('2026-01-01'::date, 'zip', 1, 1), public.daily_seed(
 select isnt(public.daily_seed('2026-01-01'::date, 'zip', 1, 1), public.daily_seed('2026-01-01'::date, 'zip', 1, 2), 'slots diferentes têm cenários diferentes');
 select isnt(public.daily_seed('2026-01-01'::date, 'zip', 1, 1), public.daily_seed('2026-01-01'::date, 'sopa', 1, 1), 'jogos diferentes têm cenários diferentes');
 
-select is((public.daily_open('11111111-1111-1111-1111-111111111111', 'zip', 1)) ->> 'coins', '1', 'abrir o tabuleiro do dia gasta 1 coin do dia');
-select is((public.daily_finish('11111111-1111-1111-1111-111111111111', 'zip', 1, null)) ->> 'duplicate', 'false', 'concluir guarda o tempo do dia');
+select is((public.daily_open('11111111-1111-1111-1111-111111111111', 'zip', 1)) ->> 'coins', '1', 'abrir o cenário do dia gasta 1 coin do dia');
+insert into public.tap_res select 'dfirst', public.daily_finish('11111111-1111-1111-1111-111111111111', 'zip', 1, null);
+select is((select v ->> 'duplicate' from public.tap_res where k = 'dfirst'), 'false', 'concluir guarda o tempo do dia');
+select is((select (v -> 'score' ->> 'points')::int from public.tap_res where k = 'dfirst') > 0, true, 'concluir o cenário do dia também pontua');
 insert into public.tap_res select 'dfin', public.daily_finish('11111111-1111-1111-1111-111111111111', 'zip', 1, null);
 select is((select v ->> 'duplicate' from public.tap_res where k = 'dfin'), 'true', 'reenviar a conclusão do dia não conta duas vezes');
 select is((public.daily_open('11111111-1111-1111-1111-111111111111', 'zip', 2)) ->> 'coins', '0', 'o segundo tabuleiro do dia usa o segundo coin');
@@ -303,6 +305,19 @@ select throws_ok($$select public.daily_open('11111111-1111-1111-1111-11111111111
 select public.tap_as('11111111-1111-1111-1111-111111111111');
 select throws_ok($$select public.daily_open('11111111-1111-1111-1111-111111111111', 'zip', 1)$$, '42501', null, 'o jogador não abre a fase do dia direto');
 select throws_ok('select * from public.daily_results', '42501', null, 'o jogador não lê a tabela do dia direto');
+select public.tap_super();
+
+-- ---------- coins/cenários por dia configuráveis (painel do administrador) ----------
+select is(public.coins_cap(), 2, 'sem configuração, valem os 2 coins por dia padrão');
+select public.tap_as('33333333-3333-3333-3333-333333333333');                      -- a conta administradora
+select is((public.set_coins_per_day(4)) ->> 'coinsPerDay', '4', 'o administrador muda os coins por dia');
+select throws_ok($$select public.set_coins_per_day(0)$$, '22023', 'invalid_coins', 'valor fora de 1..max é recusado');
+select public.tap_super();
+select is(public.coins_cap(), 4, 'coins_cap acompanha a configuração');
+select is((public.daily_open('44444444-4444-4444-4444-444444444444', 'zip', 4)) ->> 'slots', '4', 'há 4 cenários quando há 4 coins por dia');
+select throws_ok($$select public.daily_open('44444444-4444-4444-4444-444444444444', 'zip', 5)$$, '22023', 'bad_slot', 'não existe 5º cenário');
+select public.tap_as('11111111-1111-1111-1111-111111111111');                      -- jogador comum
+select throws_ok($$select public.set_coins_per_day(3)$$, '42501', null, 'só o administrador muda a configuração');
 select public.tap_super();
 
 select * from finish();

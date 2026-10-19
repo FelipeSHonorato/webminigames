@@ -3,6 +3,7 @@ import { requireSession } from "../shared/session.js";
 import { isAdmin } from "../shared/roles.js";
 import { GameSwitch } from "../shared/game-switch.js";
 import { AdminLevel } from "../shared/admin-level.js";
+import { AdminConfig } from "../shared/admin-config.js";
 import { Scores } from "../shared/scores.js";
 import { GAMES } from "./games.js";
 import { mountUserBar } from "./userbar.js";
@@ -61,5 +62,21 @@ function levelRow(id, g) {
   return row;
 }
 
+/** Configuração global do desafio diário: coins (e cenários por nível) por dia. */
+function renderConfig() {
+  $("coinsPerDay").value = String(AdminConfig.coinsPerDay(session));
+  $("coinsMsg").textContent = "";
+}
+function wireConfig() {
+  renderConfig();
+  $("coinsSave").onclick = async () => {
+    try {
+      const saved = await AdminConfig.setCoinsPerDay(session, Number($("coinsPerDay").value));
+      $("coinsMsg").textContent = `Salvo: ${saved} ${saved === 1 ? "coin" : "coins"} por dia e ${saved} ${saved === 1 ? "cenário" : "cenários"} por nível em cada jogo.`;
+      $("coinsPerDay").value = String(saved);
+    } catch (err) { $("coinsMsg").textContent = err.message; }
+  };
+}
+
 if (session && !isAdmin(session)) location.replace("jogos.html");        // só o administrador
-else if (session) { mountUserBar($("userbar")); render(); $("admin-title").focus({ preventScroll: true }); }
+else if (session) { mountUserBar($("userbar")); render(); wireConfig(); $("admin-title").focus({ preventScroll: true }); }
