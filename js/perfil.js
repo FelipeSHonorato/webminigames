@@ -10,6 +10,7 @@ import { GameSwitch } from "../shared/game-switch.js";
 import { isAdmin } from "../shared/roles.js";
 import { Auth } from "./auth.js";
 import { mountUserBar } from "./userbar.js";
+import { attachPasswordToggles } from "../shared/password-toggle.js";
 
 const $ = id => document.getElementById(id);
 const session = requireSession("index.html");
@@ -109,4 +110,5 @@ function init() {
     } catch (err) { say($("deleteMsg"), err.message, true); btn.disabled = false; }
   };
 }
+attachPasswordToggles();
 if (session) { init(); $("profile-title").focus({ preventScroll: true }); }

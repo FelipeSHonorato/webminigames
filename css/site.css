@@ -29,6 +29,12 @@ label{display:block;margin-bottom:12px;font-size:.9rem;color:var(--muted)}
 label[hidden]{display:none}
 input,select{display:block;width:100%;margin-top:4px;padding:11px 12px;background:var(--bg);border:2px solid var(--line);border-radius:8px;color:var(--fg)}
 input:focus,select:focus{border-color:var(--accent);outline:none}
+/* Campo de senha com o "olhinho" para mostrar/ocultar o que está sendo digitado. */
+.pw-field{position:relative;margin-top:4px}
+.pw-field input{margin-top:0;padding-right:46px}
+.pw-toggle{position:absolute;top:50%;right:6px;transform:translateY(-50%);display:grid;place-items:center;width:32px;height:32px;padding:0;background:none;border:0;border-radius:8px;color:var(--muted);cursor:pointer}
+.pw-toggle:hover{color:var(--accent);background:var(--surface)}
+.pw-toggle svg{display:block}
 #error{min-height:1.3em;margin:0 0 8px;color:var(--err);font-size:.9rem}
 .btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:12px;border-radius:8px;border:2px solid var(--line);background:var(--surface);font-weight:700}
 .btn:hover{border-color:var(--accent)}

@@ -3,6 +3,7 @@ import { Auth } from "./auth.js";
 import { Cloud } from "../shared/backend/cloud.js";
 import { readAuthRedirect } from "../shared/backend/auth-redirect.js";
 import { mountPasswordRules } from "./password-rules.js";
+import { attachPasswordToggles } from "../shared/password-toggle.js";
 
 /* Página para onde o link de redefinição de senha leva ("Esqueceu a senha?").
    - link novo (?token_hash=...&type=recovery): a nova senha é definida ao enviar o formulário (verifyOtp + updateUser);
@@ -14,6 +15,7 @@ const goToGames = () => location.replace("jogos.html");
 const showError = message => { $("errorText").textContent = message; show("s-error"); };
 
 const updateRules = mountPasswordRules($("novaSenha"), $("pwRules"));
+attachPasswordToggles();
 
 const link = readAuthRedirect(window.__authLink);
 history.replaceState(null, "", location.pathname);                       // tira o código do endereço (não fica no histórico nem em capturas de tela)

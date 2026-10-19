@@ -5,8 +5,10 @@ import { REGIONS } from "../shared/regions.js";
 import { themeSwitch } from "../shared/theme.js";
 import { mountPasswordRules } from "./password-rules.js";
 import { readAuthRedirect } from "../shared/backend/auth-redirect.js";
+import { attachPasswordToggles } from "../shared/password-toggle.js";
 
 const $ = id => document.getElementById(id);
+attachPasswordToggles();
 const goToGames = () => location.assign("jogos.html");
 $("themeHost").append(themeSwitch());
 let mode = "login";
