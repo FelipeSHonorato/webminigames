@@ -168,14 +168,13 @@ function buildBoard() {
       points = `${cx},${cy} ${cx - dc * 0.36},${cy - dr * 0.36}`;
     } else points = p.cells.map(c => { const [x, y] = center(c); return `${x},${y}`; }).join(" ");
 
-    let hit;
-    if (p.cells.length === 1) {
-      const [x, y] = center(p.cells[0]);
-      hit = document.createElementNS(SVGNS, "circle");
-      hit.setAttribute("cx", x); hit.setAttribute("cy", y); hit.setAttribute("r", 0.5);
-    } else {
-      hit = document.createElementNS(SVGNS, "polyline"); hit.setAttribute("points", points);
-    }
+    /* Área de clique = exatamente as casas da própria seta. As áreas não se sobrepõem (cada casa pertence a
+       uma só seta), então clicar numa seta nunca aciona a vizinha — mesmo com a ponta perto da borda. */
+    const hit = document.createElementNS(SVGNS, "path");
+    hit.setAttribute("d", p.cells.map(c => {
+      const x = c % n, y = (c / n) | 0;
+      return `M${x} ${y}h1v1h-1z`;
+    }).join(" "));
     const body = document.createElementNS(SVGNS, "polyline"); body.setAttribute("points", points);
     hit.setAttribute("class", "hit"); body.setAttribute("class", "body");
     const tip = document.createElementNS(SVGNS, "path");
