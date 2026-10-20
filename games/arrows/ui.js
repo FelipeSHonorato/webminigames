@@ -124,7 +124,7 @@ let pieceEls = [], redirectorEls = [], lives = LIVES, turn = 0, boardLocked = fa
 const SVGNS = "http://www.w3.org/2000/svg";
 const DIR_NAMES = ["cima", "direita", "baixo", "esquerda"];
 const DIR_COLORS = ["#3f8fd6", "#23b3a4", "#e4572e", "#e0a020"];   // cima, direita, baixo, esquerda
-const REDIR_ARROW = "M0.5 0.16 L0.74 0.46 L0.59 0.46 L0.59 0.84 L0.41 0.84 L0.41 0.46 L0.26 0.46 Z";
+const REDIR_ARROW = "M0.5 0.26 L0.67 0.47 L0.56 0.47 L0.56 0.74 L0.44 0.74 L0.44 0.47 L0.33 0.47 Z";
 const center = cell => { const n = puzzle.n; return [(cell % n) + 0.5, ((cell / n) | 0) + 0.5]; };
 
 /** Ponta em forma de seta: triângulo na cabeça, apontando a direção de saída.
