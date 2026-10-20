@@ -8,16 +8,18 @@ export function fmtDuration(ms) {
   return h ? `${h}h ${String(min % 60).padStart(2, "0")}min` : `${min}min`;
 }
 
-/** Ícone do coin seguido da quantidade: [moeda] x 2 */
-export function coinBadge({ coins, max = COINS_PER_DAY, nextRefillAt }) {
+/** Ícone do coin seguido da quantidade: [moeda] x 2. `daily` descreve os tickets acumuláveis do desafio. */
+export function coinBadge({ coins, max = COINS_PER_DAY, nextRefillAt, daily = false }) {
   const badge = document.createElement("span");
   badge.className = "coins" + (coins ? "" : " empty");
   badge.insertAdjacentHTML("beforeend", COIN);        // ícone estático
   const n = document.createElement("span");
   n.textContent = `x ${coins}`;
   badge.append(n);
-  const text = `${coins} ${coins === 1 ? "coin disponível" : "coins disponíveis"}. Cada fase concluída usa 1 coin; a cada 24 h o saldo volta a ${max} por jogo (sem acumular).`
-    + (coins < max ? ` Próxima recarga em ${fmtDuration(nextRefillAt - Date.now())}.` : "");
+  const text = daily
+    ? `${coins} ${coins === 1 ? "ticket disponível" : "tickets disponíveis"}. Cada cenário aberto usa 1 ticket; novos tickets chegam à meia-noite de Brasília (até 30 dias acumulados).`
+    : `${coins} ${coins === 1 ? "coin disponível" : "coins disponíveis"}. Cada fase concluída usa 1 coin; a cada 24 h o saldo volta a ${max} por jogo (sem acumular).`
+      + (coins < max ? ` Próxima recarga em ${fmtDuration(nextRefillAt - Date.now())}.` : "");
   badge.title = text;
   badge.setAttribute("aria-label", text);
   return badge;

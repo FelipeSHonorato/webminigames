@@ -265,7 +265,37 @@ test("administrador: nível e liga/desliga passam pelo servidor; recusa vira men
   await assert.rejects(async () => AdminLevel.set({ id: UID, role: "user" }, "zip", "zip.wins", 1), /administrador/);
 });
 
-test("administrador: dar coins do dia (por e-mail) passa pelo servidor; validação em português", async () => {
+test("desafio diário: status guarda tickets e o dia original em open/finish/leaderboard", async () => {
+  const daily = { zip: {
+    day: "2026-10-26", slots: 2, level: 0, coins: 1,
+    pending: [{ day: "2026-10-24", slot: 1, level: 0 }], open: [],
+    results: {}, history: {}, levels: {}, stats: {},
+  } };
+  const c = await boot({
+    rpc: { daily_status: () => ({ data: daily, error: null }) },
+    functions: { invoke: (name, body) => ({ data: body.action === "daily_open"
+      ? { day: "2026-10-24", level: 0, slot: 1, slots: 2, startedAt: 0, puzzle: {}, coins: 0, resumed: false }
+      : { day: "2026-10-24", level: 0, seconds: 42, best: 42, coins: 0, wins: 1, stats: { slot: 1, seconds: 42 }, score: { points: 5, wins: 1 } }, error: null }) },
+  });
+  await Cloud.dailyStatus();
+  assert.deepEqual(Cloud.daily("zip").pending, [{ day: "2026-10-24", slot: 1, level: 0 }]);
+  assert.equal(Cloud.daily("zip").day, "2026-10-26");
+
+  await Cloud.dailyOpen("zip", "2026-10-24", 1);
+  assert.deepEqual(c.calls.find(x => x[0] === "invoke" && x[2].action === "daily_open")[2], { action: "daily_open", game: "zip", day: "2026-10-24", slot: 1 });
+  assert.deepEqual(Cloud.daily("zip").open, [{ day: "2026-10-24", slot: 1, level: 0 }]);
+  assert.deepEqual(Cloud.daily("zip").pending, []);
+
+  await Cloud.dailyFinish("zip", "2026-10-24", 1, { order: [] });
+  assert.equal(Cloud.daily("zip").history["2026-10-24"][1], 42);
+  assert.deepEqual(Cloud.daily("zip").open, []);
+  assert.equal(Cloud.daily("zip").statsByDay["2026-10-24"][1].seconds, 42);
+
+  await Cloud.dailyLeaderboard("zip", 0, "global", 10, "2026-10-24");
+  assert.equal(c.calls.find(x => x[0] === "rpc" && x[1] === "daily_leaderboard")[2].p_day, "2026-10-24");
+});
+
+test("administrador: dar tickets diários (por e-mail) passa pelo servidor; validação em português", async () => {
   const admin = { ...SNAP, profile: { ...SNAP.profile, role: "admin" } };
   const r = { email: "bia@t.com", name: "Bia", day: "2026-10-19", coins: 10, games: ["zip", "patches"] };
   const c = await boot({ snapshot: admin, rpc: { admin_grant_coins: () => ({ data: r, error: null }) } });
@@ -274,7 +304,7 @@ test("administrador: dar coins do dia (por e-mail) passa pelo servidor; validaç
   assert.deepEqual(c.calls.find(x => x[1] === "admin_grant_coins")[2], { p_email: "bia@t.com", p_game: null, p_coins: 10 });
   await assert.rejects(AdminCoins.grant({ id: UID, role: "user" }, "bia@t.com", "zip", 10), /administrador/);
   await assert.rejects(AdminCoins.grant(session, "sem-arroba", "zip", 10), /e-mail/);
-  await assert.rejects(AdminCoins.grant(session, "bia@t.com", "zip", -1), /0 a 99999/);
+  await assert.rejects(AdminCoins.grant(session, "bia@t.com", "zip", 0), /1 a 30 dias/);
   await boot({ snapshot: admin, rpc: { admin_grant_coins: () => ({ data: null, error: { code: "42501", message: "forbidden" } }) } });
   await assert.rejects(AdminCoins.grant(JSON.parse(store.get("wmg.session")), "bia@t.com", null, 5), /administrador/);
   await boot({ snapshot: admin, rpc: { admin_grant_coins: () => ({ data: null, error: { code: "22023", message: "unknown_user" } }) } });

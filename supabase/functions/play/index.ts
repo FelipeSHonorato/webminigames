@@ -5,7 +5,7 @@
 // Deploy:  supabase functions deploy play
 // Segredo: supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...   (URL e ANON_KEY são injetadas automaticamente)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { publicView, validate, hint, hasHints } from "./_shared/board.js";
+import { publicView, validate, hint, hasHints, snapshot, validateSnapshot, hintSnapshot } from "./_shared/board.js";
 
 const URL = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -19,6 +19,25 @@ const CORS = {
 };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...CORS } });
+
+/** Cenário diário compartilhado: gera uma única vez por (dia, jogo, nível, slot) e depois só lê o snapshot. */
+async function scenarioFor(svc: any, game: string, run: any) {
+  const key = { day: run.day, game_id: game, level: Number(run.level), slot: Number(run.slot) };
+  const select = "public_view, full_puzzle";
+  let { data, error } = await svc.from("daily_scenarios").select(select).match(key).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (data) return data;
+
+  const built = snapshot(game, Number(run.seed), Number(run.level));
+  ({ error } = await svc.from("daily_scenarios").upsert({
+    ...key, seed: Number(run.seed), gen: built.gen, public_view: built.publicView, full_puzzle: built.fullPuzzle,
+  }, { onConflict: "day,game_id,level,slot", ignoreDuplicates: true }));
+  if (error) throw new Error(error.message);
+
+  ({ data, error } = await svc.from("daily_scenarios").select(select).match(key).single());
+  if (error) throw new Error(error.message);
+  return data;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
@@ -74,34 +93,37 @@ Deno.serve(async (req) => {
     /* ---- Desafio diário: mesmo cenário do dia para todos (por nível), ranking por tempo. A seed do dia
        (derivada de dia/jogo/nível/slot no banco) também nunca vai ao cliente; só o puzzle público. ---- */
     if (action !== "daily_open" && action !== "daily_hint" && action !== "daily_finish") return json({ error: "unknown_action" }, 400);
-    const slot = body?.slot;                                        // o limite real (coins do dia) é decidido no banco (daily_open)
+    const slot = body?.slot;                                        // o limite real (tickets) é decidido no banco (daily_open)
+    const day = typeof body?.day === "string" ? body.day : null;    // tickets atrasados mandam o dia original
     if (!Number.isInteger(slot) || slot < 1 || slot > 10) return json({ error: "bad_slot" }, 400);
 
     if (action === "daily_open") {
-      const { data, error } = await svc.rpc("daily_open", { p_uid: uid, p_game: game, p_slot: slot });
+      const { data, error } = await svc.rpc("daily_open", { p_uid: uid, p_game: game, p_slot: slot, p_day: day });
       if (error) return json({ error: error.message }, error.message === "no_coins" ? 409 : 400);
-      const view = publicView(game, Number(data.seed), Number(data.level));
-      return json({ day: data.day, level: data.level, slot: data.slot, slots: data.slots, startedAt: data.startedAt, puzzle: view, coins: data.coins });
+      const scenario = await scenarioFor(svc, game, data);
+      return json({ day: data.day, level: data.level, slot: data.slot, slots: data.slots, startedAt: data.startedAt, puzzle: scenario.public_view, coins: data.coins, resumed: data.resumed });
     }
 
     if (action === "daily_hint") {
       if (!hasHints(game)) return json({ error: "no_hints" }, 400);
-      const { data: run, error: re } = await svc.rpc("daily_run", { p_uid: uid, p_game: game, p_slot: slot });
+      const { data: run, error: re } = await svc.rpc("daily_run", { p_uid: uid, p_game: game, p_slot: slot, p_day: day });
       if (re) return json({ error: re.message }, 400);
       if (!run) return json({ error: "no_phase" }, 409);
-      const h = hint(game, Number(run.seed), run.level, run.hints, body?.state);
+      const scenario = await scenarioFor(svc, game, run);
+      const h = hintSnapshot(game, scenario.full_puzzle, Number(run.level), run.hints, body?.state);
       if (!h) return json({ error: "no_hint" }, 409);
-      const { data, error } = await svc.rpc("daily_hint", { p_uid: uid, p_game: game, p_slot: slot });
+      const { data, error } = await svc.rpc("daily_hint", { p_uid: uid, p_game: game, p_slot: slot, p_day: day });
       if (error) return json({ error: error.message }, 409);
       return json({ ...h, hints: data.hints });
     }
 
     if (action === "daily_finish") {
-      const { data: run, error: re } = await svc.rpc("daily_run", { p_uid: uid, p_game: game, p_slot: slot });
+      const { data: run, error: re } = await svc.rpc("daily_run", { p_uid: uid, p_game: game, p_slot: slot, p_day: day });
       if (re) return json({ error: re.message }, 400);
       if (!run) return json({ error: "no_phase" }, 409);
-      if (!validate(game, Number(run.seed), run.level, body?.state)) return json({ error: "invalid" }, 422);
-      const { data, error } = await svc.rpc("daily_finish", { p_uid: uid, p_game: game, p_slot: slot, p_op: body?.op ?? null });
+      const scenario = await scenarioFor(svc, game, run);
+      if (!validateSnapshot(game, scenario.full_puzzle, body?.state)) return json({ error: "invalid" }, 422);
+      const { data, error } = await svc.rpc("daily_finish", { p_uid: uid, p_game: game, p_slot: slot, p_op: body?.op ?? null, p_day: day });
       if (error) return json({ error: error.message }, 400);
       return json(data);
     }

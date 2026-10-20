@@ -11,10 +11,11 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrations = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql"]
+const migrations = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql"]
   .map(f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8"));
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
 const sqlAll = migrations.join("\n");          // estrutura (RLS, permissões, search_path): todas as migrações
+const ticketSql = migrations[migrations.length - 2]; // a migração de tickets (a última só ajusta o início do backlog)
 const fn = name => sql.match(new RegExp(`function public\\.${name}\\(\\)[^$]*\\$\\$ select ([^$]*?) \\$\\$`))?.[1];
 
 test("SQL: constantes do jogo iguais às do JS (nível, pontos, coins)", () => {
@@ -51,8 +52,8 @@ test("SQL: funções security definer fixam o search_path (sem sequestro por esq
 
 test("SQL: o visitante (anon) só recebe a lista de jogos e o ranking; o papel (role) não é editável pelo cliente", () => {
   const toAnon = [...sqlAll.matchAll(/^grant [^;]* to ([^;]*anon[^;]*);/gm)].map(m => m[0]);
-  assert.equal(toAnon.length, 3, toAnon.join("\n"));
-  assert.ok(toAnon.some(g => /select on public\.games/.test(g)) && toAnon.some(g => /function public\.ranking/.test(g)) && toAnon.some(g => /function public\.daily_leaderboard/.test(g)));
+  assert.equal(toAnon.length, 4, toAnon.join("\n"));   // o grant antigo do daily_leaderboard fica no histórico; a função antiga é dropada
+  assert.ok(toAnon.some(g => /select on public\.games/.test(g)) && toAnon.some(g => /function public\.ranking/.test(g)) && toAnon.some(g => /function public\.daily_leaderboard\(text, int, text, int, date\)/.test(g)));
   const upd = sql.match(/grant update \(([^)]*)\) on public\.profiles/)[1];
   assert.ok(!/\brole\b/.test(upd) && !/\bid\b/.test(upd), `colunas editáveis: ${upd}`);
 });
@@ -76,18 +77,24 @@ test("SQL: a fase e os pontos são decididos no servidor (o cliente não pontua 
 });
 
 test("SQL: o desafio diário tem tabelas, funções e só a Edge escreve a fase", () => {
-  for (const t of ["daily_coins", "daily_runs", "daily_results"]) {
+  for (const t of ["daily_coins", "daily_runs", "daily_results", "daily_tickets", "daily_grants", "daily_scenarios"]) {
     assert.match(sqlAll, new RegExp(`create table public\\.${t} \\(`), `${t} ausente`);
     assert.match(sqlAll, new RegExp(`alter table public\\.${t}\\s+enable row level security`), `${t} sem RLS`);
     assert.match(sqlAll, new RegExp(`revoke all on public\\.${t}`), `${t} sem revoke`);
   }
-  for (const f of ["daily_open\\(uuid, text, int\\)", "daily_hint\\(uuid, text, int\\)", "daily_finish\\(uuid, text, int, uuid\\)", "daily_run\\(uuid, text, int\\)"]) {
+  for (const f of ["daily_open\\(uuid, text, int, date\\)", "daily_hint\\(uuid, text, int, date\\)", "daily_finish\\(uuid, text, int, uuid, date\\)", "daily_run\\(uuid, text, int, date\\)"]) {
     assert.match(sqlAll, new RegExp(`revoke all on function public\\.${f}\\s+from public, anon, authenticated`), `${f} acessível ao cliente`);
     assert.match(sqlAll, new RegExp(`grant execute on function public\\.${f}\\s+to service_role`), `${f} deveria ser da Edge`);
   }
+  for (const f of ["daily_open\\(uuid, text, int\\)", "daily_hint\\(uuid, text, int\\)", "daily_finish\\(uuid, text, int, uuid\\)", "daily_run\\(uuid, text, int\\)"])
+    assert.match(sqlAll, new RegExp(`drop function if exists public\\.${f}`), `${f} antiga deveria sair`);
   assert.match(sqlAll, /America\/Sao_Paulo/);                       // o dia é o de Brasília
   assert.match(sqlAll, /daily_hint_seconds\(\)[^$]*\$\$ select 30/); // +30 s por dica
   assert.match(sqlAll, /day\s+date not null/);                       // o reset à meia-noite é por dia contado
+  assert.match(sqlAll, /create table public\.daily_tickets[\s\S]*?primary key \(user_id, day, game_id, slot\)/); // fila por dia/slot
+  assert.match(sqlAll, /create table public\.daily_scenarios[\s\S]*?public_view jsonb not null,[\s\S]*?full_puzzle jsonb not null/); // snapshot imutável
+  assert.match(sqlAll, /daily_backlog_days\(\)[^$]*\$\$ select 30/); // teto de 30 dias de tickets
+  assert.match(sqlAll, /create or replace function public\.daily_backlog_start\(\)[^$]*\$\$ select date '2026-10-20'/); // início do backlog no lançamento
 });
 
 test("SQL: coins por dia é configurável (settings) e manda no nº de cenários/cenários do dia", () => {
@@ -104,7 +111,7 @@ test("SQL: coins por dia é configurável (settings) e manda no nº de cenários
 });
 
 test("SQL: troféus do cenário diário (percentual, média e região) sem expor outros jogadores", () => {
-  for (const f of ["daily_points\\(int, int\\)", "daily_scenario_stats\\(uuid, text, int, int, text\\)", "daily_my_stats\\(uuid, text\\)"]) {
+  for (const f of ["daily_points\\(int, int\\)", "daily_scenario_stats\\(uuid, text, int, int, text, date\\)", "daily_my_stats\\(uuid, text, date\\)"]) {
     assert.match(sqlAll, new RegExp(`revoke all on function public\\.${f}\\s+from public, anon, authenticated`), `${f} acessível ao cliente`);
     assert.match(sqlAll, new RegExp(`grant execute on function public\\.${f}\\s+to service_role`), `${f} deveria ser interna`);
   }
@@ -113,17 +120,20 @@ test("SQL: troféus do cenário diário (percentual, média e região) sem expor
   assert.match(sqlAll, /'avgSeconds', round\(\(select avg_seconds from tot\)\)::int/);                    // média do mesmo cenário
   assert.match(sqlAll, /'regionRank',\s+case when p_region is null then null else \(select rank_region from mine\) end/);
   assert.match(sqlAll, /join public\.profiles p on p\.id = d\.user_id[\s\S]*?and p\.role <> 'admin'/);    // admin fica de fora, como no ranking
-  assert.match(sqlAll, /'stats',\s+public\.daily_my_stats\(auth\.uid\(\), g\.id\)/);                      // o dia já vem decorado
+  assert.match(sqlAll, /'stats',\s+public\.daily_my_stats\(v_uid, g\.id, v_today\)/);                    // o dia já vem decorado
   assert.match(sqlAll, /'stats', public\.daily_scenario_stats\(p_uid, p_game, p_slot, v_run\.level/);      // e o fim devolve o troféu do slot
   assert.match(sqlAll, /row_number\(\) over \(order by f\.seconds asc, f\.points desc/);                   // ranking do dia com o mesmo desempate
+  assert.match(sqlAll, /daily_scenario_stats\(p_uid, p_game, p_slot, v_level, \(select region from public\.profiles where id = p_uid\), v_day\)/); // reenvio do dia original
 });
 
-test("SQL: o administrador pode dar coins do dia a uma conta (por e-mail), só para teste", () => {
-  assert.match(sqlAll, /create function public\.admin_grant_coins\(p_email text, p_game text default null, p_coins int default 10\)/);
-  assert.match(sqlAll, /revoke all on function public\.admin_grant_coins\(text, text, int\) from public, anon, authenticated;/);
-  assert.match(sqlAll, /grant execute on function public\.admin_grant_coins\(text, text, int\) to authenticated;/);
-  assert.match(sqlAll, /where lower\(u\.email\) = v_email/);                                   // o e-mail é resolvido em auth.users
-  assert.match(sqlAll, /insert into public\.daily_coins \(user_id, day, game_id, coins\)[\s\S]*?on conflict \(user_id, day, game_id\) do update set coins = excluded\.coins/);
+test("SQL: o administrador pode dar tickets diários a uma conta (por e-mail), só para teste", () => {
+  assert.match(ticketSql, /create or replace function public\.admin_grant_coins\(p_email text, p_game text default null, p_coins int default 10\)/);
+  assert.match(ticketSql, /revoke all on function public\.admin_grant_coins\(text, text, int\) from public, anon, authenticated;/);
+  assert.match(ticketSql, /grant execute on function public\.admin_grant_coins\(text, text, int\)\s+to authenticated;/);
+  assert.match(ticketSql, /where lower\(u\.email\) = v_email/);                                // o e-mail é resolvido em auth.users
+  assert.match(ticketSql, /insert into public\.daily_tickets \(user_id, day, game_id, slot, level, seed\)/);
+  assert.match(ticketSql, /least\(greatest\(coalesce\(p_coins, 0\), 0\), public\.daily_backlog_days\(\)\)/); // p_coins = dias
+  assert.doesNotMatch(ticketSql, /insert into public\.daily_coins/);                           // não volta a escrever no saldo antigo
 });
 
 test("a configuração do Supabase é válida quando preenchida (ou vazia, no modo local) e nunca leva chave secreta", () => {

@@ -120,13 +120,31 @@ function applyWin(game, data) {
   S.cache.wins[game] = data.wins; S.cache.scores[game] = data.score; S.cache.coins[game] = data.coins;
   delete S.cache.phases[game];   // a fase foi consumida (ou já estava): não há o que retomar
 }
-/** Resultado do desafio diário: guarda os coins/cenários do dia, o melhor tempo por slot, os troféus e a pontuação/progressão. */
-function applyDaily(game, slot, data) {
-  const g = (S.cache.daily[game] ??= { day: null, level: 0, coins: 0, slots: 2, results: {}, open: [], stats: {} });
+const emptyDaily = () => ({ day: null, level: 0, coins: 0, slots: 2, results: {}, pending: [], open: [], history: {}, levels: {}, stats: {}, statsByDay: {} });
+const byDaySlot = (a, b) => String(a.day).localeCompare(String(b.day)) || a.slot - b.slot;
+const dropEntry = (list, day, slot) => (list ?? []).filter(x => !(x.day === day && x.slot === slot));
+
+/** Resultado do desafio diário: guarda os tickets/cenários, o melhor tempo por (dia, slot), os troféus e a progressão. */
+function applyDaily(game, day, slot, data) {
+  const g = (S.cache.daily[game] ??= emptyDaily());
+  const d = String(data?.day ?? day ?? g.day ?? "");
   if (data?.coins != null) g.coins = data.coins;
   if (data?.slots != null) g.slots = data.slots;
-  if (data?.seconds != null) g.results[slot] = Math.min(g.results[slot] ?? Infinity, data.seconds);
-  if (data?.stats) (g.stats ??= {})[slot] = data.stats;               // troféus do cenário (percentual, média, região)
+  if (d && data?.level != null) g.levels[d] = data.level;
+  g.pending = dropEntry(g.pending, d, slot);
+  g.open = dropEntry(g.open, d, slot);
+  if (d) {
+    (g.history[d] ??= {});
+    if (data?.seconds != null) g.history[d][slot] = Math.min(g.history[d][slot] ?? Infinity, data.seconds);
+    if (d === g.day) {
+      g.results[slot] = g.history[d][slot];
+      g.levels[d] ??= data?.level;
+    }
+  }
+  if (data?.stats) {                                                   // troféus do cenário (percentual, média, região)
+    (g.statsByDay[d] ??= {})[slot] = data.stats;
+    if (d === g.day) (g.stats ??= {})[slot] = data.stats;
+  }
   if (data?.wins != null) S.cache.wins[game] = data.wins;              // concluir o cenário do dia também pontua/progride
   if (data?.score) S.cache.scores[game] = data.score;
 }
@@ -141,14 +159,14 @@ function flushOutbox() {
       let data = null;
       try {
         data = item.slot
-          ? await invoke("daily_finish", { game: item.game, slot: item.slot, state: item.state, op: item.op })
+          ? await invoke("daily_finish", { game: item.game, day: item.day ?? null, slot: item.slot, state: item.state, op: item.op })
           : await invoke("finish", { game: item.game, state: item.state, op: item.op });
       } catch (e) {
         if (isRetryable(e)) { console.warn("[WebMiniGames] vitória na fila (será reenviada):", e.code); scheduleOutboxRetry(); return last; }
         console.warn("[WebMiniGames] vitória recusada:", e.code);   // tabuleiro inválido / sem fase: sai da fila
       }
       writeOutbox(readOutbox().filter(i => i.op !== item.op));
-      if (data) { if (item.slot) applyDaily(item.game, item.slot, data); else applyWin(item.game, data); last = data.score ?? data.seconds; }
+      if (data) { if (item.slot) applyDaily(item.game, item.day, item.slot, data); else applyWin(item.game, data); last = data.score ?? data.seconds; }
     }
   });
   return S.outboxLock;
@@ -268,38 +286,49 @@ export const Cloud = {
       throw e;
     }
   },
-  /* ----- desafio diário (mesmo cenário do dia para todos, por nível; ranking por tempo) ----- */
+  /* ----- desafio diário (tickets acumuláveis; mesmo cenário por dia/nível/slot; ranking por tempo) ----- */
   daily: g => S.cache.daily[g] ?? null,
-  /** Carrega o status do dia (coins, slots abertos e melhores tempos) de todos os jogos. */
+  /** Carrega tickets pendentes, tentativas abertas, resultados de hoje e o histórico de todos os jogos. */
   async dailyStatus() {
     if (!S.client || S.degraded || S.uid === null) return S.cache.daily;
     const { data, error } = await S.client.rpc("daily_status");
     if (error) { console.warn("[WebMiniGames] status do dia indisponível:", error.message); return S.cache.daily; }
+    const oldDaily = S.cache.daily;
     S.cache.daily = data ?? {};
+    for (const [game, info] of Object.entries(S.cache.daily)) {
+      const oldStats = oldDaily[game]?.statsByDay ?? {};
+      const g = (S.cache.daily[game] = { ...emptyDaily(), ...info });
+      g.statsByDay = { ...oldStats };
+      if (info?.day && info?.stats) g.statsByDay[info.day] = info.stats;
+    }
     return S.cache.daily;
   },
-  /** Abre o tabuleiro do dia (slot 1 ou 2): o servidor cobra 1 coin, marca o início e devolve o puzzle (sem a seed). */
-  async dailyOpen(game, slot) {
-    const d = await invoke("daily_open", { game, slot });
-    const g = (S.cache.daily[game] ??= { day: null, level: 0, coins: 0, slots: 2, results: {}, open: [], stats: {} });
-    g.day = d.day; g.level = d.level; g.coins = d.coins; if (d.slots != null) g.slots = d.slots;
-    if (!g.open.includes(slot)) g.open.push(slot);
+  /** Abre o ticket (dia + slot): recomeça retomando o relógio; atrasado continua contando para o dia original. */
+  async dailyOpen(game, day, slot) {
+    const d = await invoke("daily_open", { game, day: day ?? null, slot });
+    const g = (S.cache.daily[game] ??= emptyDaily());
+    if (!g.day) { g.day = d.day; g.level = d.level; }
+    g.coins = d.coins; if (d.slots != null) g.slots = d.slots;
+    g.levels[d.day] = d.level;
+    g.pending = dropEntry(g.pending, d.day, slot);
+    if (!g.open.some(x => x.day === d.day && x.slot === slot)) g.open.push({ day: d.day, slot, level: d.level });
+    g.open.sort(byDaySlot);
     return d;
   },
-  dailyHint(game, slot, state) { return invoke("daily_hint", { game, slot, state }); },
-  /** Conclui o tabuleiro do dia: o SERVIDOR mede o tempo (relógio de parede) e guarda o melhor por slot. */
-  async dailyFinish(game, slot, state) {
-    const item = { uid: S.uid, game, slot, state, op: crypto.randomUUID() };
-    try { const data = await invoke("daily_finish", item); applyDaily(game, slot, data); return { ok: data }; }
+  dailyHint(game, day, slot, state) { return invoke("daily_hint", { game, day: day ?? null, slot, state }); },
+  /** Conclui o ticket: o SERVIDOR mede o tempo e guarda o melhor por (dia, slot). */
+  async dailyFinish(game, day, slot, state) {
+    const item = { uid: S.uid, game, day: day ?? null, slot, state, op: crypto.randomUUID() };
+    try { const data = await invoke("daily_finish", item); applyDaily(game, day, slot, data); return { ok: data }; }
     catch (e) {
       if (isRetryable(e)) { writeOutbox([...readOutbox(), item]); scheduleOutboxRetry(); return { pending: true }; }
       throw e;
     }
   },
-  /** Ranking por tempo do dia (mesmo jogo e nível). Qualquer um vê. */
-  async dailyLeaderboard(game, level, scope, limit) {
+  /** Ranking por tempo de um dia (mesmo jogo e nível). Qualquer um vê. */
+  async dailyLeaderboard(game, level, scope, limit, day = null) {
     if (!S.client || S.degraded) return { top: [], me: null, total: 0 };
-    const { data, error } = await S.client.rpc("daily_leaderboard", { p_game: game, p_level: level ?? null, p_scope: scope, p_limit: limit });
+    const { data, error } = await S.client.rpc("daily_leaderboard", { p_game: game, p_level: level ?? null, p_scope: scope, p_limit: limit, p_day: day ?? null });
     if (error) { console.warn("[WebMiniGames] ranking do dia indisponível:", error.message); return { top: [], me: null, total: 0 }; }
     return data;
   },
@@ -339,13 +368,13 @@ export const Cloud = {
     S.cache.config = { ...S.cache.config, coinsPerDay: data.coinsPerDay };
     return data.coinsPerDay;
   },
-  /** Administrador: recarrega os coins do dia de uma conta (pelo e-mail), em um jogo ou em todos. Só para teste. */
-  async adminGrantCoins(email, game, coins) {
-    const { data, error } = await S.client.rpc("admin_grant_coins", { p_email: email, p_game: game, p_coins: coins });
+  /** Administrador: concede tickets dos últimos dias a uma conta (pelo e-mail), em um jogo ou em todos. Só para teste. */
+  async adminGrantCoins(email, game, days) {
+    const { data, error } = await S.client.rpc("admin_grant_coins", { p_email: email, p_game: game, p_coins: days });
     if (error) {
-      if (error.code === "42501") throw new Error("Só o administrador pode dar coins.");
+      if (error.code === "42501") throw new Error("Só o administrador pode dar tickets.");
       if (/unknown_user/.test(error.message)) throw new Error("Não encontrei essa conta. Confira o e-mail.");
-      throw new Error("Não foi possível dar os coins agora.");
+      throw new Error("Não foi possível dar os tickets agora.");
     }
     return data;
   },

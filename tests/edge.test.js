@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { makeRng } from "../shared/rng.js";
-import { publicView, validate, GAMES } from "../supabase/functions/play/_shared/board.js";
+import { publicView, validate, validateSnapshot, snapshot, GAMES } from "../supabase/functions/play/_shared/board.js";
 import * as arrows from "../games/arrows/domain.js";
 import * as canos from "../games/canos/domain.js";
 import * as cruzadas from "../games/cruzadas/domain.js";
@@ -133,6 +133,54 @@ test("puzzles diferentes têm a mesma seed mas níveis diferentes mudam a dificu
   const a = sudoku.generatePuzzle(makeRng(9), sudoku.LEVELS[0]);
   const b = sudoku.generatePuzzle(makeRng(9), sudoku.LEVELS[3]);
   assert.ok(a.givens >= b.givens, "nível maior deveria ter menos pistas");
+});
+
+test("snapshot diário: o puzzle completo valida e a visão pública continua sem a solução", () => {
+  const cases = [
+    ["sudoku", 801], ["arrows", 802], ["canos", 803], ["patches", 804], ["zip", 805], ["sopa", 806], ["cruzadas", 807],
+  ];
+  for (const [game, seed] of cases) {
+    const snap = snapshot(game, seed, 0);
+    const view = JSON.stringify(snap.publicView);
+    assert.ok(!view.includes('"solution"') && !view.includes('"path"'), `${game}: visão pública vazou a solução`);
+    assert.ok(snap.fullPuzzle && snap.gen > 0, `${game}: snapshot incompleto`);
+  }
+
+  const sudokuSnap = snapshot("sudoku", 801, 0);
+  const sudokuP = sudoku.generatePuzzle(makeRng(801), sudoku.LEVELS[0]);
+  assert.equal(validateSnapshot("sudoku", sudokuSnap.fullPuzzle, { grid: sudoku.solve(sudokuP.cells) }), true);
+  assert.equal(validateSnapshot("sudoku", sudokuSnap.fullPuzzle, { grid: [] }), false);
+
+  const arrowsSnap = snapshot("arrows", 802, 0);
+  const arrowsP = arrows.generatePuzzle(makeRng(802), arrows.LEVELS[0]);
+  assert.equal(validateSnapshot("arrows", arrowsSnap.fullPuzzle, { order: arrowsP.solution }), true);
+  assert.equal(validateSnapshot("arrows", arrowsSnap.fullPuzzle, { order: [] }), false);
+
+  const canosSnap = snapshot("canos", 803, 0);
+  const canosP = canos.generatePuzzle(makeRng(803), canos.LEVELS[0]);
+  assert.equal(validateSnapshot("canos", canosSnap.fullPuzzle, { rots: canos.solutionRots(canosP) }), true);
+  assert.equal(validateSnapshot("canos", canosSnap.fullPuzzle, { rots: [] }), false);
+
+  const patchesSnap = snapshot("patches", 804, 0);
+  const patchesP = patches.generatePuzzle(makeRng(804), patches.LEVELS[0]);
+  assert.equal(validateSnapshot("patches", patchesSnap.fullPuzzle, { rects: patchesP.solution }), true);
+  assert.equal(validateSnapshot("patches", patchesSnap.fullPuzzle, { rects: [] }), false);
+
+  const zipSnap = snapshot("zip", 805, 0);
+  const zipP = zip.generatePuzzle(makeRng(805), zip.LEVELS[0]);
+  assert.equal(validateSnapshot("zip", zipSnap.fullPuzzle, { path: zipP.solution }), true);
+  assert.equal(validateSnapshot("zip", zipSnap.fullPuzzle, { path: [] }), false);
+
+  const sopaSnap = snapshot("sopa", 806, 0);
+  const sopaP = sopa.generatePuzzle(makeRng(806), sopa.LEVELS[0]);
+  assert.equal(validateSnapshot("sopa", sopaSnap.fullPuzzle, { found: sopaP.words.map((_, i) => i) }), true);
+  assert.equal(validateSnapshot("sopa", sopaSnap.fullPuzzle, { found: [] }), false);
+
+  const cruzSnap = snapshot("cruzadas", 807, 0);
+  const cruzP = cruzadas.generatePuzzle(makeRng(807), cruzadas.LEVELS[0]);
+  const entries = cruzP.cells.map(c => (c.t === "L" ? c.ch : ""));
+  assert.equal(validateSnapshot("cruzadas", cruzSnap.fullPuzzle, { entries: cruzadas.encodeEntries(entries) }), true);
+  assert.equal(validateSnapshot("cruzadas", cruzSnap.fullPuzzle, { entries: "" }), false);
 });
 
 test("GAMES agrupa os sete domínios", () => {

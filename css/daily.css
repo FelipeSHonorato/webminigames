@@ -2,6 +2,9 @@
    vencido fica preenchido com a cor de destaque e mostra os troféus (percentual, média e região). Os cartões
    grandes (`.trophies`) são a premiação do cenário selecionado. */
 .daily{position:relative;margin:0 0 12px}
+.daily-days{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;margin:0 0 8px}
+.daily-day{padding:4px 9px;border:1px solid var(--grid);border-radius:999px;background:var(--btn);font:inherit;font-size:.75rem;font-weight:700;color:var(--muted);cursor:pointer}
+.daily-day.selected{border-color:var(--accent);color:var(--fg)}
 .slots{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
 .slot{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:112px;padding:10px 12px;font:inherit;font-size:.85rem;font-weight:700;color:var(--muted);background:var(--btn);border:2px solid var(--grid);border-radius:14px}
 .slot.current{border-color:var(--accent);color:var(--fg)}
