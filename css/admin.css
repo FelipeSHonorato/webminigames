@@ -1,0 +1,38 @@
+/* Painel do administrador: navegação lateral, visão geral e formulários em uma coluna legível. */
+.admin-shell{display:grid;grid-template-columns:200px minmax(0,1fr);gap:28px;align-items:start;max-width:1180px;margin:0 auto;padding:28px 20px 48px}
+.admin-side{position:sticky;top:16px;display:grid;gap:14px}
+.admin-nav{display:grid;gap:4px;padding:8px;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.admin-nav a{padding:10px 12px;border-radius:8px;color:var(--muted);font-weight:700;text-decoration:none}
+.admin-nav a:hover{background:var(--bg);color:var(--fg)}
+.admin-nav a[aria-current="page"]{background:var(--bg);color:var(--fg)}
+.admin-side-note{margin:0;padding:0 10px;color:var(--muted);font-size:.78rem;line-height:1.4}
+.admin-main{display:grid;gap:20px;min-width:0}
+.admin-head{display:grid;gap:8px;padding:4px 0}
+.admin-kicker{margin:0;color:var(--accent);font-size:.78rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.admin-head h1{font-size:clamp(1.7rem,3vw,2.2rem);line-height:1.1}
+.admin-head p:last-child{max-width:62ch;margin:0;color:var(--muted);line-height:1.5}
+.admin-section{scroll-margin-top:20px}
+.admin-section-head{margin-bottom:16px}
+.admin-section-head h2{font-size:1.15rem}
+.admin-section-head p{margin:6px 0 0;color:var(--muted);font-size:.9rem;line-height:1.45}
+.admin-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.kpi{display:grid;gap:3px;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.kpi-label{color:var(--muted);font-size:.78rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+.kpi strong{font-size:1.7rem;line-height:1;font-variant-numeric:tabular-nums}
+.kpi-meta{color:var(--muted);font-size:.78rem}
+.admin-main .pcard{padding:22px}
+.admin-main .pcard h2{font-size:1.15rem}
+.admin-main .glist li{padding:14px}
+.admin-main .coinsrow{margin-top:10px}
+.admin-main .note{max-width:70ch}
+@media (max-width:900px){
+  .admin-shell{grid-template-columns:1fr;gap:20px;padding:20px 20px 40px}
+  .admin-side{position:static}
+  .admin-nav{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:6px}
+  .admin-nav a{padding:8px 12px;white-space:nowrap}
+  .admin-side-note{display:none}
+  .admin-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:520px){
+  .admin-main .pcard{padding:18px}
+}

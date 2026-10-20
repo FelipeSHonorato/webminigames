@@ -13,6 +13,7 @@ const $ = id => document.getElementById(id);
 const session = requireSession("index.html");
 
 async function render() {
+  renderSummary();
   const list = $("gameSwitches");
   list.replaceChildren();
   for (const [id, g] of Object.entries(GAMES)) {
@@ -37,6 +38,17 @@ async function render() {
     li.append(name, right, meta, levelRow(id, g));
     list.append(li);
   }
+  renderSummary();
+}
+
+/** Números reais do painel: não inventa contas nem acessos que o site ainda não mede. */
+function renderSummary() {
+  const entries = Object.entries(GAMES);
+  const active = entries.filter(([id]) => GameSwitch.isOn(id)).length;
+  $("adminActive").textContent = String(active);
+  $("adminActiveHint").textContent = `de ${entries.length} no hub`;
+  $("adminOff").textContent = String(entries.length - active);
+  $("adminTickets").textContent = String(AdminConfig.coinsPerDay(session));
 }
 
 /** Linha "Nível para testar": o administrador escolhe o nível do jogo sem precisar jogar até ele. */
@@ -73,8 +85,9 @@ function wireConfig() {
   $("coinsSave").onclick = async () => {
     try {
       const saved = await AdminConfig.setCoinsPerDay(session, Number($("coinsPerDay").value));
-      $("coinsMsg").textContent = `Salvo: ${saved} ${saved === 1 ? "coin" : "coins"} por dia e ${saved} ${saved === 1 ? "cenário" : "cenários"} por nível em cada jogo.`;
+      $("coinsMsg").textContent = `Salvo: ${saved} ${saved === 1 ? "ticket" : "tickets"} por dia e ${saved} ${saved === 1 ? "cenário" : "cenários"} por nível em cada jogo.`;
       $("coinsPerDay").value = String(saved);
+      renderSummary();
     } catch (err) { $("coinsMsg").textContent = err.message; }
   };
 }
@@ -93,10 +106,18 @@ function wireGrant() {
     try {
       const r = await AdminCoins.grant(session, $("grantEmail").value, $("grantGame").value || null, Number($("grantAmount").value));
       const n = Array.isArray(r.games) ? r.games.length : 0;
-      msg.textContent = `Pronto: ${r.coins} ${r.coins === 1 ? "coin" : "coins"} do dia para ${r.name || r.email} em ${n} ${n === 1 ? "jogo" : "jogos"}.`;
+      msg.textContent = `Pronto: tickets de ${r.coins} ${r.coins === 1 ? "dia" : "dias"} para ${r.name || r.email} em ${n} ${n === 1 ? "jogo" : "jogos"}.`;
     } catch (err) { msg.className = "fmsg err"; msg.textContent = err.message; }
   };
 }
 
+function wireAdminNav() {
+  const links = [...document.querySelectorAll(".admin-nav a")];
+  links.forEach(link => link.addEventListener("click", () => {
+    links.forEach(item => item.removeAttribute("aria-current"));
+    link.setAttribute("aria-current", "page");
+  }));
+}
+
 if (session && !isAdmin(session)) location.replace("jogos.html");        // só o administrador
-else if (session) { mountUserBar($("userbar")); render(); wireConfig(); wireGrant(); $("admin-title").focus({ preventScroll: true }); }
+else if (session) { mountUserBar($("userbar")); render(); wireConfig(); wireGrant(); wireAdminNav(); $("admin-title").focus({ preventScroll: true }); }

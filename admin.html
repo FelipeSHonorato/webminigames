@@ -10,6 +10,7 @@
 <script src="shared/theme-init.js"></script>
 <link rel="stylesheet" href="css/site.css">
 <link rel="stylesheet" href="css/userbar.css">
+<link rel="stylesheet" href="css/admin.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -24,43 +25,80 @@
   <a class="brand" href="jogos.html"><svg class="logo" width="36" height="36" aria-hidden="true"><use href="#logo"/></svg>WebMiniGames</a>
   <div id="userbar"></div>
 </div>
-<main class="profile">
-  <h1 id="admin-title" tabindex="-1">Painel do administrador</h1>
-  <section class="pcard">
-    <h2>Jogos do site</h2>
-    <p>Desligar um jogo impede os jogadores de entrar nele. <strong>Os pontos não são removidos:</strong> continuam no ranking de cada jogo, no ranking geral e no perfil de cada jogador. Você continua podendo abrir jogos desligados.</p>
-    <ul class="glist" id="gameSwitches"></ul>
-    <p class="fmsg" id="adminMsg" role="status"></p>
-    <p class="note"><strong>Nível para testar:</strong> escolher um nível coloca o jogo, para a conta do administrador, no início desse nível (0/15) e descarta a fase salva dele; ao abrir o jogo, nasce uma fase nova nesse nível. Só a conta do administrador é alterada: jogadores, pontos e rankings continuam iguais. Uma aba do jogo já aberta só muda ao recarregar.</p>
-    <p class="note">Neste protótipo a chave é gravada só neste navegador. Para valer para todos os jogadores, o estado precisa ficar no servidor.</p>
-  </section>
-  <section class="pcard">
-    <h2>Desafio diário</h2>
-    <p>Quantos <strong>cenários por nível</strong> cada jogador recebe por dia — e, portanto, quantos coins do dia. Vale para todos os jogos. O dia vira à meia-noite de Brasília.</p>
-    <div class="coinsrow">
-      <label for="coinsPerDay">Coins (e cenários) por dia:</label>
-      <input id="coinsPerDay" type="number" min="1" max="10" step="1" inputmode="numeric" aria-describedby="coinsMsg">
-      <button type="button" id="coinsSave">Salvar</button>
-    </div>
-    <p class="fmsg" id="coinsMsg" role="status"></p>
-  </section>
-  <section class="pcard">
-    <h2>Coins de teste</h2>
-    <p>Recarrega os <strong>coins do dia</strong> de uma conta, pelo e-mail do login, para testar sem esperar a virada do dia. Não mexe em pontos, nível nem vitórias — só no saldo do dia. Só funciona com a nuvem ligada.</p>
-    <div class="coinsrow">
-      <label for="grantEmail">E-mail da conta:</label>
-      <input id="grantEmail" type="email" autocomplete="off" spellcheck="false" placeholder="jogador@exemplo.com" aria-describedby="grantMsg">
-    </div>
-    <div class="coinsrow">
-      <label for="grantGame">Jogo:</label>
-      <select id="grantGame" aria-describedby="grantMsg"></select>
-      <label for="grantAmount">Coins:</label>
-      <input id="grantAmount" type="number" min="0" max="99999" step="1" inputmode="numeric" value="10" aria-describedby="grantMsg">
-      <button type="button" id="grantSave">Dar coins</button>
-    </div>
-    <p class="fmsg" id="grantMsg" role="status"></p>
-  </section>
-</main>
+<div class="admin-shell">
+  <aside class="admin-side">
+    <nav class="admin-nav" aria-label="Seções do painel">
+      <a href="#overview" aria-current="page">Visão geral</a>
+      <a href="#games">Jogos</a>
+      <a href="#daily">Desafio diário</a>
+      <a href="#tickets">Tickets de teste</a>
+    </nav>
+    <p class="admin-side-note">No modo nuvem, as alterações valem para todos os jogadores.</p>
+  </aside>
+  <main class="admin-main">
+    <header class="admin-head">
+      <p class="admin-kicker">Administração</p>
+      <h1 id="admin-title" tabindex="-1">Painel do administrador</h1>
+      <p>Ligue jogos, ajuste o desafio diário e conceda tickets de teste sem mexer nos pontos ou níveis dos jogadores.</p>
+    </header>
+
+    <section id="overview" class="admin-section" aria-labelledby="overview-title">
+      <div class="admin-section-head">
+        <h2 id="overview-title">Visão geral</h2>
+        <p>O estado atual do site, atualizado ao abrir o painel.</p>
+      </div>
+      <div class="admin-kpis">
+        <div class="kpi"><span class="kpi-label">Jogos ativos</span><strong id="adminActive">—</strong><span class="kpi-meta" id="adminActiveHint">de 7 no hub</span></div>
+        <div class="kpi"><span class="kpi-label">Desligados</span><strong id="adminOff">—</strong><span class="kpi-meta">fora do hub</span></div>
+        <div class="kpi"><span class="kpi-label">Tickets por dia</span><strong id="adminTickets">—</strong><span class="kpi-meta">por jogo</span></div>
+        <div class="kpi"><span class="kpi-label">Backlog</span><strong>30</strong><span class="kpi-meta">dias acumuláveis</span></div>
+      </div>
+    </section>
+
+    <section class="pcard admin-section" id="games" aria-labelledby="games-title">
+      <div class="admin-section-head">
+        <h2 id="games-title">Jogos do site</h2>
+        <p>Desligar um jogo impede os jogadores de entrar nele. Os pontos continuam salvos nos rankings e nos perfis.</p>
+      </div>
+      <ul class="glist" id="gameSwitches"></ul>
+      <p class="fmsg" id="adminMsg" role="status"></p>
+      <p class="note"><strong>Nível para testar:</strong> muda só a conta do administrador e reinicia a fase salva nesse nível. Jogadores, pontos e rankings não mudam. Uma aba do jogo já aberta só atualiza ao recarregar.</p>
+      <p class="note">No modo nuvem, estas opções valem para todos os jogadores. No modo local, ficam só neste navegador.</p>
+    </section>
+
+    <section class="pcard admin-section" id="daily" aria-labelledby="daily-title">
+      <div class="admin-section-head">
+        <h2 id="daily-title">Desafio diário</h2>
+        <p>Quantos tickets cada jogador recebe por dia em cada jogo. Os não jogados acumulam por até 30 dias; novos chegam à meia-noite de Brasília.</p>
+      </div>
+      <div class="coinsrow">
+        <label for="coinsPerDay">Tickets por dia (e cenários por nível):</label>
+        <input id="coinsPerDay" type="number" min="1" max="10" step="1" inputmode="numeric" aria-describedby="coinsMsg">
+        <button type="button" id="coinsSave">Salvar</button>
+      </div>
+      <p class="fmsg" id="coinsMsg" role="status"></p>
+    </section>
+
+    <section class="pcard admin-section" id="tickets" aria-labelledby="tickets-title">
+      <div class="admin-section-head">
+        <h2 id="tickets-title">Tickets de teste</h2>
+        <p>Concede os tickets diários de uma conta pelo e-mail do login, sem esperar a virada do dia. Não mexe em pontos, nível nem vitórias.</p>
+      </div>
+      <div class="coinsrow">
+        <label for="grantEmail">E-mail da conta:</label>
+        <input id="grantEmail" type="email" autocomplete="off" spellcheck="false" placeholder="jogador@exemplo.com" aria-describedby="grantMsg">
+      </div>
+      <div class="coinsrow">
+        <label for="grantGame">Jogo:</label>
+        <select id="grantGame" aria-describedby="grantMsg"></select>
+        <label for="grantAmount">Dias:</label>
+        <input id="grantAmount" type="number" min="1" max="30" step="1" inputmode="numeric" value="10" aria-describedby="grantMsg">
+        <button type="button" id="grantSave">Dar tickets</button>
+      </div>
+      <p class="fmsg" id="grantMsg" role="status"></p>
+    </section>
+  </main>
+</div>
 <script src="shared/file-warning.js"></script>
 <script type="module" src="js/admin.js"></script>
 </body>

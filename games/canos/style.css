@@ -1,5 +1,5 @@
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
---bg:#e9eef3;--fg:#14213d;--board:#cfd8e1;--tile:#f4f6f8;--tile2:#e3e8ed;--accent:#19a79a;--muted:#5b6b7e;--btn:#fff;--line:#c3ced9;
+--bg:#e9eef3;--fg:#14213d;--board:#cfd8e1;--tile:#f4f6f8;--tile2:#e3e8ed;--accent:#0f766e;--muted:#5b6b7e;--btn:#fff;--line:#c3ced9;
 --water:#19a7ea;--out:#f59e0b;--leak:#e5484d;
 /* Nomes usados por css/ranking.css, ranking-list.css e gamebar.css (os outros jogos já os têm); aqui são aliases dos tokens próprios, então o modo escuro acompanha. */
 --cell:var(--btn);--grid:var(--line)}

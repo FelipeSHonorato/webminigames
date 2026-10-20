@@ -23,21 +23,32 @@ const PROVIDER_NOTE = { password: "", google: "", "google-demo": "Google (simula
 function balanceBadge(uid, id) {
   if (Cloud.owns(uid)) {
     const d = Cloud.daily(id);
-    if (d) return coinBadge({ coins: d.coins ?? 0, max: d.slots ?? Cloud.config()?.coinsPerDay, nextRefillAt: nextSpMidnight() });
+    if (d) return coinBadge({ coins: d.coins ?? 0, max: Math.max(d.slots ?? Cloud.config()?.coinsPerDay ?? 0, d.coins ?? 0), nextRefillAt: nextSpMidnight(), daily: true });
   }
   return coinBadge(Coins.get(uid, id));
 }
 
+function renderSkeleton() {
+  const count = Object.keys(GAMES).length;
+  $("games").setAttribute("aria-busy", "true");
+  $("games").innerHTML = Array.from({ length: count }, (_, i) =>
+    `<div class="game skeleton${i === count - 1 ? " wide" : ""}" aria-hidden="true">
+      <div class="sk-preview"></div><div class="sk-line short"></div><div class="sk-line"></div><div class="sk-line"></div>
+    </div>`).join("");
+}
+
 function renderHub() {
   mountUserBar($("userbar"));
-  $("hubSub").textContent = "Os jogos estão liberados. Cada um tem o seu próprio nível e progresso." + (user.provider === "anonymous" ? ` ${PROVIDER_NOTE.anonymous}.` : "");
+  $("games").setAttribute("aria-busy", "false");
+  $("hubSub").textContent = "Escolha um jogo para abrir o desafio de hoje. Cada jogo tem seu nível, seus tickets e seu ranking." + (user.provider === "anonymous" ? ` ${PROVIDER_NOTE.anonymous}.` : "");
   $("games").innerHTML = "";
-  for (const [id, g] of Object.entries(GAMES)) {
+  const entries = Object.entries(GAMES);
+  entries.forEach(([id, g], index) => {
     const wins = winsOf(g, user.id), lv = Math.min(LEVEL_NAMES.length - 1, Math.floor(wins / WINS_PER_LEVEL));
     const last = lv === LEVEL_NAMES.length - 1, into = wins - lv * WINS_PER_LEVEL;
     const on = GameSwitch.isOn(id), playable = on || isAdmin(user);   // desligado: só o administrador entra
     const btn = document.createElement(playable ? "a" : "div");     // cada jogo é uma página própria
-    btn.className = "game" + (on ? "" : " off");
+    btn.className = "game" + (on ? "" : " off") + (index === entries.length - 1 ? " wide" : "");
     if (playable) btn.href = g.path; else btn.setAttribute("aria-disabled", "true");
     btn.innerHTML = `${g.preview}<h3>${g.title}</h3><p>${g.desc}</p>
       <div class="lvl"><span>${LEVEL_NAMES[lv]}</span><div class="bar"><i style="width:${last ? 100 : (into / WINS_PER_LEVEL) * 100}%"></i></div><span>${last ? wins + " vitórias" : into + "/" + WINS_PER_LEVEL}</span></div>
@@ -51,13 +62,15 @@ function renderHub() {
       title.append(tag);
     }
     $("games").append(btn);
-  }
+  });
 }
 
 /* Ranking geral: soma dos pontos de todos os jogos. */
 const overallTabs = scopeTabs($("overallScopes"), () => refreshOverall());
 async function refreshOverall() {
   overallTabs.sync();
+  $("overallList").innerHTML = '<li class="empty">Carregando ranking…</li>';
+  $("overallNote").textContent = "";
   const data = await Scores.overall({ scope: overallTabs.scope, limit: 10 });
   renderLeaderboard({ list: $("overallList"), note: $("overallNote"), data, scope: overallTabs.scope, loginUrl: "index.html?modo=conta" });
 }
@@ -76,6 +89,7 @@ if (user) {
   });
 
   refreshOverall();
+  if (Cloud.owns(user.id)) renderSkeleton();
   const ready = Cloud.owns(user.id) ? Cloud.dailyStatus().catch(() => {}) : Promise.resolve();
   ready.then(() => { renderHub(); $("hub-title").focus({ preventScroll: true }); });
 }

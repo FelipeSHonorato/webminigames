@@ -1,5 +1,5 @@
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
---bg:#e9eef3;--fg:#14213d;--cell:#fff;--grid:#c3ced9;--frame:#14213d;--accent:#19a79a;--muted:#5b6b7e;--btn:#fff;
+--bg:#e9eef3;--fg:#14213d;--cell:#fff;--grid:#c3ced9;--frame:#14213d;--accent:#0f766e;--muted:#5b6b7e;--btn:#fff;
 --word:#cdeeea;--active:#8fd8cf;--hintc:#b4531a;--block:#000000;--clue:#ffe45c;--clue-sel:#ffc400;--clue-text:#262626;--clue-line:#c9a800}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1621;--fg:#e8eef5;--cell:#17222f;--grid:#2e4156;--frame:#e8eef5;--accent:#2cc4b6;--muted:#8da0b5;--btn:#17222f;
 --word:#1b4846;--active:#25706b;--hintc:#ffa06b;--block:#000000;--clue:#9a7b00;--clue-sel:#c99a00;--clue-text:#fff6cf;--clue-line:#6e5800}}
