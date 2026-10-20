@@ -12,7 +12,7 @@ import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
 import { Cloud } from "../../shared/backend/cloud.js";
 import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/progress.js";
-import { DIRS, LEVELS, LIVES, STORE_KEY, blocked, buildOcc, generatePuzzle } from "./domain.js";
+import { DIRS, GEN, LEVELS, LIVES, STORE_KEY, beam, blocked, buildOcc, generatePuzzle } from "./domain.js";
 import { fmtTime } from "../../shared/ranking-list.js";
 import { nextScenario as nextScenarioOf, renderDailyPanel } from "../../shared/daily.js";
 
@@ -85,7 +85,7 @@ function creditWin() {
   wins++; saveWins(wins); renderLevel();
   const cloudMode = Cloud.owns(uid);
   const spent = cloudMode ? false : Coins.spend(uid, GAME_ID);               // na nuvem o coin já foi cobrado ao SERVIR a fase (open)
-  if (!cloudMode) Run.set(uid, GAME_ID, { seed: puzzle.seed, level: puzzle.level, solved: true });
+  if (!cloudMode) Run.set(uid, GAME_ID, { seed: puzzle.seed, level: puzzle.level, solved: true, gen: GEN });
   let note = "";
   if (Scores.canRank()) {
     // Na nuvem o servidor recebe a ordem das retiradas, regenera a partir da seed e só pontua se ela limpar o tabuleiro de verdade.
@@ -104,21 +104,27 @@ function buildPuzzle(seed, level) {
   return p;
 }
 /** Fase servida pelo servidor: chega SEM a solução (a seed fica no servidor), então a tela não sabe a ordem certa. */
-const serverPuzzle = (view, level) => ({ n: view.n, pieces: view.pieces.map(p => ({ cells: p.cells.slice(), dir: p.dir })), walls: new Set(view.walls ?? []), level, server: true });
+const serverPuzzle = (view, level) => ({
+  n: view.n,
+  pieces: view.pieces.map(p => ({ cells: p.cells.slice(), dir: p.dir })),
+  redirectors: new Map((view.redirectors ?? []).map(r => [r.cell, r.dir])),
+  level, server: true,
+});
 /** Fase nova no modo local: a seed fica salva, então recarregar a página devolve a mesma fase até ela ser concluída. */
 function localFresh() {
   const seed = (Math.random() * 2 ** 32) >>> 0, level = levelOf(wins);
-  Run.set(uid, GAME_ID, { seed, level, solved: false });
+  Run.set(uid, GAME_ID, { seed, level, solved: false, gen: GEN });
   return buildPuzzle(seed, level);
 }
 /** Fase nova: na nuvem quem serve é o servidor (open cobra o coin e guarda a seed); local sorteia. */
 const freshPuzzle = () => (Cloud.owns(uid) ? Cloud.open(GAME_ID).then(d => serverPuzzle(d.puzzle, d.level)) : Promise.resolve(localFresh()));
 
 let puzzle, present = new Set(), order = [], solved = false, startedAt = 0, timerId = null;
-let pieceEls = [], lives = LIVES;
+let pieceEls = [], redirectorEls = [], lives = LIVES, turn = 0, boardLocked = false;
 const SVGNS = "http://www.w3.org/2000/svg";
 const DIR_NAMES = ["cima", "direita", "baixo", "esquerda"];
 const DIR_COLORS = ["#3f8fd6", "#23b3a4", "#e4572e", "#e0a020"];   // cima, direita, baixo, esquerda
+const REDIR_ARROW = "M0.5 0.16 L0.74 0.46 L0.59 0.46 L0.59 0.84 L0.41 0.84 L0.41 0.46 L0.26 0.46 Z";
 const center = cell => { const n = puzzle.n; return [(cell % n) + 0.5, ((cell / n) | 0) + 0.5]; };
 
 /** Ponta em forma de seta: triângulo na cabeça, apontando a direção de saída.
@@ -132,25 +138,37 @@ function tipPath(cell, d) {
 }
 
 /** Desenha cada seta como uma polilinha (com curvas) e a ponta na cabeça. Casas sem seta ficam vazias e as
-    casas fixas (`walls`) viram blocos escuros. */
+    casas fixas (`redirectors`) viram blocos com uma seta dentro, que giram 90° a cada seta removida. */
 function buildBoard() {
   const n = puzzle.n;
   board.style.setProperty("--n", n);
   board.replaceChildren();
   pieceEls = new Array(puzzle.pieces.length);
+  redirectorEls = [];
   const svg = document.createElementNS(SVGNS, "svg");
   svg.setAttribute("viewBox", `0 0 ${n} ${n}`);
   svg.setAttribute("class", "pieces");
   svg.setAttribute("role", "group");
   svg.setAttribute("aria-label", "Tabuleiro de setas");
 
-  /* Obstáculos fixos: casas que nenhuma seta ocupa e que travam quem aponta para elas. */
-  if (puzzle.walls) for (const cell of puzzle.walls) {
-    const r = document.createElementNS(SVGNS, "rect");
-    r.setAttribute("x", (cell % n) + 0.12); r.setAttribute("y", ((cell / n) | 0) + 0.12);
-    r.setAttribute("width", 0.76); r.setAttribute("height", 0.76); r.setAttribute("rx", 0.14);
-    r.setAttribute("class", "wall");
-    svg.append(r);
+  /* Desviadores fixos: nenhuma seta ocupa estas casas; a ponta que entra nelas continua na direção indicada. */
+  if (puzzle.redirectors) for (const [cell, dir] of puzzle.redirectors) {
+    const g = document.createElementNS(SVGNS, "g");
+    g.setAttribute("class", "redirector");
+    g.setAttribute("transform", `translate(${cell % n} ${(cell / n) | 0})`);
+    g.setAttribute("aria-hidden", "true");
+    const box = document.createElementNS(SVGNS, "rect");
+    box.setAttribute("x", 0.12); box.setAttribute("y", 0.12);
+    box.setAttribute("width", 0.76); box.setAttribute("height", 0.76); box.setAttribute("rx", 0.14);
+    const rot = document.createElementNS(SVGNS, "g");
+    rot.setAttribute("class", "dir");
+    rot.style.transform = `rotate(${((dir + turn) % 4) * 90}deg)`;   // estado inicial, sem animação
+    const arrow = document.createElementNS(SVGNS, "path");
+    arrow.setAttribute("d", REDIR_ARROW);
+    rot.append(arrow);
+    g.append(box, rot);
+    svg.append(g);
+    redirectorEls.push({ rot, dir });
   }
 
   puzzle.pieces.forEach((p, i) => {
@@ -190,6 +208,11 @@ function buildBoard() {
   renderLives();
 }
 
+/** Gira os desviadores para o estado atual: direção inicial + uma volta de 90° por seta já removida. */
+function paintRedirectors() {
+  for (const { rot, dir } of redirectorEls) rot.style.transform = `rotate(${((dir + turn) % 4) * 90}deg)`;
+}
+
 /** Corações das vidas: cheios enquanto restam; ao zerar, o tabuleiro volta e elas recarregam (o tempo continua). */
 function renderLives() {
   const el = document.getElementById("lives");
@@ -210,7 +233,7 @@ function loseLife() {
   renderLives();
   if (lives > 0) { setMessage(`Seta travada! Vidas restantes: ${lives}.`, true); return; }
   present = new Set(puzzle.pieces.map((_, i) => i));
-  order = []; lives = LIVES; solved = false;
+  order = []; lives = LIVES; solved = false; turn = 0; boardLocked = false;
   buildBoard();
   setMessage("Vidas esgotadas: o tabuleiro voltou ao início (o tempo continua).", true);
   renderCoins();
@@ -230,6 +253,7 @@ function setMessage(text, isError = false) { msg.textContent = text; msg.classLi
 function loadPuzzle(p, { keepTimer = false } = {}) {
   if (p !== puzzle) credited = false;
   puzzle = p; present = new Set(puzzle.pieces.map((_, i) => i)); order = []; solved = false; lives = LIVES;
+  turn = 0; boardLocked = false;
   if (!keepTimer) { stopTimer(); timerEl.textContent = "00:00"; }
   setMessage("");
   buildBoard();
@@ -238,13 +262,20 @@ function loadPuzzle(p, { keepTimer = false } = {}) {
 
 /** Animação de saída no estilo "água no cano", em duas etapas:
     1) o corpo escoa pelo próprio caminho (cauda → ponta) via `stroke-dashoffset`;
-    2) a ponta segue a direção apontada, percorrendo o corredor livre até a borda do quadrado, e só lá some. */
-function flyOut(el, piece) {
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { el.style.display = "none"; return; }
-  const n = puzzle.n, head = piece.cells[0], [dr, dc] = DIRS[piece.dir];
-  const hr = (head / n) | 0, hc = head % n;
-  const toEdge = [hr + 0.5, n - hc - 0.5, n - hr - 0.5, hc + 0.5][piece.dir];   // casas até a borda na direção da ponta
+    2) a ponta segue o CAMINHO da seta (com os desvios dos blocos) até fora do tabuleiro, girando nas curvas,
+       e só lá some. `route` vem de beam(): { path: [casas], segs: [direção de saída de cada casa] }. */
+function flyOut(el, piece, route, done) {
+  const finish = () => { el.style.display = "none"; done?.(); };
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { finish(); return; }
+  const n = puzzle.n, head = piece.cells[0], [hx, hy] = center(head);
   const body = el.querySelector("polyline.body"), tip = el.querySelector(".tip");
+  const pts = route.path.map(cell => center(cell));
+  const last = route.path[route.path.length - 1], lastDir = route.segs[route.segs.length - 1];
+  const [ldr, ldc] = DIRS[lastDir], lr = (last / n) | 0, lc = last % n;
+  const steps = [lr + 0.5, n - lc - 0.5, n - lr - 0.5, lc + 0.5][lastDir];   // casas da última até a borda
+  pts.push([lc + 0.5 + ldc * steps, lr + 0.5 + ldr * steps]);                 // ponto fora do tabuleiro
+  const segLen = pts.slice(1).map((p, j) => Math.hypot(p[0] - pts[j][0], p[1] - pts[j][1]));
+  const total = segLen.reduce((a, b) => a + b, 0) || 1;
   const dur = 620, drainEnd = 0.45, t0 = performance.now();
   const clamp01 = v => Math.max(0, Math.min(1, v)), smooth = t => t * t * (3 - 2 * t);
   if (body) { body.setAttribute("pathLength", "100"); body.setAttribute("stroke-dasharray", "100"); }
@@ -252,40 +283,77 @@ function flyOut(el, piece) {
     const t = Math.min(1, (now - t0) / dur);
     const drain = smooth(clamp01(t / drainEnd));               // etapa 1: esvazia da cauda para a cabeça
     if (body) body.setAttribute("stroke-dashoffset", (drain * 100).toFixed(2));
-    const move = smooth(clamp01((t - drainEnd) / (1 - drainEnd)));   // etapa 2: a ponta vai até a borda
-    el.setAttribute("transform", `translate(${(dc * toEdge * move).toFixed(3)} ${(dr * toEdge * move).toFixed(3)})`);
-    if (tip) tip.style.opacity = String(t < 0.8 ? 1 : Math.max(0, 1 - (t - 0.8) / 0.2));   // some perto da borda
+    const move = smooth(clamp01((t - drainEnd) / (1 - drainEnd)));   // etapa 2: a ponta percorre o caminho
+    let dist = move * total, j = 0;
+    while (j < segLen.length - 1 && dist > segLen[j]) { dist -= segLen[j]; j++; }
+    const f = segLen[j] ? Math.min(1, dist / segLen[j]) : 0;
+    const x = pts[j][0] + (pts[j + 1][0] - pts[j][0]) * f;
+    const y = pts[j][1] + (pts[j + 1][1] - pts[j][1]) * f;
+    el.setAttribute("transform", `translate(${(x - hx).toFixed(3)} ${(y - hy).toFixed(3)})`);
+    if (tip) {
+      tip.setAttribute("transform", `rotate(${(route.segs[j] - piece.dir) * 90} ${hx} ${hy})`);
+      tip.style.opacity = String(t < 0.8 ? 1 : Math.max(0, 1 - (t - 0.8) / 0.2));   // some perto da borda
+    }
     if (t < 1) requestAnimationFrame(step);
-    else el.style.display = "none";
+    else finish();
   };
   requestAnimationFrame(step);
 }
 
-/** Um toque: se o caminho estiver livre a seta inteira desliza e sai; senão balança e custa uma vida.
+/** Alguma seta pode sair no estado atual? (o giro dos blocos pode criar becos sem saída) */
+function hasFreeMove() {
+  const occ = buildOcc(puzzle.pieces, [...present]);
+  for (const i of present) if (!blocked(puzzle.n, puzzle.pieces, occ, i, puzzle.redirectors, turn)) return true;
+  return false;
+}
+
+/** Sem saída: volta ao layout inicial (desviadores no estado inicial) sem parar o cronômetro. */
+function stuckReset() {
+  boardLocked = true;
+  setMessage("Sem saída: o tabuleiro voltou ao início (o tempo continua).", true);
+  const old = puzzle;
+  setTimeout(() => {
+    if (old !== puzzle || !boardLocked || solved) return;
+    present = new Set(puzzle.pieces.map((_, i) => i));
+    order = []; turn = 0; boardLocked = false;
+    buildBoard();
+    setMessage("Sem saída: o tabuleiro voltou ao início (o tempo continua).", true);
+  }, 650);
+}
+
+/** Um toque: se o caminho (com os desvios) estiver livre a seta escoa e sai; senão balança e custa uma vida.
     Tirar a última seta vence. */
 function tap(i) {
-  if (solved || !present.has(i)) return;
+  if (solved || boardLocked || !present.has(i)) return;
   startTimer();
-  const occ = buildOcc(puzzle.pieces, [...present], puzzle.walls);
-  if (blocked(puzzle.n, puzzle.pieces, occ, i)) {
+  const occ = buildOcc(puzzle.pieces, [...present]);
+  const route = beam(puzzle.n, puzzle.pieces[i].cells[0], puzzle.pieces[i].dir, occ, i, puzzle.redirectors, turn);
+  if (!route) {
     const el = pieceEls[i];
     if (el) { el.classList.remove("shake"); void el.getBoundingClientRect(); el.classList.add("shake"); }
     loseLife();
     return;
   }
   setMessage("");
+  boardLocked = true;                       // a seta sai primeiro; os blocos giram quando ela some
   present.delete(i); order.push(i);
+  const after = () => {
+    turn++;
+    paintRedirectors();
+    if (present.size === 0) {
+      solved = true; stopTimer();
+      if (mode === "daily") finishDaily();                     // desafio do dia: o SERVIDOR mede o tempo e pontua/progride
+      else setMessage(`Resolvido em ${formatTime(Date.now() - startedAt)}!` + creditWin());
+    } else if (!hasFreeMove()) stuckReset();
+    else boardLocked = false;
+  };
   const el = pieceEls[i];
   if (el) {
+    el.classList.remove("shake");
     el.style.pointerEvents = "none";
     el.setAttribute("aria-hidden", "true");
-    flyOut(el, puzzle.pieces[i]);
-  }
-  if (present.size === 0) {
-    solved = true; stopTimer();
-    if (mode === "daily") finishDaily();                       // desafio do dia: o SERVIDOR mede o tempo e pontua/progride
-    else setMessage(`Resolvido em ${formatTime(Date.now() - startedAt)}!` + creditWin());
-  }
+    flyOut(el, puzzle.pieces[i], route, () => { if (el.isConnected) after(); });
+  } else after();
 }
 
 document.getElementById("reset").onclick = () => { if (!solved) loadPuzzle(puzzle, { keepTimer: true }); };
@@ -304,6 +372,7 @@ document.getElementById("next").onclick = async () => {
 function restoreSolved() {
   credited = true; solved = true;
   present = new Set(); order = puzzle.solution.slice();
+  turn = puzzle.solution.length; boardLocked = false;
   buildBoard();
   for (const el of pieceEls) if (el) { el.classList.add("out"); el.style.opacity = "0"; el.style.pointerEvents = "none"; }
   setMessage("Fase já concluída. Use “Nova fase” para continuar.");
@@ -383,7 +452,11 @@ if (mode === "daily") {
   });
 } else {
   const saved = Run.get(uid, GAME_ID);
-  if (saved) { loadPuzzle(buildPuzzle(saved.seed, saved.level)); if (saved.solved) restoreSolved(); }
+  if (saved) {
+    loadPuzzle(buildPuzzle(saved.seed, saved.level));
+    if (saved.solved) restoreSolved();
+    else if (saved.gen !== GEN) Run.set(uid, GAME_ID, { seed: saved.seed, level: saved.level, solved: false, gen: GEN });
+  }
   else if (Coins.get(uid, GAME_ID).coins > 0) loadPuzzle(localFresh());
   else { loadPuzzle(lockedPuzzle()); lockBoard(); }
 }

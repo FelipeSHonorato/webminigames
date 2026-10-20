@@ -2,43 +2,47 @@
 
    Mecânica: cada SETA é uma peça (polilinha) de uma ou mais casas ligadas, com curvas. A ponta aponta numa
    direção (0 = cima, 1 = direita, 2 = baixo, 3 = esquerda). Ao tocar, o corpo escoa pelo próprio caminho até a
-   ponta e a seta sai do tabuleiro na direção apontada — mas só se o caminho da PONTA (o corredor reto da
-   cabeça até fora do tabuleiro) estiver livre. Outra peça encostada no corpo não trava (o corpo escoa por
-   dentro da própria peça). Travada, a seta balança e "bate" na outra (perde-se uma vida). Objetivo: tirar todas.
+   ponta e a seta sai do tabuleiro na direção apontada — mas só se o caminho da PONTA estiver livre. Outra peça
+   encostada no corpo não trava (o corpo escoa por dentro da própria peça). Travada, a seta balança e "bate";
+   perde-se uma vida. Objetivo: tirar todas.
 
-   OBSTÁCULOS: algumas casas são FIXAS (paredes/blocos). Nenhuma seta ocupa essas casas e elas também travam a
-   seta que aponta para elas (entram no corredor da ponta como qualquer outra peça).
+   DESVIADORES: algumas casas são FIXAS (blocos com uma seta dentro). Nenhuma seta ocupa essas casas. Quando o
+   caminho da ponta entra num desviador, ele CONTINUA na direção indicada por ele — podendo atravessar vários
+   desviadores em corrente. Se o caminho desviado bater em outra seta (ou entrar em ciclo), a seta fica travada.
+   A cada seta que sai do tabuleiro, TODOS os desviadores giram 90° no sentido horário (N→L→S→O); o estado é
+   `(dir inicial + nº de setas já removidas) % 4`.
 
    Como sortear peças e direções ao acaso quase nunca dá um tabuleiro solucionável, o gerador CONSTRÓI a fase:
    monta as peças da última removida para a primeira (de dentro para fora) e só aceita uma peça cujo caminho de
-   saída esteja livre das peças já colocadas — que são as removidas depois dela. Assim a ordem inversa da
-   montagem é sempre uma solução. Depois uma busca local vira a ponta de algumas peças para deixar poucas setas
-   livres no começo (o tabuleiro fica desafiador), sem nunca perder a solução. O tamanho da peça é escolhido para
-   caber o DOBRO de setas de antes em um tabuleiro maior. */
+   saída esteja livre das peças já colocadas — que são as removidas depois dela. Como os desviadores giram a cada
+   remoção, a construção anda para TRÁS no giro: começa no estado final sorteado e gira todos -90° antes de cada
+   peça seguinte; o estado ao fim é o inicial. Assim a ordem inversa da montagem é sempre uma solução. Depois uma
+   busca exata por peça ajusta a ponta de cada uma para deixar poucas setas livres no começo, sem nunca perder a
+   solução. O tamanho da peça é escolhido para caber o DOBRO de setas de antes em um tabuleiro maior. */
 
 /* ===================== DOMÍNIO ===================== */
 /* n: lado da grade. maxLen: tamanho máximo de uma seta (casas). maxBends: dobras máximas de uma seta.
-   targetFree: quantas setas podem sair no começo (menos = mais difícil; a busca local para de reduzir aqui).
-   walls: quantas casas fixas (obstáculos) o tabuleiro tem. target: quantidade desejada de setas.
-   Mais peças, mais dobras, mais obstáculos e menos setas livres conforme o nível. */
+   redirectors: quantos desviadores o tabuleiro tem. target: quantidade desejada de setas.
+   Mais peças, mais dobras e mais desviadores conforme o nível; a busca exata deixa poucas setas livres no começo. */
 export const LEVELS = [
-  { name: "Fácil", n: 8, maxLen: 2, maxBends: 0, targetFree: 6, walls: 4, target: 40 },
-  { name: "Médio", n: 10, maxLen: 3, maxBends: 1, targetFree: 7, walls: 6, target: 56 },
-  { name: "Difícil", n: 12, maxLen: 4, maxBends: 2, targetFree: 10, walls: 8, target: 64 },
-  { name: "Genius", n: 14, maxLen: 5, maxBends: 3, targetFree: 13, walls: 12, target: 80 },
+  { name: "Fácil", n: 8, maxLen: 2, maxBends: 0, redirectors: 4, target: 40 },
+  { name: "Médio", n: 10, maxLen: 3, maxBends: 1, redirectors: 6, target: 56 },
+  { name: "Difícil", n: 12, maxLen: 4, maxBends: 2, redirectors: 8, target: 64 },
+  { name: "Genius", n: 14, maxLen: 5, maxBends: 3, redirectors: 12, target: 80 },
 ];
 /** Vidas por cenário: cada toque numa seta travada custa uma. Ao zerar, o tabuleiro volta ao início. */
 export const LIVES = 3;
 export const STORE_KEY = "arrows.wins";
 /** Versão do gerador: gravada na fase salva. Mudar o sorteio muda as fases de uma mesma seed, então aumente ao mexer nele. */
-export const GEN = 3;
+export const GEN = 4;
 
 /* Setas no sentido horário: 0 = Norte (cima), 1 = Leste, 2 = Sul, 3 = Oeste. DIRS dá o passo [linha, coluna]. */
 export const DIRS = [[-1, 0], [0, 1], [1, 0], [0, -1]];
+const EMPTY = new Map();
 
-/* Fase: { n, pieces, walls } — cada peça é { cells: [casas...], dir }, com a PONTA em cells[0] apontando dir.
-   `walls` é um Set de casas fixas. A direção do primeiro trecho (cells[1]→cells[0]) é a própria dir, então a
-   seta desenha reta na ponta. */
+/* Fase: { n, pieces, redirectors, solution } — cada peça é { cells: [casas...], dir }, com a PONTA em cells[0]
+   apontando dir. `redirectors` é um Map casa -> direção INICIAL (0..3); a direção em jogo é essa + nº de
+   remoções. A direção do primeiro trecho (cells[1]→cells[0]) é a própria dir, então a seta desenha reta na ponta. */
 
 const dirBetween = (n, from, to) => {
   const fr = (from / n) | 0, fc = from % n, tr = (to / n) | 0, tc = to % n;
@@ -47,80 +51,80 @@ const dirBetween = (n, from, to) => {
 };
 const distToBorder = (n, cell) => { const r = (cell / n) | 0, c = cell % n; return Math.min(r, n - 1 - r, c, n - 1 - c); };
 
-/** Ocupação (casa -> índice da peça) para as peças presentes, para consultar a travagem em O(1).
-    Os obstáculos entram com índice -1: nunca são a própria peça, então travam como qualquer outra peça. */
-export function buildOcc(pieces, present, walls) {
+/** Ocupação (casa -> índice da peça) para as peças presentes, para consultar a travagem em O(1). */
+export function buildOcc(pieces, present) {
   const occ = new Map();
   for (const i of present) for (const cell of pieces[i].cells) occ.set(cell, i);
-  if (walls) for (const cell of walls) occ.set(cell, -1);
   return occ;
 }
-/** O caminho da casa `cell` na direção `d` está livre de OUTRA peça? (as casas da própria peça movem junto) */
-function rayClear(n, cell, d, used) {
-  const [dr, dc] = DIRS[d];
-  let r = (cell / n) | 0, c = cell % n;
-  for (r += dr, c += dc; r >= 0 && c >= 0 && r < n && c < n; r += dr, c += dc) if (used.has(r * n + c)) return false;
-  return true;
-}
-/** A peça `i` está travada agora? Só conta o corredor da PONTA: o corpo escoa pelo próprio caminho até a
-    ponta (como a água no cano), então outras peças encostadas no corpo não impedem a saída — só barra quem
-    está no caminho reto da seta, da cabeça até fora do tabuleiro. Casas da própria peça não contam. */
-export function blocked(n, pieces, occ, i) {
-  const p = pieces[i], [dr, dc] = DIRS[p.dir], head = p.cells[0];
-  let r = (head / n) | 0, c = head % n;
-  for (r += dr, c += dc; r >= 0 && c >= 0 && r < n && c < n; r += dr, c += dc) {
-    const o = occ.get(r * n + c);
-    if (o !== undefined && o !== i) return true;   // outra peça ou obstáculo no caminho da ponta: travada
-  }
-  return false;
-}
-export const removable = (n, pieces, occ, i) => !blocked(n, pieces, occ, i);
 
-/* ===================== SOLVER ===================== */
-/** Ordem de remoção que limpa o tabuleiro, ou null se não há solução. Remover uma peça só abre caminho
-    para as outras, então tirar sempre que possível nunca atrapalha e decide a solubilidade. */
-export function solveOrder(n, pieces, walls) {
-  const present = new Set(pieces.map((_, i) => i));
-  const occ = buildOcc(pieces, present, walls), order = [];
-  while (present.size) {
-    let moved = false;
-    for (const i of [...present]) if (removable(n, pieces, occ, i)) {
-      present.delete(i);
-      for (const c of pieces[i].cells) occ.delete(c);
-      order.push(i);
-      moved = true;
-    }
-    if (!moved) return null;
+/** Anda com a PONTA a partir de `head` na direção `dir`: uma casa por passo, virando nos desviadores.
+    `occ` tem só as peças (a própria é `own` e não trava); `redirectors` é Map casa -> direção inicial e `turn`
+    é o nº de setas já removidas. Devolve true se sair do tabuleiro, false se bater em outra peça ou entrar em
+    ciclo. wantPath devolve também as casas e as direções de cada trecho (para a animação e os testes). */
+function walk(n, head, dir, occ, own, redirectors, turn, wantPath) {
+  const seen = new Set();
+  const path = wantPath ? [head] : null, segs = wantPath ? [] : null;
+  let r = (head / n) | 0, c = head % n, d = dir;
+  for (;;) {
+    const key = (r * n + c) * 4 + d;
+    if (seen.has(key)) return null;                 // ciclo: nunca sai
+    seen.add(key);
+    if (wantPath) segs.push(d);
+    const nr = r + DIRS[d][0], nc = c + DIRS[d][1];
+    if (nr < 0 || nc < 0 || nr >= n || nc >= n) return wantPath ? { path, segs } : true;
+    const cell = nr * n + nc;
+    const o = occ.get(cell);
+    if (o !== undefined && o !== own) return null;  // outra peça no caminho
+    if (wantPath) path.push(cell);
+    const rd = redirectors.get(cell);
+    if (rd !== undefined) d = (rd + turn) & 3;      // desviador: continua na direção dele
+    r = nr; c = nc;
   }
-  return order;
 }
-const countFree = (n, pieces, walls) => {
-  const present = pieces.map((_, i) => i), occ = buildOcc(pieces, present, walls);
-  let free = 0;
-  for (const i of present) if (removable(n, pieces, occ, i)) free++;
-  return free;
-};
 
-/** Valida uma jogada enviada pelo cliente: a ordem de peças precisa esvaziar o tabuleiro, cada uma presente e livre. */
-export function isSolved(n, pieces, order, walls) {
+/** Caminho da ponta até fora do tabuleiro: { path: [casas], segs: [direção de cada trecho] } ou null se travada.
+    `segs` tem o mesmo tamanho de `path`: segs[j] é a direção com que a ponta sai de path[j] (o último sai fora). */
+export const beam = (n, head, dir, occ, own, redirectors = EMPTY, turn = 0) => walk(n, head, dir, occ, own, redirectors, turn, true);
+
+/** A peça `i` está travada? Só conta o caminho da PONTA (com os desvios dos blocos); o corpo escoa pelo próprio
+    caminho, então casas da própria peça não travam. */
+export function blocked(n, pieces, occ, i, redirectors = EMPTY, turn = 0) {
+  return walk(n, pieces[i].cells[0], pieces[i].dir, occ, i, redirectors, turn, false) === null;
+}
+export const removable = (n, pieces, occ, i, redirectors = EMPTY, turn = 0) => !blocked(n, pieces, occ, i, redirectors, turn);
+
+/** Uma remoção válida: a ordem de peças precisa esvaziar o tabuleiro, cada uma presente e livre NO ESTADO dela
+    (os desviadores giram 90° depois de cada seta que sai). */
+export function isSolved(n, pieces, order, redirectors = EMPTY) {
   if (!Array.isArray(order) || order.length !== pieces.length) return false;
   const present = new Set(pieces.map((_, i) => i));
-  const occ = buildOcc(pieces, present, walls);
+  const occ = buildOcc(pieces, present);
+  let turn = 0;
   for (const i of order) {
-    if (!Number.isInteger(i) || !present.has(i) || blocked(n, pieces, occ, i)) return false;
+    if (!Number.isInteger(i) || !present.has(i) || blocked(n, pieces, occ, i, redirectors, turn)) return false;
     present.delete(i);
     for (const c of pieces[i].cells) occ.delete(c);
+    turn++;
   }
   return present.size === 0;
 }
 
 /* ===================== GERADOR ===================== */
-/** Sorteia as casas fixas (obstáculos) do nível, espalhadas pelo tabuleiro. */
-function placeWalls(n, rng, count) {
+/** Sorteia as casas dos desviadores, espalhadas pelo tabuleiro, no estado FINAL da construção. */
+function placeRedirectors(n, rng, count) {
   const cells = Array.from({ length: n * n }, (_, i) => i);
   for (let i = cells.length - 1; i > 0; i--) { const j = (rng() * (i + 1)) | 0; [cells[i], cells[j]] = [cells[j], cells[i]]; }
-  return new Set(cells.slice(0, Math.min(count, n * n)));
+  const map = new Map();
+  for (const cell of cells.slice(0, Math.min(count, n * n))) map.set(cell, (rng() * 4) | 0);
+  return map;
 }
+/** Cópia dos desviadores girada `delta` passos (3 = -90°, para andar da última remoção para a primeira). */
+const rotated = (redirectors, delta) => {
+  const map = new Map();
+  for (const [cell, dir] of redirectors) map.set(cell, (dir + delta) & 3);
+  return map;
+};
 
 /** Cresce uma polilinha aleatória a partir de `start` (casas livres de `used`), com o primeiro trecho no lado
     oposto à ponta. Só a saída da PONTA importa para a travagem, então o corpo só precisa não ocupar casas já
@@ -152,15 +156,15 @@ function growTail(n, used, rng, start, first, maxLen, maxBends) {
   return cells;
 }
 
-/** Uma peça válida da construção: ponta `h` apontando `d` (saída livre das peças já colocadas), corpo atrás,
-    com no máximo `maxThis` casas (o gerador encolhe as peças para caber o dobro de setas). */
-function makePiece(n, used, rng, level, maxThis) {
+/** Uma peça válida da construção: ponta `h` apontando `d` (saída livre das peças já colocadas, considerando os
+    desviadores NO ESTADO da remoção dela), corpo atrás, com no máximo `maxThis` casas. */
+function makePiece(n, used, rng, level, maxThis, redirectors, occ) {
   const cap = Math.max(1, Math.min(maxThis, level.maxLen));
   let best = null, bestScore = Infinity;
   for (let cell = 0; cell < n * n; cell++) {
     if (used.has(cell)) continue;
     for (let d = 0; d < 4; d++) {
-      if (!rayClear(n, cell, d, used)) continue;
+      if (walk(n, cell, d, occ, -1, redirectors, 0, false) === null) continue;
       const [dr, dc] = DIRS[d], br = ((cell / n) | 0) - dr, bc = (cell % n) - dc;
       const inBoard = br >= 0 && bc >= 0 && br < n && bc < n;
       const first = inBoard ? br * n + bc : -1;
@@ -175,42 +179,80 @@ function makePiece(n, used, rng, level, maxThis) {
   return { cells, dir: best.d };
 }
 
-/** Vira a ponta de algumas peças (mantendo as casas) para reduzir o número de setas livres, sem perder a
-    solução. Assim o começo fica desafiador: poucas setas podem sair a cada toque. */
-function reduceFree(n, pieces, rng, target, walls) {
-  let best = pieces.map(p => ({ cells: p.cells.slice(), dir: p.dir }));
-  let bestFree = countFree(n, best, walls), iters = n * n * 12;
-  for (let k = 0; k < iters && bestFree > target; k++) {
-    const cand = best.map(p => ({ cells: p.cells, dir: p.dir }));
-    const q = cand[(rng() * cand.length) | 0];
-    if (q.cells.length === 1) q.dir = (q.dir + 1 + ((rng() * 3) | 0)) % 4;
-    else { q.cells = q.cells.slice().reverse(); q.dir = dirBetween(n, q.cells[1], q.cells[0]); }
-    if (!solveOrder(n, cand, walls)) continue;
-    const f = countFree(n, cand, walls);
-    if (f <= bestFree) { best = cand; bestFree = f; }
+/** Ajusta a ponta de cada peça (mantendo as casas) para ela ficar TRAVADA no começo (turn 0) e continuar
+    livre na hora em que é removida. As casas da peça não mudam, então a escolha de uma peça não altera a saída
+    das outras: a ocupação é a mesma e só a direção da própria ponta muda. Cada peça é otimizada de forma
+    independente (mínimo global de setas livres para a ordem escolhida). */
+function reduceFree(n, pieces, redirectors, order) {
+  const present = new Set(pieces.map((_, i) => i));
+  const occ = buildOcc(pieces, present), steps = new Map();
+  let turn = 0;
+  for (const i of order) {
+    steps.set(i, { occ: new Map(occ), turn });
+    present.delete(i);
+    for (const c of pieces[i].cells) occ.delete(c);
+    turn++;
   }
-  return best;
+  const occ0 = buildOcc(pieces, pieces.map((_, i) => i));
+  return pieces.map((p, i) => {
+    const at = steps.get(i);
+    const cur = { cells: p.cells.slice(), dir: p.dir };
+    let best = cur, bestFree = blocked(n, pieces, occ0, i, redirectors, 0) ? 0 : 1;
+    const rev = p.cells.length > 1 ? p.cells.slice().reverse() : null;
+    const alts = p.cells.length === 1
+      ? [0, 1, 2, 3].map(dir => ({ cells: p.cells, dir })).filter(a => a.dir !== p.dir)
+      : [{ cells: rev, dir: dirBetween(n, rev[1], rev[0]) }];
+    for (const alt of alts) {
+      const cand = pieces.slice();
+      cand[i] = alt;
+      if (blocked(n, cand, at.occ, i, redirectors, at.turn)) continue;   // precisa sair na vez dela
+      const free = blocked(n, cand, occ0, i, redirectors, 0) ? 0 : 1;
+      if (free < bestFree) { best = alt; bestFree = free; }
+    }
+    return best;
+  });
 }
 
-/** Fase a partir de uma seed (via rng) e de um nível: solucionável, com obstáculos e com o dobro de setas. */
+/** A solução pretendida usa ao menos um desviador? (garante que os blocos não sejam só decoração) */
+function usesRedirector(n, pieces, solution, redirectors) {
+  const present = new Set(pieces.map((_, i) => i));
+  const occ = buildOcc(pieces, present);
+  let turn = 0;
+  for (const i of solution) {
+    const b = beam(n, pieces[i].cells[0], pieces[i].dir, occ, i, redirectors, turn);
+    if (b && b.path.some(cell => cell !== pieces[i].cells[0] && redirectors.has(cell))) return true;
+    present.delete(i);
+    for (const c of pieces[i].cells) occ.delete(c);
+    turn++;
+  }
+  return false;
+}
+
+/** Fase a partir de uma seed (via rng) e de um nível: solucionável, com desviadores e com o dobro de setas. */
 export function generatePuzzle(rng, level) {
   const n = level.n, total = n * n, target = level.target;
   for (let attempt = 0; attempt < 80; attempt++) {
-    const walls = placeWalls(n, rng, level.walls);
-    const used = new Set(walls), pieces = [];
+    /* A construção anda da ÚLTIMA remoção para a primeira: começa no estado final sorteado e gira -90° antes
+       de cada peça. Ao terminar, `state` é o estado inicial que vai para o jogador. */
+    let state = placeRedirectors(n, rng, level.redirectors);
+    const used = new Set(state.keys()), pieces = [], occ = new Map();
     for (let guard = 0; guard < total * 4 && pieces.length < target && used.size < total; guard++) {
+      const st = pieces.length ? rotated(state, 3) : state;
       const free = total - used.size, left = Math.max(1, target - pieces.length);
       const want = Math.max(1, Math.min(level.maxLen, Math.round(free / left) + (rng() < 0.25 ? 1 : 0)));
-      const p = makePiece(n, used, rng, level, want);
+      const p = makePiece(n, used, rng, level, want, st, occ);
       if (!p) break;
-      for (const c of p.cells) used.add(c);
+      state = st;
+      const idx = pieces.length;
+      for (const c of p.cells) { used.add(c); occ.set(c, idx); }
       pieces.push(p);
     }
     if (pieces.length < Math.round(target * 0.9)) continue;   // não coube o bastante: tenta outra disposição
-    const reduced = reduceFree(n, pieces, rng, level.targetFree, walls);
-    const solution = solveOrder(n, reduced, walls);
-    if (!solution || solution.length !== reduced.length) continue;
-    return { n, pieces: reduced, walls, solution };
+    const solution = pieces.map((_, i) => i).reverse();        // a primeira removida é a última colocada
+    const reduced = reduceFree(n, pieces, state, solution);
+    if (!isSolved(n, reduced, solution, state)) continue;
+    if (!usesRedirector(n, reduced, solution, state)) continue;
+    return { n, pieces: reduced, redirectors: state, solution };
   }
   throw new Error("Não foi possível gerar a fase.");
 }
