@@ -16,7 +16,7 @@ h1{margin:0;font-size:2rem;letter-spacing:-.02em}
 .pieces{display:block;width:100%;height:100%;overflow:visible}
 rect.wall{fill:var(--muted);opacity:.5;stroke:var(--frame);stroke-width:.05;pointer-events:none}
 .piece{transform-box:fill-box;transform-origin:center;cursor:pointer;outline:none}
-.piece .hit{fill:transparent;stroke:none;pointer-events:all}
+.piece .hit{fill:transparent;stroke:none;pointer-events:fill}
 polyline.body{fill:none;stroke:var(--c);stroke-width:.26;stroke-linecap:butt;stroke-linejoin:round;pointer-events:none}
 .piece .tip{fill:var(--c);pointer-events:none}
 .piece:focus-visible .tip{stroke:var(--accent);stroke-width:.06}
