@@ -93,7 +93,7 @@ function appendTrophies(panel, slot, stats) {
       const row = node("li", `trophy-time ${p.medal}`);
       row.title = p.name;
       row.setAttribute("aria-label", `${i + 1}º lugar${p.name ? `: ${p.name}` : ""}, ${fmtTime(p.seconds)}`);
-      row.append(icon("trophy", `podium-trophy ${p.medal}`), avatarNode(p.avatar), node("strong", "trophy-time-value", fmtTime(p.seconds)));
+      row.append(icon("trophy", `podium-trophy ${p.medal}`), node("span", "trophy-time-name", p.name || "Jogador"), avatarNode(p.avatar), node("strong", "trophy-time-value", fmtTime(p.seconds)));
       list.append(row);
     });
     box.append(list);
@@ -155,16 +155,11 @@ function hideVeil() {
   veil = null;
 }
 
-/** Mostra os troféus no meio do tabuleiro, sobre uma cor translúcida. Permanece até o × ou o Esc. */
+/** Mostra os troféus no meio do tabuleiro, sobre uma cor translúcida. Permanece até o próximo cenário ou o Esc. */
 function showVeil(host, slot, stats, close) {
   hideVeil();
   const board = boardOf(host);
   const panel = node("div", "trophies");
-  const x = node("button", "trophies-close", "×");
-  x.type = "button";
-  x.setAttribute("aria-label", "Fechar os troféus");
-  x.onclick = close;
-  panel.append(x);
   appendTrophies(panel, slot, stats);
   if (!board) {                       // sem tabuleiro (página inesperada): cai no painel normal do dia
     host.append(panel);
