@@ -1,5 +1,6 @@
-/* Painel do cenário atual — compartilhado pelos jogos. Mostra o cenário da vez, o tempo e os "troféus" já
-   conquistados (percentual de jogadores, média do cenário e posição na região). A fila é FIFO entre os dias.
+/* Painel do cenário atual — compartilhado pelos jogos. Mostra só os "troféus" já conquistados (percentual
+   de jogadores, média do cenário e posição na região), sem repetir tempo, número do cenário ou data.
+   A fila é FIFO entre os dias.
    Os números vêm do servidor (daily_status/daily_finish -> stats), sempre sobre o mesmo cenário
    (dia, jogo, nível e slot). Os cálculos ficam em shared/daily-stats.js (puro). */
 import { Cloud } from "./backend/cloud.js";
@@ -10,9 +11,6 @@ import { scenarioTrophies } from "./daily-stats.js";
 
 export const dailySlots = info => info?.slots ?? Cloud.config()?.coinsPerDay ?? COINS_PER_DAY;
 export const resultsOf = (info, day) => day && info?.history?.[day] ? info.history[day] : (info?.results ?? {});
-export const slotsOf = (info, day) => Array.from({ length: dailySlots(info) }, (_, i) => ({ slot: i + 1, seconds: resultsOf(info, day)[i + 1] ?? null }));
-export const bestDaily = (info, day) => { const v = slotsOf(info, day).map(s => s.seconds).filter(s => s != null); return v.length ? Math.min(...v) : null; };
-
 /* Dia e meia-noite de Brasília (UTC-3, sem horário de verão): quando o desafio e os coins do dia viram. */
 export const spDay = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 export function nextSpMidnight() {
@@ -33,8 +31,6 @@ export function nextScenario(gameId) {
   return t ? { day: t.day, slot: t.slot } : null;
 }
 
-export const dayLabel = day => day ? new Date(`${day}T12:00:00Z`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "";
-const dayText = (day, today) => day === today ? "hoje" : dayLabel(day);
 const statsOf = (info, day, slot) => (day === info?.day ? info?.stats?.[slot] : info?.statsByDay?.[day]?.[slot]);
 
 /* ---------- ícones (SVG inline, no tom do tema) ---------- */
@@ -100,8 +96,8 @@ function appendTrophies(panel, slot, stats) {
   panel.append(cards);
 }
 
-/** Desenha o cenário atual (sem abas de dias ou de slots): mostra o tempo, os troféus já conquistados e o
-    botão para seguir para o próximo da fila. Ao vencer, a premiação abre sobre o tabuleiro. */
+/** Desenha o cenário atual (sem abas de dias ou de slots): mostra os troféus já conquistados e o botão
+    para seguir para o próximo da fila. Ao vencer, a premiação abre sobre o tabuleiro. */
 export function renderDailyPanel({ el: host, gameId, info, day, slot, won, onNext }) {
   if (!host) return;
   hideVeil();
@@ -122,31 +118,25 @@ export function renderDailyPanel({ el: host, gameId, info, day, slot, won, onNex
   const justWon = Boolean(winKey) && host.dataset.won !== winKey;
   host.dataset.won = winKey;
 
-  const card = node("div", "daily-current" + (seconds != null ? " done" : ""));
-  card.append(node("span", "daily-step", `Cenário ${slot}`));
-  card.append(node("span", "daily-date", dayText(currentDay, today)));
-  card.append(node("strong", "daily-time", seconds != null ? fmtTime(seconds) : "Em andamento"));
   const t = seconds != null ? scenarioTrophies(stats) : null;
   if (t) {
     const row = node("span", "daily-trophies");
     if (t.percent != null) row.append(mini("trophy", `${t.percent}%`, `Melhor que ${t.percent}% dos jogadores`));
     if (t.players > 1) row.append(mini(t.average === "above" ? "up" : t.average === "below" ? "down" : "even", AVERAGE_SHORT[t.average], `${AVERAGE_TEXT[t.average]}${t.avgSeconds != null ? ` (média: ${fmtTime(t.avgSeconds)})` : ""}`));
     if (t.regionRank != null) row.append(mini("globe", `#${t.regionRank}`, `Nº ${t.regionRank} na sua região`));
-    if (row.children.length) card.append(row);
+    if (row.children.length) {
+      const card = node("div", "daily-current done");
+      card.append(row);
+      host.append(card);
+    }
   }
-  host.append(card);
 
   const next = nextTicket(data.open, data.pending);
   const pending = data.pending?.length ?? 0;
-  const best = bestDaily(data, currentDay);
-  const tip = node("p", "daily-tip");
-  const parts = [pending ? plural(pending, "cenário pendente", "cenários pendentes") : "Sem cenários pendentes"];
-  if (best != null) parts.push(`melhor ${currentDay === today ? "de hoje" : `de ${dayLabel(currentDay)}`}: ${fmtTime(best)}`);
-  tip.textContent = parts.join(" · ");
-  host.append(tip);
+  if (pending) host.append(node("p", "daily-tip", plural(pending, "cenário pendente", "cenários pendentes")));
 
   if (seconds != null && next) {
-    const b = node("button", "daily-next", `Próximo cenário · ${next.slot}${next.day === today ? "" : ` · ${dayLabel(next.day)}`}`);
+    const b = node("button", "daily-next", "Próximo cenário");
     b.type = "button";
     b.onclick = () => onNext?.();
     host.append(b);
@@ -206,16 +196,41 @@ function showVeil(host, slot, stats, close) {
   };
   place();
 
+  /* O ranking abre/fecha com uma transição que desloca o tabuleiro sem mudar o tamanho dele, então o
+     ResizeObserver não basta. Seguimos a posição durante a transição e também quando o body muda de classe. */
+  const main = board.closest("main");
+  let frame = 0, followUntil = 0;
+  const follow = () => {
+    frame = 0;
+    place();
+    if (performance.now() < followUntil) frame = requestAnimationFrame(follow);
+  };
+  const followBoard = () => {
+    followUntil = performance.now() + 400;
+    if (!frame) frame = requestAnimationFrame(follow);
+  };
+
   const onKey = e => { if (e.key === "Escape") close(); };
+  const onTransition = e => { if (e.target === main) followBoard(); };
   const ro = typeof ResizeObserver === "function" ? new ResizeObserver(place) : null;
+  const mo = typeof MutationObserver === "function" ? new MutationObserver(followBoard) : null;
   ro?.observe(board);
+  mo?.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   document.addEventListener("keydown", onKey);
+  document.addEventListener("transitionrun", onTransition, true);
+  document.addEventListener("transitionend", onTransition, true);
+  document.addEventListener("transitioncancel", onTransition, true);
   window.addEventListener("scroll", place, true);
-  window.addEventListener("resize", place);
+  window.addEventListener("resize", followBoard);
   veilCleanup = () => {
+    cancelAnimationFrame(frame);
     ro?.disconnect();
+    mo?.disconnect();
     document.removeEventListener("keydown", onKey);
+    document.removeEventListener("transitionrun", onTransition, true);
+    document.removeEventListener("transitionend", onTransition, true);
+    document.removeEventListener("transitioncancel", onTransition, true);
     window.removeEventListener("scroll", place, true);
-    window.removeEventListener("resize", place);
+    window.removeEventListener("resize", followBoard);
   };
 }

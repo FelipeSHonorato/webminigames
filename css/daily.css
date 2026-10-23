@@ -3,10 +3,6 @@
 .daily{position:relative;margin:0 0 12px}
 .daily-current{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:4px 10px;padding:12px;text-align:center;border:2px solid var(--grid);border-radius:14px;background:var(--btn)}
 .daily-current.done{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,var(--btn))}
-.daily-step{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
-.daily-current.done .daily-step{color:var(--fg)}
-.daily-date{padding:1px 7px;border:1px solid var(--grid);border-radius:999px;font-size:.72rem;font-weight:700;color:var(--muted)}
-.daily-time{flex-basis:100%;font-size:1.35rem;font-variant-numeric:tabular-nums;color:var(--fg)}
 .daily-trophies{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;flex-basis:100%}
 .mini{display:inline-flex;align-items:center;gap:2px;padding:1px 6px;border:1px solid var(--grid);border-radius:999px;background:var(--btn);font-size:.7rem;font-weight:700;color:var(--fg)}
 .mini .mini-ico{display:inline-grid;place-items:center;width:12px;height:12px;color:var(--accent)}
