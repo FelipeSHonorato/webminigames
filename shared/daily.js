@@ -93,7 +93,7 @@ function appendTrophies(panel, slot, stats) {
       const row = node("li", `trophy-time ${p.medal}`);
       row.title = p.name;
       row.setAttribute("aria-label", `${i + 1}º lugar${p.name ? `: ${p.name}` : ""}, ${fmtTime(p.seconds)}`);
-      row.append(icon("trophy", `podium-trophy ${p.medal}`), node("span", "trophy-time-name", p.name || "Jogador"), avatarNode(p.avatar), node("strong", "trophy-time-value", fmtTime(p.seconds)));
+      row.append(icon("trophy", `podium-trophy ${p.medal}`), avatarNode(p.avatar), node("span", "trophy-time-name", p.name || "Jogador"), node("strong", "trophy-time-value", fmtTime(p.seconds)));
       list.append(row);
     });
     box.append(list);

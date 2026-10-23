@@ -23,7 +23,7 @@
 .trophy-times{margin-top:12px;padding-top:10px;border-top:1px solid var(--grid)}
 .trophy-times-title{margin:0 0 8px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);text-align:center}
 .trophy-times-list{display:grid;gap:6px;margin:0;padding:0;list-style:none}
-.trophy-time{display:grid;grid-template-columns:22px minmax(0,1fr) 34px auto;align-items:center;gap:10px;padding:6px 10px;border:1px solid var(--grid);border-radius:10px;background:var(--btn)}
+.trophy-time{display:grid;grid-template-columns:22px 34px minmax(0,1fr) auto;align-items:center;gap:10px;padding:6px 10px;border:1px solid var(--grid);border-radius:10px;background:var(--btn)}
 .trophy-time-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.85rem;font-weight:700;color:var(--fg)}
 .trophy-time .avatar{width:34px;height:34px;border-width:2px}
 .trophy-time-value{justify-self:end;font-variant-numeric:tabular-nums;color:var(--fg)}
