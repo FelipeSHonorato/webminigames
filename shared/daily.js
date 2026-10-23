@@ -1,13 +1,13 @@
-/* Painel do cenário atual — compartilhado pelos jogos. Mostra só os "troféus" já conquistados (percentual
-   de jogadores, média do cenário e posição na região), sem repetir tempo, número do cenário ou data.
-   A fila é FIFO entre os dias.
+/* Painel do cenário atual — compartilhado pelos jogos. Mostra só o aviso de pendências e o botão para
+   seguir a fila FIFO entre os dias; a premiação (troféus e pódio de tempos) abre sobre o tabuleiro.
    Os números vêm do servidor (daily_status/daily_finish -> stats), sempre sobre o mesmo cenário
    (dia, jogo, nível e slot). Os cálculos ficam em shared/daily-stats.js (puro). */
 import { Cloud } from "./backend/cloud.js";
 import { COINS_PER_DAY } from "./coins.js";
 import { fmtTime } from "./ranking-list.js";
 import { regionName } from "./regions.js";
-import { scenarioTrophies } from "./daily-stats.js";
+import { podiumTimes, scenarioTrophies } from "./daily-stats.js";
+import { avatarNode } from "./avatar.js";
 
 export const dailySlots = info => info?.slots ?? Cloud.config()?.coinsPerDay ?? COINS_PER_DAY;
 export const resultsOf = (info, day) => day && info?.history?.[day] ? info.history[day] : (info?.results ?? {});
@@ -38,9 +38,6 @@ const ICONS = {
   trophy: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v5a5 5 0 0 1-10 0z" fill="currentColor"/><path d="M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3M12 14v3M8 20h8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
   clock: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
   globe: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18" fill="none" stroke="currentColor" stroke-width="2"/></svg>`,
-  up: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5l6 7h-4v7h-4v-7H6z" fill="currentColor"/></svg>`,
-  down: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19l-6-7h4V5h4v7h4z" fill="currentColor"/></svg>`,
-  even: `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11h14v2H5z" fill="currentColor"/></svg>`,
 };
 
 const node = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
@@ -48,14 +45,6 @@ const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const icon = (name, extra) => { const s = document.createElement("span"); s.className = extra ? `trophy-ico ${extra}` : "trophy-ico"; s.innerHTML = ICONS[name] ?? ""; return s; };
 
 const AVERAGE_TEXT = { above: "Acima da média", below: "Abaixo da média", even: "Na média" };
-const AVERAGE_SHORT = { above: "acima", below: "abaixo", even: "média" };
-
-function mini(name, text, title) {
-  const n = node("span", "mini");
-  n.title = title;
-  n.append(icon(name, "mini-ico"), node("span", "mini-text", text));
-  return n;
-}
 
 function trophyCard(name, main, sub, detail) {
   const c = node("div", "trophy-card");
@@ -94,10 +83,26 @@ function appendTrophies(panel, slot, stats) {
     cards.append(trophyCard("globe", "Sem região", "Defina sua região no perfil", "para comparar com a sua região"));
   }
   panel.append(cards);
+
+  const top = podiumTimes(stats);
+  if (top.length) {
+    const box = node("section", "trophy-times");
+    box.append(node("h3", "trophy-times-title", "Melhores tempos do cenário"));
+    const list = node("ol", "trophy-times-list");
+    top.forEach((p, i) => {
+      const row = node("li", `trophy-time ${p.medal}`);
+      row.title = p.name;
+      row.setAttribute("aria-label", `${i + 1}º lugar${p.name ? `: ${p.name}` : ""}, ${fmtTime(p.seconds)}`);
+      row.append(icon("trophy", `podium-trophy ${p.medal}`), avatarNode(p.avatar), node("strong", "trophy-time-value", fmtTime(p.seconds)));
+      list.append(row);
+    });
+    box.append(list);
+    panel.append(box);
+  }
 }
 
-/** Desenha o cenário atual (sem abas de dias ou de slots): mostra os troféus já conquistados e o botão
-    para seguir para o próximo da fila. Ao vencer, a premiação abre sobre o tabuleiro. */
+/** Desenha o cenário atual (sem abas de dias ou de slots): só o aviso de pendências e o botão para seguir
+    para o próximo da fila. Ao vencer, a premiação abre sobre o tabuleiro. */
 export function renderDailyPanel({ el: host, gameId, info, day, slot, won, onNext }) {
   if (!host) return;
   hideVeil();
@@ -117,19 +122,6 @@ export function renderDailyPanel({ el: host, gameId, info, day, slot, won, onNex
   const winKey = won && seconds != null ? `${currentDay}:${slot}` : "";
   const justWon = Boolean(winKey) && host.dataset.won !== winKey;
   host.dataset.won = winKey;
-
-  const t = seconds != null ? scenarioTrophies(stats) : null;
-  if (t) {
-    const row = node("span", "daily-trophies");
-    if (t.percent != null) row.append(mini("trophy", `${t.percent}%`, `Melhor que ${t.percent}% dos jogadores`));
-    if (t.players > 1) row.append(mini(t.average === "above" ? "up" : t.average === "below" ? "down" : "even", AVERAGE_SHORT[t.average], `${AVERAGE_TEXT[t.average]}${t.avgSeconds != null ? ` (média: ${fmtTime(t.avgSeconds)})` : ""}`));
-    if (t.regionRank != null) row.append(mini("globe", `#${t.regionRank}`, `Nº ${t.regionRank} na sua região`));
-    if (row.children.length) {
-      const card = node("div", "daily-current done");
-      card.append(row);
-      host.append(card);
-    }
-  }
 
   const next = nextTicket(data.open, data.pending);
   const pending = data.pending?.length ?? 0;

@@ -11,13 +11,14 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql"];
+const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql"];
 const migration = f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
 const migrations = migrationNames.map(migration);
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
 const sqlAll = migrations.join("\n");          // estrutura (RLS, permissões, search_path): todas as migrações
 const ticketSql = migration("20261026000000_daily_tickets.sql");
 const flowSql = migration("20261027000000_daily_fluxo.sql");
+const topTimesSql = migration("20261028000000_daily_top_times.sql");
 const fn = name => sql.match(new RegExp(`function public\\.${name}\\(\\)[^$]*\\$\\$ select ([^$]*?) \\$\\$`))?.[1];
 
 test("SQL: constantes do jogo iguais às do JS (nível, pontos, coins)", () => {
@@ -126,6 +127,17 @@ test("SQL: troféus do cenário diário (percentual, média e região) sem expor
   assert.match(sqlAll, /'stats', public\.daily_scenario_stats\(p_uid, p_game, p_slot, v_run\.level/);      // e o fim devolve o troféu do slot
   assert.match(sqlAll, /row_number\(\) over \(order by f\.seconds asc, f\.points desc/);                   // ranking do dia com o mesmo desempate
   assert.match(sqlAll, /daily_scenario_stats\(p_uid, p_game, p_slot, v_level, \(select region from public\.profiles where id = p_uid\), v_day\)/); // reenvio do dia original
+});
+
+test("SQL: troféus trazem os três melhores tempos do cenário com foto", () => {
+  assert.match(topTimesSql, /create or replace function public\.daily_scenario_stats\(p_uid uuid, p_game text, p_slot int, p_level int, p_region text, p_day date default null\)/);
+  assert.match(topTimesSql, /coalesce\(p\.nickname, p\.name\) as name/);
+  assert.match(topTimesSql, /'top', coalesce\(\(/);
+  assert.match(topTimesSql, /jsonb_build_object\([\s\S]*?'id', b\.user_id,[\s\S]*?'name', b\.name,[\s\S]*?'avatar', b\.avatar,[\s\S]*?'seconds', b\.seconds/);
+  assert.match(topTimesSql, /where b\.rank_global <= 3/);
+  assert.match(topTimesSql, /and p\.role <> 'admin'/);
+  assert.match(topTimesSql, /revoke all on function public\.daily_scenario_stats\(uuid, text, int, int, text, date\) from public, anon, authenticated/);
+  assert.match(topTimesSql, /grant execute on function public\.daily_scenario_stats\(uuid, text, int, int, text, date\) to service_role/);
 });
 
 test("SQL: o administrador pode dar tickets diários a uma conta (por e-mail), só para teste", () => {

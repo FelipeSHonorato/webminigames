@@ -16,6 +16,17 @@ export function averageStatus(seconds, avgSeconds, players) {
   return "even";
 }
 
+const MEDALS = ["gold", "silver", "bronze"];
+
+/** Os três melhores tempos do cenário, na ordem, com a medalha que a tela desenha. */
+export function podiumTimes(stats) {
+  return (Array.isArray(stats?.top) ? stats.top : [])
+    .map(p => ({ name: typeof p?.name === "string" ? p.name : "", avatar: typeof p?.avatar === "string" ? p.avatar : null, seconds: Number(p?.seconds) }))
+    .filter(p => Number.isFinite(p.seconds))
+    .slice(0, 3)
+    .map((p, i) => ({ ...p, medal: MEDALS[i] }));
+}
+
 /** Normaliza o que veio do servidor (daily_my_stats) para o que a tela mostra. `null` quando não há dados. */
 export function scenarioTrophies(stats) {
   if (!stats) return null;

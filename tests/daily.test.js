@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { betterThanPercent, averageStatus, scenarioTrophies } from "../shared/daily-stats.js";
+import { betterThanPercent, averageStatus, podiumTimes, scenarioTrophies } from "../shared/daily-stats.js";
 import { nextTicket } from "../shared/daily.js";
 
 test("troféus: percentual de jogadores superados (e sozinho = 100%)", () => {
@@ -35,6 +35,22 @@ test("troféus: normaliza os dados do servidor", () => {
     { players: 0, rank: 0, percent: null, average: "even", seconds: null, avgSeconds: null, points: 0, hints: 0, region: null, regionRank: null, regionPlayers: null },
   );
   assert.deepEqual(scenarioTrophies({ players: 1, rank: 1, seconds: 12, avgSeconds: 12 }).percent, 100);
+});
+
+test("pódio: três melhores tempos, com medalha dourada/prata/bronze e sem quebrar com dados ruins", () => {
+  const top = [
+    { id: "1", name: "Ana", avatar: "data:image/jpeg;base64,AA", seconds: 12 },
+    { id: "2", name: "Bia", avatar: null, seconds: 20 },
+    { id: "3", name: "Caio", avatar: "data:image/png;base64,BB", seconds: 31 },
+    { id: "4", name: "Duda", avatar: "data:image/jpeg;base64,CC", seconds: 40 },
+  ];
+  assert.deepEqual(podiumTimes({ top }), [
+    { name: "Ana", avatar: "data:image/jpeg;base64,AA", seconds: 12, medal: "gold" },
+    { name: "Bia", avatar: null, seconds: 20, medal: "silver" },
+    { name: "Caio", avatar: "data:image/png;base64,BB", seconds: 31, medal: "bronze" },
+  ]);
+  assert.deepEqual(podiumTimes({ top: [{ seconds: "x" }, { seconds: 5, name: 7 }] }), [{ name: "", avatar: null, seconds: 5, medal: "gold" }]);
+  assert.deepEqual(podiumTimes(null), []);
 });
 
 test("fila diária: o dia mais antigo vem antes, mesmo que uma tentativa mais nova esteja aberta", () => {
