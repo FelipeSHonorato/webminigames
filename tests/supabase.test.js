@@ -11,11 +11,13 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrations = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql"]
-  .map(f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8"));
+const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql"];
+const migration = f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
+const migrations = migrationNames.map(migration);
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
 const sqlAll = migrations.join("\n");          // estrutura (RLS, permissões, search_path): todas as migrações
-const ticketSql = migrations[migrations.length - 2]; // a migração de tickets (a última só ajusta o início do backlog)
+const ticketSql = migration("20261026000000_daily_tickets.sql");
+const flowSql = migration("20261027000000_daily_fluxo.sql");
 const fn = name => sql.match(new RegExp(`function public\\.${name}\\(\\)[^$]*\\$\\$ select ([^$]*?) \\$\\$`))?.[1];
 
 test("SQL: constantes do jogo iguais às do JS (nível, pontos, coins)", () => {
@@ -134,6 +136,19 @@ test("SQL: o administrador pode dar tickets diários a uma conta (por e-mail), s
   assert.match(ticketSql, /insert into public\.daily_tickets \(user_id, day, game_id, slot, level, seed\)/);
   assert.match(ticketSql, /least\(greatest\(coalesce\(p_coins, 0\), 0\), public\.daily_backlog_days\(\)\)/); // p_coins = dias
   assert.doesNotMatch(ticketSql, /insert into public\.daily_coins/);                           // não volta a escrever no saldo antigo
+});
+
+test("SQL: o fluxo diário guarda no máximo 30 dias e informa o teto de coins", () => {
+  assert.match(flowSql, /create or replace function public\.daily_grant/);
+  assert.match(flowSql, /v_cutoff\s+date := public\.daily_day\(\) - \(public\.daily_backlog_days\(\) - 1\)/);
+  assert.match(flowSql, /delete from public\.daily_tickets[\s\S]*?day < v_cutoff/);   // descarta a fila vencida
+  assert.match(flowSql, /delete from public\.daily_runs[\s\S]*?day < v_cutoff/);      // tentativas antigas também expiram
+  assert.match(flowSql, /delete from public\.daily_tickets[\s\S]*?slot > v_cap/);    // reduzir o limite remove slots que não existem mais
+  assert.match(flowSql, /v_start\s*:= greatest\(v_last, public\.daily_backlog_start\(\), v_cutoff\)/);
+  assert.match(flowSql, /'maxCoins', v_max/);
+  assert.match(flowSql, /public\.daily_backlog_days\(\) \* v_cap/);
+  assert.match(flowSql, /create or replace function public\.admin_grant_coins/);
+  assert.match(flowSql, /grant execute on function public\.daily_seed\(date, text, int, int\) to service_role/);
 });
 
 test("a configuração do Supabase é válida quando preenchida (ou vazia, no modo local) e nunca leva chave secreta", () => {

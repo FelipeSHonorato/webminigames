@@ -267,7 +267,7 @@ test("administrador: nível e liga/desliga passam pelo servidor; recusa vira men
 
 test("desafio diário: status guarda tickets e o dia original em open/finish/leaderboard", async () => {
   const daily = { zip: {
-    day: "2026-10-26", slots: 2, level: 0, coins: 1,
+    day: "2026-10-26", slots: 2, maxCoins: 60, level: 0, coins: 1,
     pending: [{ day: "2026-10-24", slot: 1, level: 0 }], open: [],
     results: {}, history: {}, levels: {}, stats: {},
   } };
@@ -280,6 +280,7 @@ test("desafio diário: status guarda tickets e o dia original em open/finish/lea
   await Cloud.dailyStatus();
   assert.deepEqual(Cloud.daily("zip").pending, [{ day: "2026-10-24", slot: 1, level: 0 }]);
   assert.equal(Cloud.daily("zip").day, "2026-10-26");
+  assert.equal(Cloud.daily("zip").maxCoins, 60);
 
   await Cloud.dailyOpen("zip", "2026-10-24", 1);
   assert.deepEqual(c.calls.find(x => x[0] === "invoke" && x[2].action === "daily_open")[2], { action: "daily_open", game: "zip", day: "2026-10-24", slot: 1 });

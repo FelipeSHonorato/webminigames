@@ -1,28 +1,20 @@
-/* Painel dos cenários do dia (um por coin do dia) — compartilhado pelos jogos. Cada cenário é um quadrado:
-   vencido fica preenchido com a cor de destaque e mostra os troféus (percentual, média e região). Os cartões
-   grandes (`.trophies`) são a premiação do cenário selecionado. */
+/* Painel do cenário atual — compartilhado pelos jogos. Não há abas: a fila anda sozinha, do dia/vaga mais
+   antigo ao mais novo. Os cartões grandes (`.trophies`) são a premiação do cenário recém-vencido. */
 .daily{position:relative;margin:0 0 12px}
-.daily-days{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;margin:0 0 8px}
-.daily-day{padding:4px 9px;border:1px solid var(--grid);border-radius:999px;background:var(--btn);font:inherit;font-size:.75rem;font-weight:700;color:var(--muted);cursor:pointer}
-.daily-day.selected{border-color:var(--accent);color:var(--fg)}
-.slots{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
-.slot{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:112px;padding:10px 12px;font:inherit;font-size:.85rem;font-weight:700;color:var(--muted);background:var(--btn);border:2px solid var(--grid);border-radius:14px}
-.slot.current{border-color:var(--accent);color:var(--fg)}
-.slot.done{position:relative;overflow:hidden;color:var(--fg);border-color:var(--accent);cursor:pointer;text-align:center}
-.slot.done::before{content:"";position:absolute;inset:0;background:var(--accent);opacity:.22;pointer-events:none}
-.slot.done>*{position:relative}
-.slot.done:hover{filter:brightness(1.05)}
-.slot.done.selected{box-shadow:0 0 0 2px var(--accent) inset}
-.slot.pending{opacity:.7}
-.slot-name{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
-.slot.done .slot-name{color:var(--fg)}
-.slot-time{font-size:1.05rem;font-variant-numeric:tabular-nums}
-.slot-status{font-size:.8rem}
-.slot-trophies{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;margin-top:2px}
+.daily-current{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:4px 10px;padding:12px;text-align:center;border:2px solid var(--grid);border-radius:14px;background:var(--btn)}
+.daily-current.done{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,var(--btn))}
+.daily-step{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.daily-current.done .daily-step{color:var(--fg)}
+.daily-date{padding:1px 7px;border:1px solid var(--grid);border-radius:999px;font-size:.72rem;font-weight:700;color:var(--muted)}
+.daily-time{flex-basis:100%;font-size:1.35rem;font-variant-numeric:tabular-nums;color:var(--fg)}
+.daily-trophies{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;flex-basis:100%}
 .mini{display:inline-flex;align-items:center;gap:2px;padding:1px 6px;border:1px solid var(--grid);border-radius:999px;background:var(--btn);font-size:.7rem;font-weight:700;color:var(--fg)}
 .mini .mini-ico{display:inline-grid;place-items:center;width:12px;height:12px;color:var(--accent)}
 .mini .mini-ico svg{display:block;width:12px;height:12px}
 .daily-tip{margin:8px 0 0;font-size:.85rem;color:var(--muted);text-align:center}
+.daily-next{display:block;width:100%;margin:8px 0 0;padding:10px 12px;border:0;border-radius:12px;background:var(--accent);font:inherit;font-weight:800;color:var(--accent-fg,var(--bg));cursor:pointer}
+.daily-next:hover{filter:brightness(1.06)}
+.daily-all{margin:8px 0 0;font-size:.85rem;font-weight:700;color:var(--muted);text-align:center}
 /* Premiação do cenário: um véu translúcido sobre o tabuleiro (o "quadrado" do jogo) com os troféus no meio. */
 .wmg-veil{position:absolute;z-index:50;display:grid;place-items:center;padding:10px;overflow:hidden;background:rgba(10,17,26,.28);background:color-mix(in srgb,var(--accent) 32%,transparent)}
 .wmg-veil-inner{display:grid;place-items:center;width:100%;max-width:100%;max-height:100%}
@@ -39,4 +31,4 @@
 .trophy-main{font-size:.95rem;color:var(--fg)}
 .trophy-sub{font-size:.75rem;color:var(--muted)}
 .trophy-detail{font-size:.72rem;color:var(--muted);font-variant-numeric:tabular-nums}
-@media (max-width:420px){.slot{min-width:96px;padding:8px 9px}.trophies{padding:12px 10px}.trophy-cards{grid-template-columns:repeat(auto-fit,minmax(100px,1fr))}}
+@media (max-width:420px){.daily-current{padding:10px}.trophies{padding:12px 10px}.trophy-cards{grid-template-columns:repeat(auto-fit,minmax(100px,1fr))}}

@@ -120,7 +120,7 @@ function applyWin(game, data) {
   S.cache.wins[game] = data.wins; S.cache.scores[game] = data.score; S.cache.coins[game] = data.coins;
   delete S.cache.phases[game];   // a fase foi consumida (ou já estava): não há o que retomar
 }
-const emptyDaily = () => ({ day: null, level: 0, coins: 0, slots: 2, results: {}, pending: [], open: [], history: {}, levels: {}, stats: {}, statsByDay: {} });
+const emptyDaily = () => ({ day: null, level: 0, coins: 0, slots: 2, maxCoins: 60, results: {}, pending: [], open: [], history: {}, levels: {}, stats: {}, statsByDay: {} });
 const byDaySlot = (a, b) => String(a.day).localeCompare(String(b.day)) || a.slot - b.slot;
 const dropEntry = (list, day, slot) => (list ?? []).filter(x => !(x.day === day && x.slot === slot));
 
@@ -286,7 +286,7 @@ export const Cloud = {
       throw e;
     }
   },
-  /* ----- desafio diário (tickets acumuláveis; mesmo cenário por dia/nível/slot; ranking por tempo) ----- */
+  /* ----- desafio diário (tickets acumuláveis; mesmo cenário por dia/nível/slot; tempo nos troféus) ----- */
   daily: g => S.cache.daily[g] ?? null,
   /** Carrega tickets pendentes, tentativas abertas, resultados de hoje e o histórico de todos os jogos. */
   async dailyStatus() {

@@ -1,7 +1,7 @@
-/* Painel dos cenários do dia (um por coin) — compartilhado pelos jogos. Mostra o progresso do dia e, nos
-   cenários já vencidos, os "troféus": em que percentual de jogadores o tempo ficou, se ficou acima/abaixo da
-   média do dia e a posição na região. Os números vêm do servidor (daily_status/daily_finish -> stats), sempre
-   sobre o mesmo cenário (dia, jogo, nível e slot). Os cálculos ficam em shared/daily-stats.js (puro). */
+/* Painel do cenário atual — compartilhado pelos jogos. Mostra o cenário da vez, o tempo e os "troféus" já
+   conquistados (percentual de jogadores, média do cenário e posição na região). A fila é FIFO entre os dias.
+   Os números vêm do servidor (daily_status/daily_finish -> stats), sempre sobre o mesmo cenário
+   (dia, jogo, nível e slot). Os cálculos ficam em shared/daily-stats.js (puro). */
 import { Cloud } from "./backend/cloud.js";
 import { COINS_PER_DAY } from "./coins.js";
 import { fmtTime } from "./ranking-list.js";
@@ -22,19 +22,19 @@ export function nextSpMidnight() {
 
 const dayOrder = (a, b) => String(a.day).localeCompare(String(b.day)) || a.slot - b.slot;
 
-/** Próximo cenário a jogar: retoma a tentativa aberta mais antiga ou abre o ticket mais antigo (FIFO). */
+/** Próximo da fila: tenta retomar uma fase aberta e, se não houver, pega o ticket mais antigo. A fila inteira
+    é ordenada por dia e slot, para um cenário atrasado nunca ser ultrapassado por um mais novo. */
+export function nextTicket(open, pending) {
+  return [...(open ?? []), ...(pending ?? [])].sort(dayOrder)[0] ?? null;
+}
 export function nextScenario(gameId) {
   const info = Cloud.daily(gameId);
-  const open = [...(info?.open ?? [])].sort(dayOrder)[0];
-  if (open) return { day: open.day, slot: open.slot };
-  const pending = [...(info?.pending ?? [])].sort(dayOrder)[0];
-  return pending ? { day: pending.day, slot: pending.slot } : null;
+  const t = nextTicket(info?.open, info?.pending);
+  return t ? { day: t.day, slot: t.slot } : null;
 }
 
 export const dayLabel = day => day ? new Date(`${day}T12:00:00Z`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : "";
 const dayText = (day, today) => day === today ? "hoje" : dayLabel(day);
-const hasTicket = (info, day, slot) => (info?.pending ?? []).some(x => x.day === day && x.slot === slot);
-const isOpen = (info, day, slot) => (info?.open ?? []).some(x => x.day === day && x.slot === slot);
 const statsOf = (info, day, slot) => (day === info?.day ? info?.stats?.[slot] : info?.statsByDay?.[day]?.[slot]);
 
 /* ---------- ícones (SVG inline, no tom do tema) ---------- */
@@ -86,11 +86,11 @@ function appendTrophies(panel, slot, stats) {
   const cards = node("div", "trophy-cards");
   if (t.percent != null) {
     cards.append(trophyCard("trophy", `Melhor que ${t.percent}%`, "dos jogadores",
-      t.players <= 1 ? "Só você jogou este cenário hoje" : `Sua posição: ${t.rank}º de ${plural(t.players, "jogador", "jogadores")}`));
+      t.players <= 1 ? "Só você jogou este cenário" : `Sua posição: ${t.rank}º de ${plural(t.players, "jogador", "jogadores")}`));
   }
   cards.append(trophyCard("clock", AVERAGE_TEXT[t.average],
-    t.players <= 1 ? "Só você jogou hoje" : "em relação ao tempo de hoje",
-    t.avgSeconds != null ? `Média de hoje: ${fmtTime(t.avgSeconds)}` : "Sem média do dia"));
+    t.players <= 1 ? "Só você jogou este cenário" : "em relação ao tempo do cenário",
+    t.avgSeconds != null ? `Média do cenário: ${fmtTime(t.avgSeconds)}` : "Sem média do cenário"));
   if (t.regionRank != null) {
     cards.append(trophyCard("globe", `Nº ${t.regionRank} na sua região`, regionName(t.region),
       plural(t.regionPlayers ?? 0, "jogador", "jogadores") + " no cenário"));
@@ -100,111 +100,64 @@ function appendTrophies(panel, slot, stats) {
   panel.append(cards);
 }
 
-/** Desenha o painel do dia: escolhe o dia, mostra os cenários (vencido = preenchido + troféus) e, por cima
-    do cenário selecionado, a premiação — que abre ao vencer e só sai no × ou no Esc (não some ao clicar fora). */
-export function renderDailyPanel({ el: host, gameId, info, day, slot, won }) {
+/** Desenha o cenário atual (sem abas de dias ou de slots): mostra o tempo, os troféus já conquistados e o
+    botão para seguir para o próximo da fila. Ao vencer, a premiação abre sobre o tabuleiro. */
+export function renderDailyPanel({ el: host, gameId, info, day, slot, won, onNext }) {
   if (!host) return;
   hideVeil();
-  const data = info ?? { day: spDay(), coins: 0, slots: dailySlots(null), results: {}, pending: [], open: [], history: {}, stats: {}, statsByDay: {} };
+  const data = info ?? { day: spDay(), coins: 0, slots: dailySlots(null), maxCoins: 0, results: {}, pending: [], open: [], history: {}, stats: {}, statsByDay: {} };
   const today = data.day ?? spDay();
-  const days = [...new Set([
-    today,
-    ...Object.keys(data.history ?? {}),
-    ...(data.pending ?? []).map(x => x.day),
-    ...(data.open ?? []).map(x => x.day),
-  ].filter(Boolean))].sort().reverse();
-  let selectedDay = day && days.includes(day) ? day : host.dataset.day && days.includes(host.dataset.day) ? host.dataset.day : today;
-  if (!days.includes(selectedDay)) selectedDay = days[0] ?? today;
-  host.dataset.day = selectedDay;
-  host.__dailyArgs = { el: host, gameId, info: data, day: selectedDay, slot, won };
-
-  const list = slotsOf(data, selectedDay);
-  const done = list.filter(s => s.seconds != null);
-  const lastDone = done.length ? done[done.length - 1].slot : null;
-
-  let open = host.dataset.openDay === selectedDay && host.dataset.open ? Number(host.dataset.open) : null;
-  if (open != null && !done.some(s => s.slot === open)) open = null;                 // virou o dia / cenário sumiu
-  const wonNow = won && slot && selectedDay === day && done.some(s => s.slot === slot);
-  const wonSlot = statsOf(data, selectedDay, slot);
-  if (wonNow && wonSlot && host.dataset.won !== `${selectedDay}:${slot}`) open = slot; // acabou de vencer: abre
-  host.dataset.won = wonNow ? `${selectedDay}:${slot}` : "";
-
-  const stored = Number(host.dataset.selected);
-  const selected = open ?? (stored && done.some(s => s.slot === stored) ? stored : lastDone);
-  host.dataset.open = open ? String(open) : "";
-  host.dataset.openDay = open ? selectedDay : "";
-  host.dataset.selected = selected ? String(selected) : "";
-
+  const currentDay = day ?? today;
+  host.__dailyArgs = { el: host, gameId, info: data, day: currentDay, slot, won, onNext };
   host.replaceChildren();
-  if (!list.length) return;
 
-  if (days.length > 1) {
-    const picker = node("div", "daily-days");
-    for (const d of days) {
-      const b = node("button", "daily-day" + (d === selectedDay ? " selected" : ""), dayText(d, today));
-      b.type = "button";
-      b.setAttribute("aria-pressed", String(d === selectedDay));
-      b.onclick = () => {
-        host.dataset.day = d;
-        host.dataset.open = ""; host.dataset.openDay = ""; host.dataset.selected = "";
-        renderDailyPanel({ ...host.__dailyArgs, day: d });
-      };
-      picker.append(b);
-    }
-    host.append(picker);
+  if (slot == null) {
+    host.append(node("p", "daily-tip", "Nenhum cenário disponível agora. Novos cenários à meia-noite (Brasília)."));
+    return;
   }
 
-  const status = node("div", "slots");
-  for (const s of list) {
-    const isDone = s.seconds != null;
-    const ticket = hasTicket(data, selectedDay, s.slot);
-    const running = isOpen(data, selectedDay, s.slot);
-    const playing = running && s.slot === slot && selectedDay === day && !won;
-    const stats = statsOf(data, selectedDay, s.slot);
-    const t = isDone ? scenarioTrophies(stats) : null;
-    const canOpen = isDone && !!stats;
-    const item = document.createElement(canOpen ? "button" : "span");
-    if (canOpen) {
-      item.type = "button";
-      item.setAttribute("aria-pressed", String(s.slot === open));
-      item.title = s.slot === open ? "Fechar os troféus" : "Ver os troféus deste cenário";
-      item.onclick = () => {
-        host.dataset.open = Number(host.dataset.open) === s.slot ? "" : String(s.slot);
-        host.dataset.openDay = host.dataset.open ? selectedDay : "";
-        host.dataset.selected = String(s.slot);
-        renderDailyPanel(host.__dailyArgs);
-      };
-    }
-    item.className = "slot" + (isDone ? " done" : playing ? " current" : " pending") + (s.slot === selected ? " selected" : "");
-    item.append(node("span", "slot-name", `Cenário ${s.slot}${selectedDay === today ? "" : ` · ${dayLabel(selectedDay)}`}`));
-    if (isDone) {
-      item.append(node("span", "slot-time", fmtTime(s.seconds)));
-      if (t) {
-        const row = node("span", "slot-trophies");
-        if (t.percent != null) row.append(mini("trophy", `${t.percent}%`, `Melhor que ${t.percent}% dos jogadores`));
-        if (t.players > 1) row.append(mini(t.average === "above" ? "up" : t.average === "below" ? "down" : "even", AVERAGE_SHORT[t.average], `${AVERAGE_TEXT[t.average]} (média do dia: ${fmtTime(t.avgSeconds)})`));
-        if (t.regionRank != null) row.append(mini("globe", `#${t.regionRank}`, `Nº ${t.regionRank} na sua região`));
-        if (row.children.length) item.append(row);
-      }
-    } else {
-      item.append(node("span", "slot-status", playing ? "jogando" : running ? "em aberto" : ticket ? "ticket" : "indisponível"));
-    }
-    status.append(item);
-  }
-  host.append(status);
+  const seconds = resultsOf(data, currentDay)[slot] ?? null;
+  const stats = statsOf(data, currentDay, slot);
+  const winKey = won && seconds != null ? `${currentDay}:${slot}` : "";
+  const justWon = Boolean(winKey) && host.dataset.won !== winKey;
+  host.dataset.won = winKey;
 
-  const tip = node("p", "daily-tip");
-  const best = bestDaily(data, selectedDay);
+  const card = node("div", "daily-current" + (seconds != null ? " done" : ""));
+  card.append(node("span", "daily-step", `Cenário ${slot}`));
+  card.append(node("span", "daily-date", dayText(currentDay, today)));
+  card.append(node("strong", "daily-time", seconds != null ? fmtTime(seconds) : "Em andamento"));
+  const t = seconds != null ? scenarioTrophies(stats) : null;
+  if (t) {
+    const row = node("span", "daily-trophies");
+    if (t.percent != null) row.append(mini("trophy", `${t.percent}%`, `Melhor que ${t.percent}% dos jogadores`));
+    if (t.players > 1) row.append(mini(t.average === "above" ? "up" : t.average === "below" ? "down" : "even", AVERAGE_SHORT[t.average], `${AVERAGE_TEXT[t.average]}${t.avgSeconds != null ? ` (média: ${fmtTime(t.avgSeconds)})` : ""}`));
+    if (t.regionRank != null) row.append(mini("globe", `#${t.regionRank}`, `Nº ${t.regionRank} na sua região`));
+    if (row.children.length) card.append(row);
+  }
+  host.append(card);
+
+  const next = nextTicket(data.open, data.pending);
   const pending = data.pending?.length ?? 0;
-  const oldest = [...(data.pending ?? [])].sort(dayOrder)[0]?.day;
-  const balance = pending > 0
-    ? `${pending} ${pending === 1 ? "ticket pendente" : "tickets pendentes"}${oldest ? ` · mais antigo: ${dayText(oldest, today)}` : ""}`
-    : "Sem tickets pendentes.";
-  tip.textContent = `${balance} · melhor tempo${selectedDay === today ? " de hoje" : ` de ${dayLabel(selectedDay)}`}: ${best != null ? fmtTime(best) : "—"}.`;
+  const best = bestDaily(data, currentDay);
+  const tip = node("p", "daily-tip");
+  const parts = [pending ? plural(pending, "cenário pendente", "cenários pendentes") : "Sem cenários pendentes"];
+  if (best != null) parts.push(`melhor ${currentDay === today ? "de hoje" : `de ${dayLabel(currentDay)}`}: ${fmtTime(best)}`);
+  tip.textContent = parts.join(" · ");
   host.append(tip);
 
-  const close = () => { host.dataset.open = ""; host.dataset.openDay = ""; renderDailyPanel(host.__dailyArgs); };
-  if (open && statsOf(data, selectedDay, open)) showVeil(host, open, statsOf(data, selectedDay, open), close);
+  if (seconds != null && next) {
+    const b = node("button", "daily-next", `Próximo cenário · ${next.slot}${next.day === today ? "" : ` · ${dayLabel(next.day)}`}`);
+    b.type = "button";
+    b.onclick = () => onNext?.();
+    host.append(b);
+  } else if (seconds != null) {
+    host.append(node("p", "daily-all", "Você concluiu todos os cenários disponíveis. Novos à meia-noite (Brasília)."));
+  }
+
+  if (justWon && stats) {
+    const close = () => renderDailyPanel(host.__dailyArgs);
+    showVeil(host, slot, stats, close);
+  }
 }
 
 /** O "quadrado" do jogo: o tabuleiro que recebe o véu dos troféus. */

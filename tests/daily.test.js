@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { betterThanPercent, averageStatus, scenarioTrophies } from "../shared/daily-stats.js";
+import { nextTicket } from "../shared/daily.js";
 
 test("troféus: percentual de jogadores superados (e sozinho = 100%)", () => {
   assert.equal(betterThanPercent(1, 1), 100);
@@ -34,4 +35,12 @@ test("troféus: normaliza os dados do servidor", () => {
     { players: 0, rank: 0, percent: null, average: "even", seconds: null, avgSeconds: null, points: 0, hints: 0, region: null, regionRank: null, regionPlayers: null },
   );
   assert.deepEqual(scenarioTrophies({ players: 1, rank: 1, seconds: 12, avgSeconds: 12 }).percent, 100);
+});
+
+test("fila diária: o dia mais antigo vem antes, mesmo que uma tentativa mais nova esteja aberta", () => {
+  const open = [{ day: "2026-10-22", slot: 2 }];
+  const pending = [{ day: "2026-10-21", slot: 1 }, { day: "2026-10-22", slot: 1 }];
+  assert.deepEqual(nextTicket(open, pending), { day: "2026-10-21", slot: 1 });
+  assert.deepEqual(nextTicket([{ day: "2026-10-21", slot: 2 }], [{ day: "2026-10-21", slot: 1 }]), { day: "2026-10-21", slot: 1 });
+  assert.equal(nextTicket([], []), null);
 });

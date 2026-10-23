@@ -26,7 +26,7 @@ export function scopeTabs(host, onChange) {
   return { get scope() { return scope; }, sync };
 }
 
-/** "MM:SS" ou "H:MM:SS" a partir de segundos (ranking por tempo do desafio diário). */
+/** "MM:SS" ou "H:MM:SS" a partir de segundos (tempo dos cenários diários). */
 export function fmtTime(seconds) {
   const s = Math.max(0, Math.floor(seconds));
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
@@ -34,28 +34,25 @@ export function fmtTime(seconds) {
   return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-/** Linha do ranking: posição, foto pequena, nome e a métrica (pontos ou, no desafio diário, o tempo). */
+/** Linha do ranking: posição, foto pequena, nome e pontos. */
 export function rankingRow(r) {
   const li = el("li", r.isMe ? "me" : "");
   li.title = regionName(r.region);
-  const metric = r.seconds != null ? fmtTime(r.seconds) : `${r.points} pts`;
-  li.append(el("span", "pos", String(r.rank)), avatarNode(r.avatar), el("span", "nm", r.name + (r.isMe ? " (você)" : "")), el("span", "pts", metric));
+  li.append(el("span", "pos", String(r.rank)), avatarNode(r.avatar), el("span", "nm", r.name + (r.isMe ? " (você)" : "")), el("span", "pts", `${r.points} pts`));
   return li;
 }
 
-/** Preenche a lista e o aviso a partir de { top, me } (resultado de Scores.leaderboard / dailyLeaderboard).
-    `kind = "daily"` troca os textos para o desafio diário (ranking por tempo). */
-export function renderLeaderboard({ list, note, data: { top, me }, scope, loginUrl, kind = "points" }) {
-  const daily = kind === "daily";
+/** Preenche a lista e o aviso a partir de { top, me } (resultado de Scores.leaderboard). */
+export function renderLeaderboard({ list, note, data: { top, me }, scope, loginUrl }) {
   list.replaceChildren(); note.replaceChildren();
   if (!top.length) list.append(el("li", "empty", scope === "region"
-    ? (daily ? "Ninguém da sua região completou ainda." : "Ninguém da sua região pontuou ainda.")
-    : (daily ? "Ninguém completou o desafio de hoje ainda. Seja o primeiro!" : "Ninguém pontuou ainda. Seja o primeiro!")));
+    ? "Ninguém da sua região pontuou ainda."
+    : "Ninguém pontuou ainda. Seja o primeiro!"));
   top.forEach(r => list.append(rankingRow(r)));
   if (me && !top.some(r => r.isMe)) list.append(el("li", "gap", "…"), rankingRow(me));
   if (!Scores.canRank()) {
     note.append("Você joga como anônimo: as vitórias não contam. ");
     const a = el("a", "", "Criar conta"); a.href = loginUrl; note.append(a);
   } else if (scope === "region" && !getSession()?.region) note.append("Sua conta não tem região definida.");
-  else if (!me) note.append(daily ? "Jogue o desafio de hoje para entrar no ranking." : "Vença uma partida para entrar no ranking.");
+  else if (!me) note.append("Vença uma partida para entrar no ranking.");
 }

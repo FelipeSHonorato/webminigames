@@ -14,7 +14,7 @@ import { Cloud } from "../../shared/backend/cloud.js";
 import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/progress.js";
 import { BIT, DELTA, E, GEN, LEVELS, N, S, STORE_KEY, W, firstLeaks, generatePuzzle, initialRots, maskOf, opposite, rotateTile, simulate, solutionRots } from "./domain.js";
 import { fmtTime } from "../../shared/ranking-list.js";
-import { nextScenario as nextScenarioOf, renderDailyPanel } from "../../shared/daily.js";
+import { nextScenario as nextScenarioOf, nextSpMidnight, renderDailyPanel, spDay } from "../../shared/daily.js";
 
 const GAME_ID = "canos";
 Music.play(GAME_ID);
@@ -23,7 +23,7 @@ if (sessionUser && !gameAllowed(GAME_ID, sessionUser)) location.replace("../../j
 mountUserBar(document.getElementById("userbar"), { base: "../../" });
 const uid = sessionUser?.id ?? "guest";
 const isCloud = Cloud.owns(uid);                          // o desafio diário só existe na nuvem (a seed é do servidor)
-const ranking = mountRanking({ gameId: GAME_ID, title: "Conexão de Canos", modes: isCloud ? ["daily", "points"] : ["points"] });
+const ranking = mountRanking({ gameId: GAME_ID, title: "Conexão de Canos" });
 const coinsEl = document.getElementById("coinBadge");
 /* Na nuvem o jogo é SÓ o desafio do dia (a fase aleatória deixou de existir); no modo local/visitante continua aleatória. */
 const mode = isCloud ? "daily" : "random";
@@ -32,11 +32,6 @@ const mode = isCloud ? "daily" : "random";
    phase: "ready" (esperando o 1º giro) · "counting" (contagem regressiva) · "flowing" (água correndo) · "won" · "lost" · "locked" (sem coins). */
 let puzzle, rots = [], angles = [], phase = "locked", moves = 0, deadline = 0, total = 0, sim = null, credited = false, clockId = null, flowId = null;
 
-/* Meia-noite de Brasília (UTC-3, sem horário de verão): quando o desafio do dia e os coins do dia recomeçam. */
-function nextSpMidnight() {
-  const [y, m, d] = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date()).split("-").map(Number);
-  return Date.UTC(y, m - 1, d + 1) + 3 * 3600 * 1000;
-}
 
 /* Coins: saldo ao lado do nome do jogo e liberação do botão "Nova fase" (só com fase concluída e coin disponível).
    No desafio diário o saldo mostrado é o do dia (reposto à meia-noite de Brasília; a quantidade é configurável). */
@@ -44,7 +39,7 @@ function renderCoins() {
   const next = document.getElementById("next");
   if (mode === "daily") {
     const d = Cloud.daily(GAME_ID) ?? { coins: 0 };
-    coinsEl.replaceChildren(coinBadge({ coins: d.coins ?? 0, max: Math.max(d.slots ?? Cloud.config()?.coinsPerDay ?? COINS_PER_DAY, d.coins ?? 0), nextRefillAt: nextSpMidnight(), daily: true }));
+    coinsEl.replaceChildren(coinBadge({ coins: d.coins ?? 0, max: d.maxCoins ?? 30 * (d.slots ?? Cloud.config()?.coinsPerDay ?? COINS_PER_DAY), nextRefillAt: nextSpMidnight(), daily: true }));
     const left = nextScenario();                       // o botão só avança para o PRÓXIMO cenário (não há escolha)
     const canNext = phase === "won" && left != null;
     next.disabled = !canNext;
@@ -57,7 +52,19 @@ function renderCoins() {
   next.disabled = !canNext;
   next.title = canNext ? "" : phase !== "won" ? "Conclua a fase atual para liberar a próxima." : `Sem coins por agora: novos em ${fmtDuration(balance.nextRefillAt - Date.now())}.`;
 }
-setInterval(renderCoins, 30000);   // a recarga de 24 h pode chegar com a página aberta
+let seenDay = spDay();                             // a virada de Brasília chega com a página aberta
+function tickDaily() {
+  if (mode === "daily" && spDay() !== seenDay) {
+    seenDay = spDay();
+    Cloud.dailyStatus().then(() => {
+      renderDaily(); renderCoins(); ranking.refresh();
+      if (!dailyTicket) { const ticket = nextScenario(); if (ticket) openDaily(ticket); }
+    });
+    return;
+  }
+  renderCoins();
+}
+setInterval(tickDaily, 30000);
 document.querySelector(".help")?.append(` ${pointsLegend()}`);   // pontuação junto da explicação do jogo
 
 /* ===================== UI ===================== */
@@ -389,7 +396,7 @@ function lockBoard() {
 }
 
 /* ===================== Desafio diário =====================
-   Mesmo cenário do dia para todos (por nível), ranking por TEMPO. Só na nuvem: a seed é derivada no servidor.
+   Mesmo cenário do dia para todos (por nível). Só na nuvem: a seed é derivada no servidor; o tempo fica nos troféus.
    A quantidade de cenários do dia é igual aos coins do dia (configurável pelo administrador). */
 let dailyTicket = null;
 const dailyEl = document.getElementById("daily");
@@ -399,7 +406,7 @@ const nextScenario = () => nextScenarioOf(GAME_ID);
 /** Painel do desafio: progresso do dia e troféus dos cenários vencidos (shared/daily.js). */
 function renderDaily() {
   if (mode !== "daily") return;
-  renderDailyPanel({ el: dailyEl, gameId: GAME_ID, info: Cloud.daily(GAME_ID), day: dailyTicket?.day, slot: dailyTicket?.slot, won: phase === "won" });
+  renderDailyPanel({ el: dailyEl, gameId: GAME_ID, info: Cloud.daily(GAME_ID), day: dailyTicket?.day, slot: dailyTicket?.slot, won: phase === "won", onNext: () => document.getElementById("next").click() });
 }
 
 async function openDaily(ticket) {
@@ -419,7 +426,7 @@ function finishDaily() {
   Cloud.dailyFinish(GAME_ID, dailyTicket?.day, dailyTicket?.slot, { rots })
     .then(r => {
       setMessage(r.ok
-        ? `Tempo do dia: ${fmtTime(r.ok.seconds)}.` + (r.ok.best != null && r.ok.best < r.ok.seconds ? ` Melhor do dia: ${fmtTime(r.ok.best)}.` : "")
+        ? `Tempo do cenário: ${fmtTime(r.ok.seconds)}.` + (r.ok.best != null && r.ok.best < r.ok.seconds ? ` Melhor do cenário: ${fmtTime(r.ok.best)}.` : "")
         : "Tempo enviado; será confirmado quando a conexão voltar.");
       wins = loadWins(); renderLevel();                  // concluir o cenário do dia também sobe a progressão (pontos)
       renderDaily(); renderCoins(); ranking.refresh();

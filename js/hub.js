@@ -23,7 +23,7 @@ const PROVIDER_NOTE = { password: "", google: "", "google-demo": "Google (simula
 function balanceBadge(uid, id) {
   if (Cloud.owns(uid)) {
     const d = Cloud.daily(id);
-    if (d) return coinBadge({ coins: d.coins ?? 0, max: Math.max(d.slots ?? Cloud.config()?.coinsPerDay ?? 0, d.coins ?? 0), nextRefillAt: nextSpMidnight(), daily: true });
+    if (d) return coinBadge({ coins: d.coins ?? 0, max: d.maxCoins ?? 30 * (d.slots ?? Cloud.config()?.coinsPerDay ?? 2), nextRefillAt: nextSpMidnight(), daily: true });
   }
   return coinBadge(Coins.get(uid, id));
 }
