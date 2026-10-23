@@ -352,7 +352,7 @@ export const Cloud = {
   async adminSetLevel(game, level) {
     const { data, error } = await S.client.rpc("admin_set_level", { p_game: game, p_level: level });
     if (error) throw new Error(error.code === "42501" ? "Só o administrador pode escolher o nível." : "Não foi possível mudar o nível.");
-    S.cache.wins[game] = data.wins; delete S.cache.runs[game]; S.dirty.delete(game); S.removed.delete(game);
+    S.cache.wins[game] = data.wins; delete S.cache.runs[game]; delete S.cache.daily[game]; S.dirty.delete(game); S.removed.delete(game);
   },
   async setGameEnabled(game, on) {
     const { data, error } = await S.client.from("games").update({ enabled: on }).eq("id", game).select("id");

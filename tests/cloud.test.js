@@ -253,12 +253,17 @@ test("ranking vem do servidor (função ranking), com escopo e limite; erro vira
 
 test("administrador: nível e liga/desliga passam pelo servidor; recusa vira mensagem", async () => {
   const admin = { ...SNAP, profile: { ...SNAP.profile, role: "admin" } };
-  const c = await boot({ snapshot: admin, rpc: { admin_set_level: () => ({ data: { wins: 45 }, error: null }) } });
+  const c = await boot({ snapshot: admin, rpc: {
+    admin_set_level: () => ({ data: { wins: 45 }, error: null }),
+    daily_status: () => ({ data: { zip: { day: "2026-10-26", level: 0, coins: 1, pending: [{ day: "2026-10-26", slot: 1, level: 0 }] } }, error: null }),
+  } });
   const session = JSON.parse(store.get("wmg.session"));
   Run.set(UID, "zip", { seed: 1 });
+  await Cloud.dailyStatus(); assert.equal(Cloud.daily("zip").pending[0].level, 0);
   assert.equal(await AdminLevel.set(session, "zip", "zip.wins", 3), 3);
   assert.deepEqual(c.calls.find(x => x[1] === "admin_set_level")[2], { p_game: "zip", p_level: 3 });
   assert.equal(Progress.level("zip.wins", UID), 3); assert.equal(Run.get(UID, "zip"), null);
+  assert.equal(Cloud.daily("zip"), null);
   await GameSwitch.set("zip", false); assert.equal(GameSwitch.isOn("zip"), false);
   await boot({ tables: { update: () => ({ data: [], error: null }) } });
   await assert.rejects(async () => GameSwitch.set("zip", false), /administrador/);

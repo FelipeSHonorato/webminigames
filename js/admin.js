@@ -64,7 +64,7 @@ function levelRow(id, g) {
     b.onclick = async () => {
       try {
         await AdminLevel.set(session, id, g.key, i);
-        $("adminMsg").textContent = `${g.title}: nível ${levelName}. A fase salva do administrador foi descartada; ao abrir o jogo, nasce uma fase nova nesse nível.`;
+        $("adminMsg").textContent = `${g.title}: nível ${levelName}. A fase salva foi descartada; na nuvem, os tickets do dia também foram reiniciados nesse nível. Ao abrir o jogo, nasce uma fase nova.`;
       } catch (err) { $("adminMsg").textContent = err.message; }
       await render();
       document.querySelector(`.lvls button[data-game="${id}"][data-level="${i}"]`)?.focus();   // o foco volta ao botão clicado

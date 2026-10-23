@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql"];
+const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql"];
 const migration = f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
 const migrations = migrationNames.map(migration);
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
@@ -19,6 +19,7 @@ const sqlAll = migrations.join("\n");          // estrutura (RLS, permissões, s
 const ticketSql = migration("20261026000000_daily_tickets.sql");
 const flowSql = migration("20261027000000_daily_fluxo.sql");
 const topTimesSql = migration("20261028000000_daily_top_times.sql");
+const adminLevelDailySql = migration("20261029000000_admin_level_daily.sql");
 const fn = name => sql.match(new RegExp(`function public\\.${name}\\(\\)[^$]*\\$\\$ select ([^$]*?) \\$\\$`))?.[1];
 
 test("SQL: constantes do jogo iguais às do JS (nível, pontos, coins)", () => {
@@ -148,6 +149,15 @@ test("SQL: o administrador pode dar tickets diários a uma conta (por e-mail), s
   assert.match(ticketSql, /insert into public\.daily_tickets \(user_id, day, game_id, slot, level, seed\)/);
   assert.match(ticketSql, /least\(greatest\(coalesce\(p_coins, 0\), 0\), public\.daily_backlog_days\(\)\)/); // p_coins = dias
   assert.doesNotMatch(ticketSql, /insert into public\.daily_coins/);                           // não volta a escrever no saldo antigo
+});
+
+test("SQL: trocar o nível do administrador reinicia o diário do jogo no nível novo", () => {
+  assert.match(adminLevelDailySql, /create or replace function public\.admin_set_level\(p_game text, p_level int\)/);
+  assert.match(adminLevelDailySql, /delete from public\.daily_tickets where user_id = auth\.uid\(\) and game_id = p_game/);
+  assert.match(adminLevelDailySql, /delete from public\.daily_runs\s+where user_id = auth\.uid\(\) and game_id = p_game/);
+  assert.match(adminLevelDailySql, /delete from public\.daily_results\s+where user_id = auth\.uid\(\) and game_id = p_game and day = public\.daily_day\(\)/);
+  assert.match(adminLevelDailySql, /revoke all on function public\.admin_set_level\(text, int\)\s+from public, anon, authenticated/);
+  assert.match(adminLevelDailySql, /grant execute on function public\.admin_set_level\(text, int\)\s+to authenticated/);
 });
 
 test("SQL: o fluxo diário guarda no máximo 30 dias e informa o teto de coins", () => {

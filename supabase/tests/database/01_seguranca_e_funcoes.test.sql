@@ -185,6 +185,31 @@ select throws_ok($$select public.admin_set_level('sudoku', -1)$$, '22023', 'inva
 select throws_ok($$select public.admin_set_level('xx', 1)$$,      '22023', 'unknown_game',   'jogo inexistente');
 select lives_ok($$select public.admin_set_level('sudoku', 0)$$, 'administrador volta ao Fácil');
 select public.tap_super();
+
+-- Trocar o nível também reinicia o desafio diário do jogo; o histórico anterior fica.
+insert into public.game_progress (user_id, game_id, wins) values ('33333333-3333-3333-3333-333333333333', 'canos', 0)
+  on conflict (user_id, game_id) do update set wins = excluded.wins;
+insert into public.daily_grants (user_id, game_id, last_day)
+  values ('33333333-3333-3333-3333-333333333333', 'canos', public.daily_day())
+  on conflict (user_id, game_id) do update set last_day = excluded.last_day;
+insert into public.daily_tickets (user_id, day, game_id, slot, level, seed) values
+  ('33333333-3333-3333-3333-333333333333', public.daily_day(), 'canos', 1, 0, public.daily_seed(public.daily_day(), 'canos', 0, 1)),
+  ('33333333-3333-3333-3333-333333333333', public.daily_day() - 1, 'canos', 1, 0, public.daily_seed(public.daily_day() - 1, 'canos', 0, 1));
+insert into public.daily_runs (user_id, day, game_id, slot, level, seed, hints) values
+  ('33333333-3333-3333-3333-333333333333', public.daily_day(), 'canos', 1, 0, public.daily_seed(public.daily_day(), 'canos', 0, 1), 0);
+insert into public.daily_results (user_id, day, game_id, slot, level, hints, seconds) values
+  ('33333333-3333-3333-3333-333333333333', public.daily_day(), 'canos', 2, 0, 0, 30),
+  ('33333333-3333-3333-3333-333333333333', public.daily_day() - 1, 'canos', 1, 0, 0, 20);
+select public.tap_as('33333333-3333-3333-3333-333333333333');
+select is((public.admin_set_level('canos', 1)) ->> 'wins', '15', 'administrador: Médio = 15 vitórias');
+select is((select count(*) from public.daily_tickets where user_id = '33333333-3333-3333-3333-333333333333' and game_id = 'canos'), 0::bigint, 'tickets do jogo foram descartados');
+select is((select count(*) from public.daily_runs where user_id = '33333333-3333-3333-3333-333333333333' and game_id = 'canos'), 0::bigint, 'tentativas abertas do jogo foram descartadas');
+select is((select count(*) from public.daily_results where user_id = '33333333-3333-3333-3333-333333333333' and game_id = 'canos' and day = public.daily_day()), 0::bigint, 'resultados de hoje foram descartados');
+select is((select count(*) from public.daily_results where user_id = '33333333-3333-3333-3333-333333333333' and game_id = 'canos' and day = public.daily_day() - 1), 1::bigint, 'histórico anterior foi preservado');
+insert into public.tap_res select 'adm_daily', public.daily_status();
+select is((select count(*) from public.daily_tickets where user_id = '33333333-3333-3333-3333-333333333333' and game_id = 'canos' and day = public.daily_day()), 2::bigint, 'daily_status recria os cenários de hoje');
+select is((select v #>> '{canos,pending,0,level}' from public.tap_res where k = 'adm_daily'), '1', 'os novos tickets já vêm no nível Médio');
+select public.tap_super();
 select public.open_phase('33333333-3333-3333-3333-333333333333','sudoku', 9, '{}'::jsonb);
 insert into public.tap_res select 'adm', public.finalize_win('33333333-3333-3333-3333-333333333333','sudoku', gen_random_uuid());
 select is((select coins from public.coins where user_id = '33333333-3333-3333-3333-333333333333' and game_id = 'sudoku'), 99998, 'administrador tem 99999 coins e gasta 1 ao abrir');
