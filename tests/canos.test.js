@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { makeRng } from "../shared/rng.js";
 import {
-  BASE, BIT, DELTA, E, GEN, LEVELS, N, S, W, clicksNeeded, firstLeaks, generatePuzzle, initialRots, maskOf, rotateMask, rotateTile, simulate, solutionRots,
+  BASE, BIT, E, GEN, LEVELS, N, S, W, clicksNeeded, firstLeaks, generatePuzzle, initialRots, inletsOf, maskOf, outletsOf, rotateMask, rotateTile, simulate, solutionRots,
 } from "../games/canos/domain.js";
 
 test("rotateMask gira no sentido horário: N→L→S→O→N; quatro giros voltam ao começo", () => {
@@ -40,11 +40,16 @@ test("níveis: grades 5, 10, 15 e 20, com 1, 1,5, 2 e 3 minutos", () => {
 });
 
 /* ----- A água, em cenários pequenos feitos à mão ----- */
-/** Fase de n x n toda de curvas "L" (sem rotação), com a entrada e a saída dadas; `set` troca casas: { cell: [tipo, giro] }. */
-const make = (n, inlet, outlet, set = {}) => {
+/** Fase de n x n toda de curvas "L" (sem rotação), com entradas/saídas dadas; `set` troca casas: { cell: [tipo, giro] }. */
+const make = (n, inlets, outlets, set = {}) => {
   const tiles = Array.from({ length: n * n }, () => ({ type: "L", rot: 0 }));
   for (const [cell, [type, rot]] of Object.entries(set)) tiles[+cell] = { type, rot };
-  return { n, tiles, inlet, outlet, path: [], solution: new Array(n * n).fill(-1) };
+  return {
+    n, tiles,
+    inlets: Array.isArray(inlets) ? inlets : [inlets],
+    outlets: Array.isArray(outlets) ? outlets : [outlets],
+    path: [], solution: new Array(n * n).fill(-1),
+  };
 };
 
 test("água: cano reto de ponta a ponta leva a água à saída, uma casa por onda", () => {
@@ -114,46 +119,116 @@ test("água: a água se espalha por todos os ramos ligados (T e cruz dividem o f
   assert.equal(sim.status, "leak");                                   // os ramos de cima e de baixo vazam na borda
 });
 
+test("água: várias entradas entram juntas e a água precisa chegar a todas as saídas", () => {
+  const p = make(3, [{ cell: 1, side: N }, { cell: 3, side: W }], [{ cell: 5, side: E }, { cell: 7, side: S }], {
+    1: ["I", 0], 3: ["I", 1], 4: ["X", 0], 5: ["I", 1], 7: ["I", 0],
+  });
+  const sim = simulate(p, initialRots(p));
+  assert.equal(sim.status, "win");
+  assert.deepEqual(sim.fills.map(f => [f.cell, f.depth]), [[1, 0], [3, 0], [4, 1], [5, 2], [7, 2]]);
+  assert.deepEqual(sim.outletDepths, [2, 2]);
+  assert.equal(sim.outletDepth, 2);
+  assert.deepEqual(sim.leaks, []);
+
+  const blocked = make(3, [{ cell: 1, side: N }, { cell: 3, side: W }], [{ cell: 5, side: E }, { cell: 7, side: S }], {
+    1: ["I", 0], 3: ["I", 0], 4: ["X", 0], 5: ["I", 1], 7: ["I", 0],
+  });
+  const noEntry = simulate(blocked, initialRots(blocked));
+  assert.equal(noEntry.status, "blocked");
+  assert.deepEqual(noEntry.fills, []);
+  assert.deepEqual(noEntry.leaks, [{ cell: 3, side: W, depth: 0 }]);
+});
+
+test("água: saída que não é alcançada impede a vitória (mesmo que a outra chegue)", () => {
+  const p = make(3, [{ cell: 1, side: N }, { cell: 3, side: W }], [{ cell: 5, side: E }, { cell: 7, side: S }], {
+    1: ["I", 0], 3: ["I", 1], 4: ["X", 0], 5: ["I", 1], 7: ["I", 1],
+  });
+  const sim = simulate(p, initialRots(p));
+  assert.equal(sim.status, "leak", "o ramo até a saída fechada vaza na mesma onda em que a outra chega");
+  assert.deepEqual(sim.outletDepths, [2, -1]);
+  assert.ok(sim.leaks.some(l => l.cell === 4 && l.side === S && l.depth === 1));
+});
+
+test("inletsOf/outletsOf aceitam o formato antigo (um só inlet/outlet) e o novo (arrays)", () => {
+  const legacy = { inlet: { cell: 1, side: N }, outlet: { cell: 7, side: S } };
+  assert.deepEqual(inletsOf(legacy), [{ cell: 1, side: N }]);
+  assert.deepEqual(outletsOf(legacy), [{ cell: 7, side: S }]);
+  const modern = { inlets: [{ cell: 1, side: N }, { cell: 3, side: W }], outlets: [{ cell: 5, side: E }] };
+  assert.deepEqual(inletsOf(modern), modern.inlets);
+  assert.deepEqual(outletsOf(modern), modern.outlets);
+  assert.deepEqual(inletsOf({}), []);
+  assert.deepEqual(outletsOf({}), []);
+});
+
 /* ----- O gerador ----- */
 const sidesTouch = (n, cell, side) => (side === N ? cell < n : side === S ? cell >= n * (n - 1) : side === W ? cell % n === 0 : cell % n === n - 1);
 
 for (const [i, level] of LEVELS.entries()) {
   test(`gera cenário válido no nível ${level.name} (${level.n}x${level.n}, ${level.seconds}s)`, () => {
+    const allowed = new Set(level.shapes.map(([ins, outs]) => `${ins}>${outs}`));
     for (let seed = 1; seed <= 40; seed++) {
       const p = generatePuzzle(makeRng(seed * 977 + i), level), n = level.n;
+      const inCount = p.inlets.length, outCount = p.outlets.length, shape = `${inCount}>${outCount}`;
       assert.equal(p.n, n);
       assert.equal(p.tiles.length, n * n);
       assert.ok(p.tiles.every(t => ["I", "L", "T", "X"].includes(t.type) && t.rot >= 0 && t.rot <= 3));
+      assert.ok(allowed.has(shape), `seed ${seed}: forma ${shape}`);
       assert.ok(p.path.length >= level.minLen && p.path.length <= level.maxLen, `seed ${seed}: caminho de ${p.path.length}`);
       assert.equal(new Set(p.path).size, p.path.length, "caminho repete casa");
-      for (let k = 1; k < p.path.length; k++) {
-        const a = p.path[k - 1], b = p.path[k];
-        assert.ok(DELTA.some(([dr, dc]) => Math.floor(a / n) + dr === Math.floor(b / n) && (a % n) + dc === b % n), "casas seguidas do caminho não são vizinhas");
+      assert.equal(new Set([...p.inlets, ...p.outlets].map(t => t.cell)).size, inCount + outCount, "terminal repetido");
+      for (const t of [...p.inlets, ...p.outlets]) {
+        assert.ok(p.path.includes(t.cell), "terminal fora da rede");
+        assert.ok(sidesTouch(n, t.cell, t.side), "terminal fora da borda");
       }
-      assert.equal(p.path[0], p.inlet.cell); assert.equal(p.path.at(-1), p.outlet.cell);
-      assert.notEqual(p.inlet.cell, p.outlet.cell);
-      assert.ok(sidesTouch(n, p.inlet.cell, p.inlet.side) && sidesTouch(n, p.outlet.cell, p.outlet.side), "entrada/saída fora da borda");
-      assert.notEqual(p.inlet.side, p.outlet.side);
-      assert.ok(p.path.every(c => p.tiles[c].type === "I" || p.tiles[c].type === "L"), "o caminho plantado usa só retos e curvas");
+      assert.deepEqual(p.inlets, [...p.inlets].sort((a, b) => a.cell - b.cell));
+      assert.deepEqual(p.outlets, [...p.outlets].sort((a, b) => a.cell - b.cell));
+      if (inCount === 1 && outCount === 1) {
+        assert.equal(p.path[0], p.inlets[0].cell); assert.equal(p.path.at(-1), p.outlets[0].cell);
+        assert.notEqual(p.inlets[0].side, p.outlets[0].side);
+        assert.ok(p.path.every(c => p.tiles[c].type === "I" || p.tiles[c].type === "L"), "o caminho simples usa só retos e curvas");
+      } else {
+        const types = new Set(p.path.map(c => p.tiles[c].type));
+        if (outCount === 2) assert.ok(types.has("T"), "duas saídas precisam de um T para dividir");
+        if (outCount === 3) assert.ok(types.has("X"), "três saídas precisam de uma cruz");
+        if (inCount === 2) assert.ok(types.has("T"), "duas entradas precisam de um T para juntar");
+        if (inCount === 3) assert.ok(types.has("X"), "três entradas precisam de uma cruz para juntar");
+      }
       const win = simulate(p, solutionRots(p));
       assert.equal(win.status, "win", `seed ${seed}`);
-      assert.equal(win.outletDepth, p.path.length - 1);
+      assert.equal(win.outletDepths.length, outCount);
+      assert.ok(win.outletDepths.every(d => d >= 0), "alguma saída não foi alcançada");
+      assert.equal(win.outletDepth, Math.max(...win.outletDepths));
+      assert.equal(win.fills.length, p.path.length, "a água não percorreu a rede toda");
       assert.deepEqual(win.leaks, [], "resolvida, a fase não pode vazar");
       assert.notEqual(simulate(p, initialRots(p)).status, "win", "a fase não pode começar resolvida");
-      assert.ok(clicksNeeded(p, initialRots(p)) >= Math.ceil(p.path.length * 0.55) , "poucas casas do caminho começam erradas");
+      assert.ok(clicksNeeded(p, initialRots(p)) >= Math.ceil(p.path.length * 0.55), "poucas casas do caminho começam erradas");
       assert.equal(clicksNeeded(p, solutionRots(p)), 0);
     }
   });
 }
 
-test("o gerador varia: entradas e saídas em lados diferentes, T e cruz como armadilhas, e a seed é determinística", () => {
+test("o gerador sorteia ~80/20 entre as formas de cada nível", () => {
+  for (const [i, level] of LEVELS.entries()) {
+    const counts = Object.fromEntries(level.shapes.map(([ins, outs]) => [`${ins}>${outs}`, 0]));
+    for (let seed = 1; seed <= 200; seed++) {
+      const p = generatePuzzle(makeRng(seed * 977 + i), level);
+      counts[`${p.inlets.length}>${p.outlets.length}`]++;
+    }
+    const total = 200, [common, rare] = Object.values(counts);
+    assert.ok(common >= 130 && common <= 170, `${level.name}: forma comum ${common}/200`);
+    assert.ok(rare >= 30 && rare <= 70, `${level.name}: forma rara ${rare}/200`);
+    assert.ok(Object.values(counts).every(v => v > 0));
+  }
+});
+
+test("o gerador varia terminais e armadilhas, e a seed é determinística", () => {
   const pairs = new Set(), types = new Set();
   for (let seed = 1; seed <= 80; seed++) {
     const p = generatePuzzle(makeRng(seed), LEVELS[1]);
-    pairs.add(`${p.inlet.side}>${p.outlet.side}`);
+    pairs.add(`${p.inlets.map(t => t.side).sort().join("")}>${p.outlets.map(t => t.side).sort().join("")}`);
     p.tiles.forEach((t, c) => { if (!p.path.includes(c)) types.add(t.type); });
   }
-  assert.ok(pairs.size >= 10, `só ${pairs.size} combinações de entrada e saída`);
+  assert.ok(pairs.size >= 10, `só ${pairs.size} combinações de entradas e saídas`);
   assert.deepEqual([...types].sort(), ["I", "L", "T", "X"]);
   const a = generatePuzzle(makeRng(42), LEVELS[2]), b = generatePuzzle(makeRng(42), LEVELS[2]), c = generatePuzzle(makeRng(43), LEVELS[2]);
   assert.deepEqual(a, b);

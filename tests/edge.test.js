@@ -39,6 +39,10 @@ test("visão pública não vaza a solução (jogos fortes)", () => {
     assert.ok(!view.includes("solution"), `${g} vazou a solução`);
     assert.ok(!view.includes("\"path\""), `${g} vazou o caminho`);
   }
+  const canosView = publicView("canos", 12345, 0);
+  assert.ok(Array.isArray(canosView.inlets) && canosView.inlets.length >= 1);
+  assert.ok(Array.isArray(canosView.outlets) && canosView.outlets.length >= 1);
+  assert.ok(!("inlet" in canosView) && !("outlet" in canosView), "canos ainda manda terminais no singular");
 });
 
 test("visão pública de sopa e cruzadas não carrega a solução", () => {

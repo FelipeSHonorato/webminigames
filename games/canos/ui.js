@@ -12,7 +12,7 @@ import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
 import { Cloud } from "../../shared/backend/cloud.js";
 import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/progress.js";
-import { BIT, DELTA, E, GEN, LEVELS, N, S, STORE_KEY, W, firstLeaks, generatePuzzle, initialRots, maskOf, opposite, rotateTile, simulate, solutionRots } from "./domain.js";
+import { BIT, DELTA, E, GEN, LEVELS, N, S, STORE_KEY, W, firstLeaks, generatePuzzle, initialRots, inletsOf, maskOf, opposite, outletsOf, rotateTile, simulate, solutionRots } from "./domain.js";
 import { fmtTime } from "../../shared/ranking-list.js";
 import { nextScenario as nextScenarioOf, nextSpMidnight, renderDailyPanel, spDay } from "../../shared/daily.js";
 
@@ -96,7 +96,7 @@ function creditWin() {
   if (!cloudMode) Run.set(uid, GAME_ID, { seed: puzzle.seed, level: puzzle.level, solved: true, gen: GEN });
   let note = "";
   if (Scores.canRank()) {
-    // Na nuvem o servidor recebe os giros, regenera a partir da seed e só pontua se a água chegar mesmo à saída.
+    // Na nuvem o servidor recebe os giros, regenera a partir da seed e só pontua se a água chegar mesmo a todas as saídas.
     Scores.submit(GAME_ID, points, { state: { rots } }).then(() => ranking.refresh());
     note = ` +${points} pontos!`;
   } else note = " Crie uma conta para pontuar no ranking.";
@@ -112,7 +112,7 @@ function buildPuzzle(seed, level) {
   return p;
 }
 /** Fase servida pelo servidor: chega SEM a solução (a seed fica no servidor), então a tela não sabe os giros certos. */
-const serverPuzzle = (view, level) => ({ n: view.n, tiles: view.tiles, inlet: view.inlet, outlet: view.outlet, level, server: true });
+const serverPuzzle = (view, level) => ({ n: view.n, tiles: view.tiles, inlets: inletsOf(view), outlets: outletsOf(view), level, server: true });
 /** Fase nova no modo local: a seed fica salva, então recarregar a página devolve o mesmo cenário até ele ser concluído. */
 function localFresh() {
   const seed = (Math.random() * 2 ** 32) >>> 0, level = levelOf(wins);
@@ -168,7 +168,7 @@ function arrowPath(cx, cy, dx, dy) {
   const tx = cx + dx * 9, ty = cy + dy * 9, bx = cx - dx * 9, by = cy - dy * 9, px = -dy, py = dx;
   return `M${bx} ${by}L${tx} ${ty}M${tx - dx * 8 + px * 7} ${ty - dy * 8 + py * 7}L${tx} ${ty}L${tx - dx * 8 - px * 7} ${ty - dy * 8 - py * 7}`;
 }
-let tileEls = [], pipeEls = [], outletEl = null;
+let tileEls = [], pipeEls = [], outletEls = [];
 function buildBoard() {
   const n = puzzle.n, size = (n + 2) * 100;
   svg.setAttribute("viewBox", `0 0 ${size} ${size}`);
@@ -177,10 +177,11 @@ function buildBoard() {
     return `<g class="tile" data-i="${i}" transform="translate(${x} ${y})"><rect class="bg" x="3" y="3" width="94" height="94" rx="8"/><rect class="bg2" x="10" y="10" width="80" height="80" rx="5"/>`
       + `<g class="pipe" style="transform:rotate(${angles[i]}deg)">${useSvg(t.type)}</g></g>`;
   }).join("");
-  svg.innerHTML = `<defs>${SYMBOLS.map(symbolSvg).join("")}</defs>${tiles}${stubSvg(n, puzzle.inlet, "in")}${stubSvg(n, puzzle.outlet, "out")}`;
+  const stubs = inletsOf(puzzle).map(s => stubSvg(n, s, "in")).join("") + outletsOf(puzzle).map(s => stubSvg(n, s, "out")).join("");
+  svg.innerHTML = `<defs>${SYMBOLS.map(symbolSvg).join("")}</defs>${tiles}${stubs}`;
   tileEls = [...svg.querySelectorAll(".tile")];
   pipeEls = tileEls.map(el => el.querySelector(".pipe"));
-  outletEl = svg.querySelector(".stub.out");
+  outletEls = [...svg.querySelectorAll(".stub.out")];
 }
 /** Aplica os ângulos sem a animação de giro (ao abrir/reiniciar a fase). */
 function applyAngles() {
@@ -208,7 +209,7 @@ function setMessage(text, isError = false) { msg.textContent = text; msg.classLi
 function renderPhase() {
   const text = {
     ready: `Gire um cano para começar: a contagem regressiva (${fmtClock(total)}) só inicia no primeiro giro.`,
-    counting: `Ligue a entrada à saída antes que o tempo acabe. Giros: ${moves}.`,
+    counting: `Ligue as entradas às saídas antes que o tempo acabe. Giros: ${moves}.`,
     flowing: "A água está correndo…",
     won: "Fase concluída!",
     lost: "A água vazou. Tente o mesmo cenário de novo.",
@@ -240,7 +241,7 @@ function reset() {
   total = LEVELS[puzzle.level].seconds * 1000;
   clearWater();
   svg.querySelectorAll(".leak").forEach(el => el.remove());
-  outletEl.classList.remove("wet");
+  outletEls.forEach(el => el.classList.remove("wet"));
   svg.classList.remove("won", "lost");
   applyAngles();
   phase = "ready"; setMessage(""); renderClock(total); renderPhase();
@@ -294,9 +295,9 @@ function orientWater(cell, entrySide) {
 }
 /** Lado (global) por onde a água entra em cada casa: a entrada, pela borda; nas outras, o lado voltado para a casa uma onda antes. */
 function entrySides(wet) {
-  const depthOf = new Map(sim.fills.map(f => [f.cell, f.depth])), sides = new Map(), { n, inlet } = puzzle;
+  const depthOf = new Map(sim.fills.map(f => [f.cell, f.depth])), sides = new Map(), n = puzzle.n, sources = new Map(inletsOf(puzzle).map(s => [s.cell, s.side]));
   for (const f of wet) {
-    if (f.cell === inlet.cell) { sides.set(f.cell, inlet.side); continue; }
+    if (sources.has(f.cell)) { sides.set(f.cell, sources.get(f.cell)); continue; }
     const r = Math.floor(f.cell / n), c = f.cell % n, m = maskOf(puzzle.tiles[f.cell].type, rots[f.cell]);
     let side = -1;
     for (const s of [N, E, S, W]) {
@@ -310,7 +311,7 @@ function entrySides(wet) {
   }
   return sides;
 }
-/** O tempo acabou (ou o jogador soltou a água): a água entra e corre por todos os ramos. Vence quem chega à saída antes de vazar. */
+/** O tempo acabou (ou o jogador soltou a água): a água entra e corre por todos os ramos. Vence quem chega a todas as saídas antes de vazar. */
 function startFlow() {
   clearInterval(clockId); clockId = null; cancelAnimationFrame(flowId); flowId = null;
   phase = "flowing"; renderClock(0); setMessage(""); renderPhase();
@@ -319,7 +320,7 @@ function startFlow() {
   for (const f of wet) orientWater(f.cell, entry.get(f.cell));
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) {   // sem animação: a água aparece cheia de uma vez
     for (const f of wet) paintWater(f.cell, 1);
-    if (sim.status === "win") outletEl.classList.add("wet");
+    if (sim.status === "win") outletEls.forEach(el => el.classList.add("wet"));
     finish(); return;
   }
   const total = Math.max(3500, Math.min(11000, wet.length * 240));   // a animação inteira dura de ~3,5 a ~11 s
@@ -328,7 +329,7 @@ function startFlow() {
     if (phase !== "flowing") return;
     const front = (now - t0) / cellMs;
     for (const f of wet) paintWater(f.cell, Math.max(0, Math.min(1, (front - f.depth) / FILL)));
-    if (sim.status === "win" && front >= sim.outletDepth + FILL) outletEl.classList.add("wet");
+    if (sim.status === "win") outletEls.forEach((el, i) => { if (front >= sim.outletDepths[i] + FILL) el.classList.add("wet"); });
     if (front >= sim.endDepth + FILL) { finish(); return; }
     flowId = requestAnimationFrame(frame);
   };
@@ -340,16 +341,17 @@ function releaseWater() {
   startFlow();
 }
 function finish() {
+  const many = outletsOf(puzzle).length > 1, place = many ? "às saídas" : "à saída";
   if (sim.status === "win") {
     phase = "won"; svg.classList.add("won");
-    if (mode === "daily") { setMessage("A água chegou à saída! Registrando…"); finishDaily(); }   // o SERVIDOR mede o tempo e pontua
-    else setMessage("A água chegou à saída!" + creditWin());
+    if (mode === "daily") { setMessage(`A água chegou ${place}! Registrando…`); finishDaily(); }   // o SERVIDOR mede o tempo e pontua
+    else setMessage(`A água chegou ${place}!` + creditWin());
   } else {
     phase = "lost"; svg.classList.add("lost");
     firstLeaks(sim).forEach(showLeak);
     const leak = sim.leaks.find(l => l.depth === sim.endDepth);
-    setMessage(sim.status === "blocked" ? "A água não conseguiu entrar: o cano da entrada não está virado para ela."
-      : sim.status === "stuck" ? "A água ficou presa num circuito fechado e não chegou à saída."
+    setMessage(sim.status === "blocked" ? "A água não entrou por um dos canos de entrada: ele não está virado para ela."
+      : sim.status === "stuck" ? `A água ficou presa num circuito fechado e não chegou ${place}.`
       : `Vazou! A água escapou na linha ${Math.floor(leak.cell / puzzle.n) + 1}, coluna ${(leak.cell % puzzle.n) + 1}.`, true);
   }
   renderPhase();
@@ -385,7 +387,7 @@ function restoreSolved() {
   credited = true;
   rots = solutionRots(puzzle); angles = rots.map(r => r * 90); applyAngles();
   puzzle.path.forEach(c => paintWater(c, 1));
-  outletEl.classList.add("wet"); svg.classList.add("won");
+  outletEls.forEach(el => el.classList.add("wet")); svg.classList.add("won");
   phase = "won"; renderClock(total); renderPhase();
   setMessage("Fase já concluída. Use “Nova fase” para continuar.");
 }
@@ -414,7 +416,7 @@ async function openDaily(ticket) {
     const d = await Cloud.dailyOpen(GAME_ID, ticket.day, ticket.slot);
     dailyTicket = { day: d.day, slot: d.slot };
     loadPuzzle(serverPuzzle(d.puzzle, d.level));
-    setMessage(`Desafio do dia · ${LEVELS[d.level].name}. Ligue a entrada à saída!`);
+    setMessage(`Desafio do dia · ${LEVELS[d.level].name}. Ligue as entradas às saídas!`);
     renderDaily(); renderCoins();
   } catch (e) {
     setMessage(e?.code === "no_coins" ? "Sem tickets disponíveis: novos à meia-noite (Brasília)." : "Não foi possível abrir o desafio. Tente de novo.", true);
@@ -431,7 +433,7 @@ function finishDaily() {
       wins = loadWins(); renderLevel();                  // concluir o cenário do dia também sobe a progressão (pontos)
       renderDaily(); renderCoins(); ranking.refresh();
     })
-    .catch(() => setMessage("A água chegou à saída, mas não deu para registrar o tempo. Tente de novo.", true));
+    .catch(() => setMessage(`A água chegou ${outletsOf(puzzle).length > 1 ? "às saídas" : "à saída"}, mas não deu para registrar o tempo. Tente de novo.`, true));
 }
 
 /** Cenário neutro enquanto o desafio do dia é servido pelo servidor (travado e sem contar o tempo do jogo). */

@@ -23,7 +23,7 @@ const viewOf = (game, p) => {
   switch (game) {
     case "sudoku":   return { cells: p.cells, givens: p.givens };
     case "arrows":   return { n, pieces: p.pieces, redirectors: [...p.redirectors].map(([cell, dir]) => ({ cell, dir })) };
-    case "canos":    return { n, tiles: p.tiles.map(t => ({ type: t.type, rot: t.rot })), inlet: p.inlet, outlet: p.outlet };
+    case "canos":    return { n, tiles: p.tiles.map(t => ({ type: t.type, rot: t.rot })), inlets: canos.inletsOf(p), outlets: canos.outletsOf(p) };
     case "patches":  return { n, clues: p.clues };
     case "zip":      return { n, total: n * n, waypoints: [...p.waypoints], walls: [...p.walls], max: p.max };
     /* Sopa: sem cells/dir — a posição de cada palavra na grade É a solução. O jogador só recebe o texto (para ocultar as letras). */
@@ -43,7 +43,7 @@ export const publicView = (game, seed, level) => viewOf(game, build(game, seed, 
 function serialize(game, p) {
   switch (game) {
     case "arrows":   return { n: p.n, pieces: p.pieces, redirectors: [...p.redirectors], solution: p.solution };
-    case "canos":    return { n: p.n, tiles: p.tiles, inlet: p.inlet, outlet: p.outlet, path: p.path, solution: p.solution };
+    case "canos":    return { n: p.n, tiles: p.tiles, inlets: canos.inletsOf(p), outlets: canos.outletsOf(p), path: p.path, solution: p.solution };
     case "zip":      return { n: p.n ?? zip.N, waypoints: [...p.waypoints], walls: [...p.walls], max: p.max, solution: p.solution };
     case "patches":  return { n: p.n ?? patches.N, clues: p.clues, solution: p.solution };
     case "sudoku":   return { n: sudoku.SIZE, cells: p.cells, solution: p.solution, givens: p.givens };
