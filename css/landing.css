@@ -55,10 +55,26 @@ button.game:hover{transform:translateY(-3px)}
   .l-save{flex-direction:column;align-items:flex-start}
 }
 @media (max-width:560px){
-  .l-hero{padding:44px 18px 36px}
-  .l-actions .btn:not(.primary){display:none}
+  .landing{padding:0 12px 48px;overflow-x:clip}
+  .l-top{gap:8px}
+  .brand{min-width:0;gap:8px;font-size:.95rem;white-space:nowrap}
+  .brand .logo{width:32px;height:32px}
+  .l-actions{gap:8px}
+  .l-actions .btn{padding:9px 14px}
+  .l-actions [data-open="register"]{display:none}   /* no celular só "Entrar", em destaque */
+  .l-actions [data-open="login"]{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+  .l-hero{padding:40px 12px 32px}
+  /* título maior que o subtítulo, e cada frase ainda cabe numa linha: a fonte acompanha a largura da tela */
+  .l-hero h1{font-size:clamp(1rem,calc((100vw - 50px)/17.5),2rem)}
+  .l-hero p{font-size:.9rem}
+  .btn.cta{width:100%;padding:14px 12px;font-size:.95rem}
   .l-acts{flex-direction:column;width:100%}
   .l-acts .btn{width:100%}
+}
+@media (max-width:350px){
+  .brand{font-size:.9rem}
+  .brand .logo{width:28px;height:28px}
+  .l-actions .btn{padding:8px 12px}
 }
 @media (prefers-reduced-motion:reduce){.l-trail path{animation:none;stroke-dashoffset:0}button.game{transition:none}
   .l-carousel{overflow-x:auto;-webkit-mask-image:none;mask-image:none}.l-track{animation:none}.l-track .game[aria-hidden="true"]{display:none}}
