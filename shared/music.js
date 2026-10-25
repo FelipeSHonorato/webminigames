@@ -19,37 +19,37 @@ const MOODS = {
   arrows: {
     bpm: 68, root: 45, scale: [0, 2, 3, 5, 7, 10], pad: "triangle", lead: "sine",
     chords: [[0, 3, 7, 10], [-4, 0, 3, 7], [3, 7, 10, 14], [-2, 2, 5, 8]],
-    melody: 0.42, kick: 0.28, hat: 0.40, swing: 0.14,
+    melody: 0.15, kick: 0.05, hat: 0.05, swing: 0.14,
   },
   zip: {
     bpm: 76, root: 48, scale: [0, 2, 4, 7, 9], pad: "sine", lead: "triangle",
     chords: [[0, 4, 7, 11], [-3, 0, 4, 7], [-7, -3, 0, 4], [-5, -1, 2, 5]],
-    melody: 0.50, kick: 0.30, hat: 0.50, swing: 0.10,
+    melody: 0.15, kick: 0.05, hat: 0.05, swing: 0.10,
   },
   patches: {
     bpm: 72, root: 50, scale: [0, 2, 3, 5, 7, 9], pad: "triangle", lead: "sine",
     chords: [[0, 3, 7, 10], [-4, 0, 3, 7], [-7, -3, 0, 3], [-5, -1, 2, 5]],
-    melody: 0.45, kick: 0.30, hat: 0.45, swing: 0.12,
+    melody: 0.15, kick: 0.05, hat: 0.05, swing: 0.12,
   },
   sudoku: {
     bpm: 62, root: 52, scale: [0, 2, 3, 5, 7, 9], pad: "sine", lead: "sine",
     chords: [[0, 3, 7, 10], [-4, 0, 4, 7], [-7, -3, 0, 3], [-5, -1, 2, 5]],
-    melody: 0.30, kick: 0.18, hat: 0.28, swing: 0.18,
+    melody: 0.10, kick: 0.03, hat: 0.03, swing: 0.18,
   },
   sopa: {
     bpm: 84, root: 53, scale: [0, 2, 4, 7, 9], pad: "triangle", lead: "triangle",
     chords: [[0, 4, 7, 11], [-3, 0, 3, 7], [-7, -3, 0, 4], [-5, -1, 2, 5]],
-    melody: 0.55, kick: 0.34, hat: 0.55, swing: 0.08,
+    melody: 0.15, kick: 0.05, hat: 0.05, swing: 0.08,
   },
   canos: {
     bpm: 74, root: 55, scale: [0, 2, 4, 6, 7, 9], pad: "sine", lead: "triangle",
     chords: [[0, 4, 7, 11], [-3, 0, 3, 7], [-7, -3, 0, 4], [-5, -1, 2, 5]],
-    melody: 0.50, kick: 0.26, hat: 0.48, swing: 0.10,
+    melody: 0.15, kick: 0.05, hat: 0.05, swing: 0.10,
   },
   cruzadas: {
     bpm: 78, root: 46, scale: [0, 2, 3, 5, 7, 9], pad: "triangle", lead: "sine",
     chords: [[0, 4, 7, 11], [-3, 0, 3, 7], [-7, -3, 0, 4], [-5, -1, 2, 5]],
-    melody: 0.52, kick: 0.32, hat: 0.50, swing: 0.12,
+    melody: 0.15, kick: 0.05, hat: 0.05, swing: 0.12,
   },
 };
 
@@ -107,7 +107,7 @@ const pad = (freq, t, dur, wave) => {
   voice(freq, t, dur, { type: wave, gain: 0.020, attack: 1.1, release: 1.0, filter: 900, detune: 4, pan: 0.25 });
 };
 const bass = (freq, t, dur) => voice(freq, t, dur, { type: "sine", gain: 0.075, attack: 0.03, release: 0.28, filter: 260 });
-const lead = (freq, t, dur, wave) => voice(freq, t, dur, { type: wave, gain: 0.030, attack: 0.02, release: 0.35, filter: 1800, pan: rand(-0.2, 0.2) });
+const lead = (freq, t, dur, wave) => voice(freq, t, dur, { type: wave, gain: 0.018, attack: 0.05, release: 0.5, filter: 900, pan: rand(-0.15, 0.15) });
 
 function kick(t) {
   const o = ctx.createOscillator(), g = ctx.createGain();
@@ -143,8 +143,7 @@ function scheduleBar(i, t) {
   }
   if (chance(m.kick)) kick(t);
   if (chance(m.kick * 0.7)) kick(t + beat * 2);
-  for (const s of [1, 3, 5, 7]) if (chance(m.hat)) noiseHit(t + (s * beat) / 2 + m.swing * beat, { gain: 0.013, hp: 7000, dur: 0.05, pan: rand(-0.5, 0.5) });
-  for (let k = 0; k < 3; k++) if (chance(0.5)) noiseHit(t + rand(0, dur), { gain: 0.007, hp: 2500, dur: 0.02, pan: rand(-0.8, 0.8) });   // estalos do vinil
+  for (const s of [1, 3, 5, 7]) if (chance(m.hat)) noiseHit(t + (s * beat) / 2 + m.swing * beat, { gain: 0.006, hp: 3500, dur: 0.04, pan: rand(-0.3, 0.3) });
 }
 function tick() {
   if (!ctx || muted || !game) return;
