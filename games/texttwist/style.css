@@ -28,7 +28,7 @@ h1{margin:0;font-size:2rem;letter-spacing:-.02em}
 
 /* Quadro da rodada: o "tabuleiro" do jogo. Os troféus do desafio diário cobrem exatamente esta área
    (shared/daily.js ancora no #board), então as letras e as lacunas ficam aqui dentro. */
-.board{display:grid;gap:16px;justify-items:center;padding:20px 18px;border-radius:16px;
+.board{display:grid;gap:16px;justify-items:center;align-content:center;padding:20px 18px;border-radius:16px;
   background:var(--cell);border:2px solid var(--line);box-shadow:0 2px 12px rgba(0,0,0,.08);
   min-width:320px;min-height:280px;max-width:100%}
 
@@ -61,6 +61,8 @@ h1{margin:0;font-size:2rem;letter-spacing:-.02em}
 .chip.ok{background:var(--accent);color:#fff}
 
 .actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px}
+/* Espaço padrão entre o quadro central e os botões, como em Sopa de Letras e Cruzadas. */
+.boardwrap > .actions{margin-top:18px}
 button{flex:1;padding:12px 8px;font:inherit;color:var(--fg);background:var(--btn);border:2px solid var(--line);border-radius:8px;cursor:pointer}
 .actions button{min-width:96px}
 button:hover{border-color:var(--accent)}
