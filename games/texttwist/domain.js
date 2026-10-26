@@ -17,7 +17,7 @@ export const LEVELS = [
 ];
 
 /** Versão do gerador: gravada na fase salva. AUMENTE ao mudar o sorteio ou o dicionário. */
-export const GEN = 2;
+export const GEN = 3;
 export const STORE_KEY = "texttwist.wins";
 export const MIN_WORD = 3;
 

@@ -8,7 +8,7 @@ import { makeRng } from "../shared/rng.js";
 const SEEDS = [1234, 98765, 4242, 777];
 
 test("dicionário: só letras de 3 a 9, sem repetidas", () => {
-  assert.ok(WORDS.length > 700, `dicionário pequeno: ${WORDS.length}`);
+  assert.equal(WORDS.length, 3000, `dicionário com ${WORDS.length} palavras`);
   const seen = new Set();
   for (const w of WORDS) {
     assert.match(w.norm, /^[A-Z]{3,9}$/, `${w.text} fora do padrão`);
@@ -19,6 +19,27 @@ test("dicionário: só letras de 3 a 9, sem repetidas", () => {
   assert.equal(STORE_KEY, "texttwist.wins");
   assert.ok(GEN >= 1);
   assert.deepEqual(LEVELS.map(l => l.n), [6, 7, 8, 9]);
+});
+
+test("dicionário: sem nomes próprios, siglas e estrangeirismos óbvios", () => {
+  const norms = new Set(WORDS.map(w => w.norm));
+  const proibidas = [
+    "PAULO", "MARIA", "CRISTO", "LONDRES", "FLAMENGO", "GREMIO", "PALIO", "FUSCA",
+    "SIENA", "MARTE", "ATLANTICO", "COREIA", "AMORIM", "ABREU", "VIEIRA",
+    "MARKETING", "SOFTWARE", "BLOG", "LOGIN", "PRA", "PRO", "DUM", "MAGAZINE",
+    "MASTER", "SINGLE", "FOX", "ABC", "SIC", "CHAT", "CHIP", "CORE", "MISS", "COLOR",
+    "AIDS", "BIT", "PRÉ", "PÓS", "AUTO", "VICE", "OUT", "TOP", "FACE", "MIN", "SET",
+    "POP", "BIG", "BOX", "QUI", "CIA", "SUS", "SPA", "JEANS", "RESORT", "ALUGUER",
+    "FACTO", "EQUIPA", "REGISTO", "GOLO", "SECTOR", "PAN", "PER", "BIO", "NEO", "TEC",
+    "MAX", "SUB", "MANILA",
+  ];
+  for (const bad of proibidas) assert.ok(!norms.has(bad), `${bad} não deveria estar no dicionário`);
+});
+
+test("dicionário: cobertura suficiente para todos os níveis", () => {
+  const porTamanho = {};
+  for (const w of WORDS) porTamanho[w.norm.length] = (porTamanho[w.norm.length] || 0) + 1;
+  for (const n of [6, 7, 8, 9]) assert.ok(porTamanho[n] >= 300, `poucas palavras de ${n} letras: ${porTamanho[n]}`);
 });
 
 test("cada nível gera fase com letras da palavra e palavras suficientes", () => {
@@ -32,6 +53,16 @@ test("cada nível gera fase com letras da palavra e palavras suficientes", () =>
     /* existe pelo menos uma palavra que usa todas as letras */
     assert.ok(p.words.some(w => w.length === level.n), `${level.name}: sem palavra de ${level.n} letras`);
     assert.ok(isSolved(p, p.words.slice(0, 1).concat(p.words.filter(w => w.length === level.n))), `${level.name}: a chave não vence`);
+  }
+});
+
+test("gerador: todos os níveis têm fases suficientes em várias seeds", () => {
+  for (const level of LEVELS) {
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
+      const p = generatePuzzle(makeRng(seed), level);
+      assert.ok(p.words.length >= level.minWords, `${level.name} seed ${seed}: só ${p.words.length} palavras`);
+      assert.ok(p.words.some(w => w.length === level.n), `${level.name} seed ${seed}: sem palavra de ${level.n} letras`);
+    }
   }
 });
 
