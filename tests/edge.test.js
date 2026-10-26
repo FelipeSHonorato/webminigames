@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { makeRng } from "../shared/rng.js";
-import { publicView, validate, validateSnapshot, snapshot, GAMES } from "../supabase/functions/play/_shared/board.js";
+import { publicView, validate, validateSnapshot, validatePartial, countWords, snapshot, GAMES } from "../supabase/functions/play/_shared/board.js";
 import * as arrows from "../games/arrows/domain.js";
 import * as canos from "../games/canos/domain.js";
 import * as cruzadas from "../games/cruzadas/domain.js";
@@ -16,6 +16,7 @@ import * as queens from "../games/queens/domain.js";
 import * as sopa from "../games/sopa/domain.js";
 import * as sudoku from "../games/sudoku/domain.js";
 import * as tango from "../games/tango/domain.js";
+import * as texttwist from "../games/texttwist/domain.js";
 import * as zip from "../games/zip/domain.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -24,10 +25,10 @@ const normPoints = s => s.replace(/"(?:\.\.\/)+(?:shared\/)?points\.js"/g, '"POI
 
 /* ---------- paridade entre games/ e a cópia usada pela Edge Function ---------- */
 test("cópias dos domínios na Edge Function batem com games/ (paridade)", () => {
-  for (const g of ["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "zip"]) {
+  for (const g of ["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]) {
     assert.equal(normPoints(read(`supabase/functions/play/_shared/${g}/domain.js`)), normPoints(read(`games/${g}/domain.js`)), `domain de ${g} divergiu`);
   }
-  for (const g of ["cruzadas", "sopa"]) {
+  for (const g of ["cruzadas", "sopa", "texttwist"]) {
     assert.equal(read(`supabase/functions/play/_shared/${g}/words.js`), read(`games/${g}/words.js`), `words de ${g} divergiu`);
   }
   assert.equal(normPoints(read("supabase/functions/play/_shared/points.js")), read("shared/points.js"));
@@ -36,7 +37,7 @@ test("cópias dos domínios na Edge Function batem com games/ (paridade)", () =>
 
 /* ---------- o puzzle público NUNCA carrega a solução ---------- */
 test("visão pública não vaza a solução (jogos fortes)", () => {
-  for (const g of ["sudoku", "arrows", "canos", "patches", "queens", "tango", "zip"]) {
+  for (const g of ["sudoku", "arrows", "canos", "patches", "queens", "tango", "texttwist", "zip"]) {
     const view = JSON.stringify(publicView(g, 12345, 0));
     assert.ok(!view.includes("solution"), `${g} vazou a solução`);
     assert.ok(!view.includes("\"path\""), `${g} vazou o caminho`);
@@ -45,6 +46,9 @@ test("visão pública não vaza a solução (jogos fortes)", () => {
   assert.ok(Array.isArray(queensView.regions) && queensView.regions.length === queensView.n * queensView.n, "queens manda o mapa de regiões");
   const tangoView = publicView("tango", 12345, 0);
   assert.ok(Array.isArray(tangoView.givens) && Array.isArray(tangoView.marks), "tango manda dados e sinais");
+  const twistView = publicView("texttwist", 12345, 0);
+  assert.ok(Array.isArray(twistView.letters) && twistView.letters.length === twistView.n, "texttwist manda as letras");
+  assert.ok(!JSON.stringify(twistView).includes("\"words\""), "texttwist não manda a lista de palavras");
   const canosView = publicView("canos", 12345, 0);
   assert.ok(Array.isArray(canosView.inlets) && canosView.inlets.length >= 1);
   assert.ok(Array.isArray(canosView.outlets) && canosView.outlets.length >= 1);
@@ -111,6 +115,40 @@ test("tango: a grade da solução é aceita; uma casa trocada e uma vazia são r
   assert.equal(validate("tango", seed, lvl, {}), false);
 });
 
+test("texttwist: a palavra de todas as letras é aceita; lista curta ou inválida é recusada", () => {
+  const seed = 913, lvl = 0;
+  const p = texttwist.generatePuzzle(makeRng(seed), texttwist.LEVELS[lvl]);
+  const key = p.words.find(w => w.length === p.n);
+  assert.ok(key, "a fase precisa de uma palavra-chave");
+  assert.equal(validate("texttwist", seed, lvl, { words: [key] }), true);
+  assert.equal(validate("texttwist", seed, lvl, { words: [key, "ZZZZZZ"] }), false);
+  assert.equal(validate("texttwist", seed, lvl, { words: p.words.filter(w => w.length < p.n) }), false);
+  assert.equal(validate("texttwist", seed, lvl, { words: [] }), false);
+  assert.equal(validate("texttwist", seed, lvl, {}), false);
+});
+
+test("texttwist: fim de rodada sem a chave é aceito como parcial, mas não como vitória", () => {
+  const seed = 915, lvl = 0;
+  const p = texttwist.generatePuzzle(makeRng(seed), texttwist.LEVELS[lvl]);
+  const short = p.words.filter(w => w.length < p.n).slice(0, 3);
+  const snap = snapshot("texttwist", seed, lvl);
+  assert.equal(validate("texttwist", seed, lvl, { words: short }), false, "sem a chave não vence");
+  assert.equal(validatePartial("texttwist", snap.fullPuzzle, { words: short }), true, "fim de rodada parcial vale");
+  assert.equal(validatePartial("texttwist", snap.fullPuzzle, { words: [] }), false, "lista vazia");
+  assert.equal(validatePartial("texttwist", snap.fullPuzzle, { words: [], timeout: true }), true, "timeout sem palavras vale");
+  assert.equal(validatePartial("texttwist", snap.fullPuzzle, { words: ["ZZZZZZ"] }), false, "palavra inválida");
+  assert.equal(validatePartial("sudoku", snap.fullPuzzle, { words: short }), false, "parcial só existe no Text Twist");
+});
+
+test("texttwist: contagem do pódio ignora palavras repetidas", () => {
+  const seed = 917, lvl = 0;
+  const p = texttwist.generatePuzzle(makeRng(seed), texttwist.LEVELS[lvl]);
+  const short = p.words.filter(w => w.length < p.n).slice(0, 2);
+  assert.equal(countWords("texttwist", { words: [short[0], short[0], short[1]] }), 2);
+  assert.equal(countWords("texttwist", { words: [short[0].toLowerCase(), short[0], short[1]] }), 2);
+  assert.equal(countWords("sudoku", { words: short }), 0);
+});
+
 test("patches: a partição solução é aceita; um retângulo fora do lugar é recusado", () => {
   const seed = 333, lvl = 0;
   const p = patches.generatePuzzle(makeRng(seed), patches.LEVELS[lvl]);
@@ -166,7 +204,7 @@ test("puzzles diferentes têm a mesma seed mas níveis diferentes mudam a dificu
 
 test("snapshot diário: o puzzle completo valida e a visão pública continua sem a solução", () => {
   const cases = [
-    ["sudoku", 801], ["arrows", 802], ["canos", 803], ["patches", 804], ["zip", 805], ["sopa", 806], ["cruzadas", 807], ["queens", 808], ["tango", 809],
+    ["sudoku", 801], ["arrows", 802], ["canos", 803], ["patches", 804], ["zip", 805], ["sopa", 806], ["cruzadas", 807], ["queens", 808], ["tango", 809], ["texttwist", 810],
   ];
   for (const [game, seed] of cases) {
     const snap = snapshot(game, seed, 0);
@@ -220,8 +258,14 @@ test("snapshot diário: o puzzle completo valida e a visão pública continua se
   const tangoP = tango.generatePuzzle(makeRng(809), tango.LEVELS[0]);
   assert.equal(validateSnapshot("tango", tangoSnap.fullPuzzle, { grid: tangoP.solution }), true);
   assert.equal(validateSnapshot("tango", tangoSnap.fullPuzzle, { grid: [] }), false);
+
+  const twistSnap = snapshot("texttwist", 810, 0);
+  const twistP = texttwist.generatePuzzle(makeRng(810), texttwist.LEVELS[0]);
+  const twistKey = twistP.words.find(w => w.length === twistP.n);
+  assert.equal(validateSnapshot("texttwist", twistSnap.fullPuzzle, { words: [twistKey] }), true);
+  assert.equal(validateSnapshot("texttwist", twistSnap.fullPuzzle, { words: [] }), false);
 });
 
-test("GAMES agrupa os nove domínios", () => {
-  assert.deepEqual(Object.keys(GAMES).sort(), ["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "zip"]);
+test("GAMES agrupa os dez domínios", () => {
+  assert.deepEqual(Object.keys(GAMES).sort(), ["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
 });

@@ -5,13 +5,13 @@
 // Deploy:  supabase functions deploy play
 // Segredo: supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...   (URL e ANON_KEY são injetadas automaticamente)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { publicView, validate, hint, hasHints, snapshot, validateSnapshot, hintSnapshot, GAMES as BOARD_GAMES } from "./_shared/board.js";
+import { publicView, validate, hint, hasHints, snapshot, validateSnapshot, validatePartial, countWords, hintSnapshot, GAMES as BOARD_GAMES } from "./_shared/board.js";
 
 const URL = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const GAME_IDS = new Set(["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "zip"]);
+const GAME_IDS = new Set(["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
@@ -168,10 +168,16 @@ Deno.serve(async (req) => {
       if (re) return json({ error: re.message }, 400);
       if (!run) return json({ error: "no_phase" }, 409);
       const scenario = await scenarioFor(svc, game, run);
-      if (!validateSnapshot(game, scenario.full_puzzle, body?.state)) return json({ error: "invalid" }, 422);
-      const { data, error } = await svc.rpc("daily_finish", { p_uid: uid, p_game: game, p_slot: slot, p_op: body?.op ?? null, p_day: day });
+      /* Vitória = tabuleiro que cumpre a regra do jogo. Fim de rodada por tempo (Text Twist) também
+         termina o cenário: a lista só precisa ser válida — e isso não pontua (p_won = false). */
+      const won = validateSnapshot(game, scenario.full_puzzle, body?.state);
+      if (!won && !validatePartial(game, scenario.full_puzzle, body?.state)) return json({ error: "invalid" }, 422);
+      const words = countWords(game, body?.state);
+      const { data, error } = await svc.rpc("daily_finish", {
+        p_uid: uid, p_game: game, p_slot: slot, p_op: body?.op ?? null, p_day: day, p_words: words, p_won: won,
+      });
       if (error) return json({ error: error.message }, 400);
-      return json(data);
+      return json({ ...data, won });
     }
 
     return json({ error: "unknown_action" }, 400);

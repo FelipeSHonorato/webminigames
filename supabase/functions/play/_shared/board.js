@@ -11,11 +11,12 @@ import * as queens from "./queens/domain.js";
 import * as sopa from "./sopa/domain.js";
 import * as sudoku from "./sudoku/domain.js";
 import * as tango from "./tango/domain.js";
+import * as texttwist from "./texttwist/domain.js";
 import * as zip from "./zip/domain.js";
 
-export const GAMES = { arrows, canos, cruzadas, patches, queens, sopa, sudoku, tango, zip };
+export const GAMES = { arrows, canos, cruzadas, patches, queens, sopa, sudoku, tango, texttwist, zip };
 export const hasHints = game => game === "cruzadas" || game === "sopa";
-export const GENS = { arrows: arrows.GEN, canos: canos.GEN, cruzadas: cruzadas.GEN, queens: queens.GEN, tango: tango.GEN, sopa: sopa.GEN, patches: 1, sudoku: 1, zip: 1 };
+export const GENS = { arrows: arrows.GEN, canos: canos.GEN, cruzadas: cruzadas.GEN, queens: queens.GEN, tango: tango.GEN, texttwist: texttwist.GEN, sopa: sopa.GEN, patches: 1, sudoku: 1, zip: 1 };
 
 const build = (game, seed, level) => GAMES[game].generatePuzzle(makeRng(seed), GAMES[game].LEVELS[level]);
 
@@ -31,6 +32,8 @@ const viewOf = (game, p) => {
     case "queens":   return { n, regions: p.regions };
     /* Tango: dados e sinais — a grade é a solução. */
     case "tango":    return { n, givens: p.givens, marks: p.marks };
+    /* Text Twist: só as letras; as palavras saem do dicionário, que é público. */
+    case "texttwist": return { n, letters: p.letters };
     case "zip":      return { n, total: n * n, waypoints: [...p.waypoints], walls: [...p.walls], max: p.max };
     /* Sopa: sem cells/dir — a posição de cada palavra na grade É a solução. O jogador só recebe o texto (para ocultar as letras). */
     case "sopa":     return { n, grid: p.grid, words: p.words.map(w => ({ text: w.text, norm: w.norm })) };
@@ -54,6 +57,7 @@ function serialize(game, p) {
     case "patches":  return { n: p.n ?? patches.N, clues: p.clues, solution: p.solution };
     case "queens":   return { n: p.n, regions: p.regions, solution: p.solution };
     case "tango":    return { n: p.n, givens: p.givens, marks: p.marks, solution: p.solution };
+    case "texttwist": return { n: p.n, letters: p.letters, words: p.words };
     case "sudoku":   return { n: sudoku.SIZE, cells: p.cells, solution: p.solution, givens: p.givens };
     case "sopa":     return { n: p.n, grid: p.grid, words: p.words };
     case "cruzadas": return { n: p.n, cells: p.cells, answers: p.answers };
@@ -72,7 +76,8 @@ function revive(game, s) {
     case "sudoku":
     case "sopa":
     case "cruzadas":
-    case "tango": return s;
+    case "tango":
+    case "texttwist": return s;
     default: throw new Error("unknown_game");
   }
 }
@@ -99,6 +104,12 @@ export function validatePuzzle(game, p, data) {
       return ints(data?.queens, p.n, 0, p.n * p.n - 1) && queens.isSolved(p, data.queens);
     case "tango":
       return ints(data?.grid, p.n * p.n, 0, 1) && tango.isSolved(p, data.grid);
+    case "texttwist": {
+      const list = data?.words;
+      if (!Array.isArray(list) || !list.length || list.length > 400) return false;
+      if (!list.every(w => typeof w === "string" && w.length <= 12)) return false;
+      return texttwist.isSolved(p, list);
+    }
     case "zip": {
       zip.setSize(p.n ?? zip.N);
       if (!ints(data?.path, zip.TOTAL, 0, zip.TOTAL - 1)) return false;
@@ -149,6 +160,24 @@ export const validate = (game, seed, level, data) => validatePuzzle(game, build(
 
 /** Valida contra o puzzle completo guardado no cenário diário. */
 export const validateSnapshot = (game, fullPuzzle, data) => validatePuzzle(game, revive(game, fullPuzzle), data);
+
+/** Fim de rodada SEM a palavra-chave (hoje só o Text Twist): a lista precisa ser válida, mas não vencedora.
+    Timeout pode encerrar sem nenhuma palavra — o cliente marca `timeout: true` (não pontua). */
+export function validatePartial(game, fullPuzzle, data) {
+  if (game !== "texttwist") return false;
+  const p = revive(game, fullPuzzle);
+  const list = data?.words;
+  if (!Array.isArray(list) || list.length > 400) return false;
+  if (!list.length) return data?.timeout === true;
+  if (!list.every(w => typeof w === "string" && w.length <= 12)) return false;
+  return texttwist.isValidList(p, list);
+}
+
+/** Quantas palavras distintas o Text Twist enviou (o pódio usa este número, não o tamanho bruto da lista). */
+export function countWords(game, data) {
+  if (game !== "texttwist") return 0;
+  return texttwist.uniqueWords(data?.words).length;
+}
 
 /** Quantas dicas o servidor já contou numa fase (para decidir/parar). */
 export const maxHints = (game, level) => hasHints(game) ? (game === "sopa" ? sopa.maxHints(sopa.LEVELS[level]) : cruzadas.maxHints(level)) : 0;

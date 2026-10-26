@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql"];
+const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql"];
 const migration = f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
 const migrations = migrationNames.map(migration);
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
@@ -86,7 +86,7 @@ test("SQL: o desafio diário tem tabelas, funções e só a Edge escreve a fase"
     assert.match(sqlAll, new RegExp(`alter table public\\.${t}\\s+enable row level security`), `${t} sem RLS`);
     assert.match(sqlAll, new RegExp(`revoke all on public\\.${t}`), `${t} sem revoke`);
   }
-  for (const f of ["daily_open\\(uuid, text, int, date\\)", "daily_hint\\(uuid, text, int, date\\)", "daily_finish\\(uuid, text, int, uuid, date\\)", "daily_run\\(uuid, text, int, date\\)"]) {
+  for (const f of ["daily_open\\(uuid, text, int, date\\)", "daily_hint\\(uuid, text, int, date\\)", "daily_finish\\(uuid, text, int, uuid, date, int, boolean\\)", "daily_run\\(uuid, text, int, date\\)"]) {
     assert.match(sqlAll, new RegExp(`revoke all on function public\\.${f}\\s+from public, anon, authenticated`), `${f} acessível ao cliente`);
     assert.match(sqlAll, new RegExp(`grant execute on function public\\.${f}\\s+to service_role`), `${f} deveria ser da Edge`);
   }

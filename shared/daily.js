@@ -1,5 +1,5 @@
 /* Painel do cenário atual — compartilhado pelos jogos. Mostra só o aviso de pendências e o botão para
-   seguir a fila FIFO entre os dias; a premiação (troféus e pódio de tempos) abre sobre o tabuleiro.
+   seguir a fila FIFO entre os dias; a premiação (troféus e pódio do cenário) abre sobre o tabuleiro.
    Os números vêm do servidor (daily_status/daily_finish -> stats), sempre sobre o mesmo cenário
    (dia, jogo, nível e slot). Os cálculos ficam em shared/daily-stats.js (puro). */
 import { Cloud } from "./backend/cloud.js";
@@ -61,7 +61,8 @@ function appendTrophies(panel, slot, stats) {
   if (!t) return;
 
   const head = node("div", "trophies-head");
-  head.append(node("strong", "trophies-title", `Cenário ${slot} · ${fmtTime(t.seconds)}`));
+  const words = t.words ? `${t.words} ${t.words === 1 ? "palavra" : "palavras"} · ` : "";
+  head.append(node("strong", "trophies-title", `Cenário ${slot} · ${words}${fmtTime(t.seconds)}`));
   const meta = [];
   if (t.points) meta.push(`+${t.points} pts`);
   if (t.hints) meta.push(plural(t.hints, "dica", "dicas"));
@@ -73,9 +74,10 @@ function appendTrophies(panel, slot, stats) {
     cards.append(trophyCard("trophy", `Melhor que ${t.percent}%`, "dos jogadores",
       t.players <= 1 ? "Só você jogou este cenário" : `Sua posição: ${t.rank}º de ${plural(t.players, "jogador", "jogadores")}`));
   }
+  const avgWords = t.avgWords != null ? ` · ${t.avgWords} palavras` : "";
   cards.append(trophyCard("clock", AVERAGE_TEXT[t.average],
     t.players <= 1 ? "Só você jogou este cenário" : "em relação ao tempo do cenário",
-    t.avgSeconds != null ? `Média do cenário: ${fmtTime(t.avgSeconds)}` : "Sem média do cenário"));
+    t.avgSeconds != null ? `Média do cenário: ${fmtTime(t.avgSeconds)}${avgWords}` : "Sem média do cenário"));
   if (t.regionRank != null) {
     cards.append(trophyCard("globe", `Nº ${t.regionRank} na sua região`, regionName(t.region),
       plural(t.regionPlayers ?? 0, "jogador", "jogadores") + " no cenário"));
@@ -87,13 +89,14 @@ function appendTrophies(panel, slot, stats) {
   const top = podiumTimes(stats);
   if (top.length) {
     const box = node("section", "trophy-times");
-    box.append(node("h3", "trophy-times-title", "Melhores tempos do cenário"));
+    box.append(node("h3", "trophy-times-title", "Melhores do cenário"));
     const list = node("ol", "trophy-times-list");
     top.forEach((p, i) => {
       const row = node("li", `trophy-time ${p.medal}`);
       row.title = p.name;
-      row.setAttribute("aria-label", `${i + 1}º lugar${p.name ? `: ${p.name}` : ""}, ${fmtTime(p.seconds)}`);
-      row.append(icon("trophy", `podium-trophy ${p.medal}`), avatarNode(p.avatar), node("span", "trophy-time-name", p.name || "Jogador"), node("strong", "trophy-time-value", fmtTime(p.seconds)));
+      const words = p.words ? `${p.words}p · ` : "";
+      row.setAttribute("aria-label", `${i + 1}º lugar${p.name ? `: ${p.name}` : ""}, ${p.words ? `${p.words} palavras, ` : ""}${fmtTime(p.seconds)}`);
+      row.append(icon("trophy", `podium-trophy ${p.medal}`), avatarNode(p.avatar), node("span", "trophy-time-name", p.name || "Jogador"), node("strong", "trophy-time-value", `${words}${fmtTime(p.seconds)}`));
       list.append(row);
     });
     box.append(list);

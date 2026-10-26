@@ -18,29 +18,46 @@ export function averageStatus(seconds, avgSeconds, players) {
 
 const MEDALS = ["gold", "silver", "bronze"];
 
-/** Os três melhores tempos do cenário, na ordem, com a medalha que a tela desenha. */
+/** Os três melhores do cenário (vitória → palavras → tempo), com a medalha que a tela desenha. */
 export function podiumTimes(stats) {
   return (Array.isArray(stats?.top) ? stats.top : [])
-    .map(p => ({ name: typeof p?.name === "string" ? p.name : "", avatar: typeof p?.avatar === "string" ? p.avatar : null, seconds: Number(p?.seconds) }))
+    .map(p => ({
+      name: typeof p?.name === "string" ? p.name : "",
+      avatar: typeof p?.avatar === "string" ? p.avatar : null,
+      seconds: Number(p?.seconds),
+      words: Math.max(0, Number(p?.words) || 0),
+    }))
     .filter(p => Number.isFinite(p.seconds))
     .slice(0, 3)
     .map((p, i) => ({ ...p, medal: MEDALS[i] }));
 }
+
+/** Número opcional: `null`/vazio/NaN viram `null` (e não 0, que é um valor válido). */
+const optionalNumber = value => {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+};
 
 /** Normaliza o que veio do servidor (daily_my_stats) para o que a tela mostra. `null` quando não há dados. */
 export function scenarioTrophies(stats) {
   if (!stats) return null;
   const players = Math.max(0, Number(stats.players) || 0);
   const rank = Math.max(0, Number(stats.rank) || 0);
-  const seconds = Number(stats.seconds);
-  const avgSeconds = Number(stats.avgSeconds);
+  const seconds = optionalNumber(stats.seconds);
+  const avgSeconds = optionalNumber(stats.avgSeconds);
   return {
     players,
     rank,
     percent: betterThanPercent(rank, players),
     average: averageStatus(seconds, avgSeconds, players),
-    seconds: Number.isFinite(seconds) ? seconds : null,
-    avgSeconds: Number.isFinite(avgSeconds) ? avgSeconds : null,
+    seconds,
+    avgSeconds,
+    /* Palavras achadas (Text Twist): o ranking do cenário usa vitória → palavras → tempo. */
+    words: Math.max(0, Number(stats.words) || 0),
+    won: stats.won !== false,
+    /* Só o Text Twist tem média de palavras; nos outros jogos o servidor manda null. */
+    avgWords: optionalNumber(stats.avgWords),
     points: Math.max(0, Number(stats.points) || 0),
     hints: Math.max(0, Number(stats.hints) || 0),
     region: stats.region ?? null,

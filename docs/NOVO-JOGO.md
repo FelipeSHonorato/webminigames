@@ -66,7 +66,7 @@ desafio diário → tickets → troféus → ranking.
 | dicas | `daily_hint` só conta; **+30 s por dica** (`daily_hint_seconds()`), a Edge decide *qual* dica |
 | `daily_finish` | `seconds = now() − started_at + 30 × hints`; guarda o **melhor** por `(day, slot)`; o resultado pertence ao **dia original** |
 | pontos | só na **primeira** conclusão do slot: `daily_points(level, hints)` = base do nível − dicas (piso 1) + 1 vitória |
-| troféus | `daily_scenario_stats`: percentual, média de tempo, posição na região e pódio dos 3 melhores — sempre do **mesmo cenário** (dia/jogo/nível/slot) |
+| troféus | `daily_scenario_stats`: percentual, média, posição na região e pódio dos 3 melhores — sempre do **mesmo cenário** (dia/jogo/nível/slot). O ranking é **vitória → palavras achadas → tempo** (`daily_results.won`/`words`); jogos sem contagem de palavras gravam 0 e continuam ordenados só pelo tempo |
 | ranking do site | continua **por pontos** (`ranking`); `daily_leaderboard` existe mas não é exibido |
 
 **Perder não custa ticket novo:** a tentativa aberta continua em `daily_runs`, então o "Tentar de novo" é

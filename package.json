@@ -1,7 +1,7 @@
 {
   "name": "webminigames",
   "version": "0.1.0",
-  "description": "Mini-games de lógica no navegador: Zip, Patches, Sudoku, Sopa de Letras, Palavras Cruzadas e Conexão de Canos.",
+  "description": "Mini-games de lógica no navegador: Zip, Patches, Sudoku, Sopa de Letras, Palavras Cruzadas, Conexão de Canos, Fuga das Setas, Queens, Tango e Text Twist.",
   "private": true,
   "type": "module",
   "scripts": {

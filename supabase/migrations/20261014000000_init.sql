@@ -35,7 +35,7 @@ create table public.games (
 insert into public.games (id, title, sort) values
   ('zip', 'Zip', 1), ('patches', 'Patches', 2), ('sudoku', 'Sudoku', 3),
   ('sopa', 'Sopa de Letras', 4), ('cruzadas', 'Palavras Cruzadas', 5), ('canos', 'Conexão de Canos', 6),
-  ('arrows', 'Fuga das Setas', 7), ('queens', 'Queens', 8), ('tango', 'Tango', 9);
+  ('arrows', 'Fuga das Setas', 7), ('queens', 'Queens', 8), ('tango', 'Tango', 9), ('texttwist', 'Text Twist', 10);
 
 -- Perfil público da conta (criado sozinho quando alguém se cadastra, pelo gatilho da seção 4).
 create table public.profiles (

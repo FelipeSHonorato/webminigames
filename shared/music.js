@@ -61,6 +61,11 @@ const MOODS = {
     chords: [[0, 3, 7, 10], [-2, 2, 5, 9], [-4, 0, 3, 8], [-7, -3, 0, 5]],
     melody: 0.12, kick: 0.04, hat: 0.05, swing: 0.20,
   },
+  texttwist: {
+    bpm: 88, root: 52, scale: [0, 2, 4, 7, 9], pad: "sine", lead: "triangle",
+    chords: [[0, 4, 7, 11], [-3, 0, 4, 7], [-7, -3, 0, 4], [-5, -1, 2, 5]],
+    melody: 0.18, kick: 0.05, hat: 0.07, swing: 0.08,
+  },
 };
 
 let ctx = null, master = null, bus = null, noise = null, timer = null, bar = 0, nextBar = 0;

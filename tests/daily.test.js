@@ -27,29 +27,38 @@ test("troféus: acima/abaixo da média (sozinho ou empatado = na média)", () =>
 test("troféus: normaliza os dados do servidor", () => {
   assert.deepEqual(
     scenarioTrophies({ seconds: 17, avgSeconds: 19, rank: 1, players: 4, points: 15, hints: 0, region: "sudeste", regionRank: 1, regionPlayers: 2 }),
-    { players: 4, rank: 1, percent: 75, average: "above", seconds: 17, avgSeconds: 19, points: 15, hints: 0, region: "sudeste", regionRank: 1, regionPlayers: 2 },
+    { players: 4, rank: 1, percent: 75, average: "above", seconds: 17, avgSeconds: 19, words: 0, won: true, avgWords: null, points: 15, hints: 0, region: "sudeste", regionRank: 1, regionPlayers: 2 },
   );
   assert.equal(scenarioTrophies(null), null);
   assert.deepEqual(
     scenarioTrophies({}),
-    { players: 0, rank: 0, percent: null, average: "even", seconds: null, avgSeconds: null, points: 0, hints: 0, region: null, regionRank: null, regionPlayers: null },
+    { players: 0, rank: 0, percent: null, average: "even", seconds: null, avgSeconds: null, words: 0, won: true, avgWords: null, points: 0, hints: 0, region: null, regionRank: null, regionPlayers: null },
   );
   assert.deepEqual(scenarioTrophies({ players: 1, rank: 1, seconds: 12, avgSeconds: 12 }).percent, 100);
+  /* Jogos sem palavras: o servidor manda avgWords null e a tela não deve mostrar "0 palavras". */
+  const semPalavras = scenarioTrophies({ seconds: 12, avgSeconds: 14, avgWords: null, players: 2, rank: 1 });
+  assert.equal(semPalavras.avgWords, null);
+  assert.equal(semPalavras.seconds, 12);
+  /* Text Twist: palavras e vitória vêm do servidor e entram nos troféus. */
+  const twist = scenarioTrophies({ seconds: 95, avgSeconds: 80, avgWords: 6, words: 9, won: false, rank: 3, players: 10 });
+  assert.equal(twist.words, 9);
+  assert.equal(twist.won, false);
+  assert.equal(twist.avgWords, 6);
 });
 
-test("pódio: três melhores tempos, com medalha dourada/prata/bronze e sem quebrar com dados ruins", () => {
+test("pódio: três melhores do cenário, com medalha dourada/prata/bronze e sem quebrar com dados ruins", () => {
   const top = [
-    { id: "1", name: "Ana", avatar: "data:image/jpeg;base64,AA", seconds: 12 },
+    { id: "1", name: "Ana", avatar: "data:image/jpeg;base64,AA", seconds: 12, words: 8 },
     { id: "2", name: "Bia", avatar: null, seconds: 20 },
-    { id: "3", name: "Caio", avatar: "data:image/png;base64,BB", seconds: 31 },
+    { id: "3", name: "Caio", avatar: "data:image/png;base64,BB", seconds: 31, words: 12 },
     { id: "4", name: "Duda", avatar: "data:image/jpeg;base64,CC", seconds: 40 },
   ];
   assert.deepEqual(podiumTimes({ top }), [
-    { name: "Ana", avatar: "data:image/jpeg;base64,AA", seconds: 12, medal: "gold" },
-    { name: "Bia", avatar: null, seconds: 20, medal: "silver" },
-    { name: "Caio", avatar: "data:image/png;base64,BB", seconds: 31, medal: "bronze" },
+    { name: "Ana", avatar: "data:image/jpeg;base64,AA", seconds: 12, words: 8, medal: "gold" },
+    { name: "Bia", avatar: null, seconds: 20, words: 0, medal: "silver" },
+    { name: "Caio", avatar: "data:image/png;base64,BB", seconds: 31, words: 12, medal: "bronze" },
   ]);
-  assert.deepEqual(podiumTimes({ top: [{ seconds: "x" }, { seconds: 5, name: 7 }] }), [{ name: "", avatar: null, seconds: 5, medal: "gold" }]);
+  assert.deepEqual(podiumTimes({ top: [{ seconds: "x" }, { seconds: 5, name: 7 }] }), [{ name: "", avatar: null, seconds: 5, words: 0, medal: "gold" }]);
   assert.deepEqual(podiumTimes(null), []);
 });
 
