@@ -56,17 +56,28 @@ input:focus,select:focus{border-color:var(--accent)}
 .hub{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start;max-width:1180px;margin:0 auto;padding:32px 20px}
 .hub h2{font-size:1.7rem}
 .hub .sub{color:var(--muted);margin:6px 0 24px}
-.games{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+.games{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
 a.game{text-decoration:none;color:inherit}
 .game{display:flex;flex-direction:column;gap:12px;text-align:left;padding:16px;background:var(--surface);border:2px solid var(--line);border-radius:16px}
 .game:hover{border-color:var(--accent)}
 .game svg{width:100%;height:auto;border-radius:10px;background:var(--bg)}
+/* Miniatura do card: a mesma captura usada na página inicial (assets/thumbs), uma por tema. */
+.thumb{display:block;aspect-ratio:1;border-radius:10px;overflow:hidden;background:var(--bg)}
+.thumb img{display:block;width:100%;height:100%;object-fit:cover}
+.thumb img.th-d{display:none}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .thumb img.th-l{display:none}:root:not([data-theme="light"]) .thumb img.th-d{display:block}}
+:root[data-theme="dark"] .thumb img.th-l{display:none}
+:root[data-theme="dark"] .thumb img.th-d{display:block}
+/* Sem as miniaturas (jogo novo, arquivo faltando): volta o SVG do catálogo, que não depende de arquivo. */
+.thumb.fallback{aspect-ratio:auto}
 .game p{margin:0;color:var(--muted);line-height:1.4;font-size:.95rem}
 .game.wide{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:auto auto 1fr auto;column-gap:20px}
 .game.wide>svg{grid-row:1/5;align-self:stretch;height:100%;min-height:170px}
+.game.wide>.thumb{grid-row:1/5;align-self:stretch;min-height:170px;aspect-ratio:auto}
+.game.wide>.thumb img{height:100%}
 .game.wide>h3,.game.wide>p,.game.wide>.lvl,.game.wide>.play{grid-column:2}
 .game.skeleton{pointer-events:none}
-.game.skeleton .sk-preview{width:100%;aspect-ratio:16/10;border-radius:10px;background:var(--line);opacity:.55}
+.game.skeleton .sk-preview{width:100%;aspect-ratio:1;border-radius:10px;background:var(--line);opacity:.55}
 .game.skeleton .sk-line{height:12px;border-radius:6px;background:var(--line);opacity:.55}
 .game.skeleton .sk-line.short{width:55%}
 .lvl{display:flex;align-items:center;gap:10px;font-size:.85rem;color:var(--muted)}
@@ -87,6 +98,7 @@ a.game{text-decoration:none;color:inherit}
 @media (max-width:700px){
   .game.wide{grid-column:auto;display:flex}
   .game.wide>svg{height:auto;min-height:0}
+  .game.wide>.thumb{min-height:0;aspect-ratio:1}
 }
 
 /* ---------- Perfil ---------- */

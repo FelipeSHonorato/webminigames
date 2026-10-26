@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Queens</title>
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/email-logo.png" type="image/png" sizes="96x96">
+<link rel="apple-touch-icon" href="../../assets/email-logo.png">
+<script src="../../shared/theme-init.js"></script>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../css/gamebar.css">
+<link rel="stylesheet" href="../../css/ranking-list.css">
+<link rel="stylesheet" href="../../css/ranking.css">
+<link rel="stylesheet" href="../../css/userbar.css">
+<link rel="stylesheet" href="../../css/coins.css">
+<link rel="stylesheet" href="../../css/daily.css">
+</head>
+<body>
+<nav class="sitebar"><a href="../../jogos.html">← Jogos</a><div class="gametitle"><strong>Queens</strong><span id="coinBadge"></span></div><div id="userbar"></div></nav>
+<main>
+  <header><h1>Queens</h1><span id="timer" aria-label="Tempo">00:00</span></header>
+  <div id="level"><b id="levelName"></b><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
+  <div class="layout">
+    <section class="boardwrap">
+      <div id="board" role="grid" tabindex="0" aria-label="Tabuleiro do Queens"></div>
+      <div id="msg" role="status"></div>
+      <div id="daily" class="daily" hidden></div>
+    </section>
+    <aside class="side">
+      <div id="phase"></div>
+      <ul class="legend">
+        <li><i class="sw q"></i>Rainha: uma por linha, coluna e região</li>
+        <li><i class="sw x"></i>X: casa descartada (rascunho)</li>
+        <li><i class="sw bad"></i>Vermelho: rainhas que se atacam</li>
+      </ul>
+      <div class="actions">
+        <button id="reset">Reiniciar</button>
+        <button id="next">Nova fase</button>
+      </div>
+    </aside>
+  </div>
+  <p class="help">Coloque uma rainha em cada linha, cada coluna e cada região colorida. Duas rainhas nunca podem se tocar, nem na diagonal — nem nas 8 casas em volta. Toque numa casa para pôr a rainha e toque de novo para tirar. Para rascunhar, marque X nas casas descartadas: no computador, botão direito ou Shift + clique; no teclado, setas para andar, espaço para a rainha, X para a marca e Backspace para limpar. As rainhas que se atacam ficam em vermelho.</p>
+</main>
+<script src="../../shared/file-warning.js"></script>
+<script type="module" src="./ui.js"></script>
+</body>
+</html>

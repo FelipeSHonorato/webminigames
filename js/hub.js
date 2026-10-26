@@ -28,13 +28,36 @@ function balanceBadge(uid, id) {
   return coinBadge(Coins.get(uid, id));
 }
 
+/** O card "wide" (ocupando a linha inteira) só fecha bem quando o total é ímpar: com um número par ele
+    deixaria uma linha vazia ao lado do penúltimo jogo. */
+const wideLast = () => Object.keys(GAMES).length % 2 === 1;
+
 function renderSkeleton() {
   const count = Object.keys(GAMES).length;
   $("games").setAttribute("aria-busy", "true");
   $("games").innerHTML = Array.from({ length: count }, (_, i) =>
-    `<div class="game skeleton${i === count - 1 ? " wide" : ""}" aria-hidden="true">
+    `<div class="game skeleton${i === count - 1 && wideLast() ? " wide" : ""}" aria-hidden="true">
       <div class="sk-preview"></div><div class="sk-line short"></div><div class="sk-line"></div><div class="sk-line"></div>
     </div>`).join("");
+}
+
+/** Miniatura do card: a mesma captura usada na página inicial (`assets/thumbs`, uma por tema). O SVG do
+    catálogo fica escondido como reserva — se as imagens não existirem (jogo novo), ele aparece no lugar. */
+const thumb = (id, g) =>
+  `<span class="thumb"><img class="th-l" src="assets/thumbs/${id}-light.webp" alt="" width="360" height="360" decoding="async">` +
+  `<img class="th-d" src="assets/thumbs/${id}-dark.webp" alt="" width="360" height="360" decoding="async">` +
+  `<span class="thumb-fallback" hidden>${g.preview}</span></span>`;
+
+/** Troca a miniatura pelo SVG de reserva quando alguma das imagens não carrega. */
+function wireThumbFallback(btn) {
+  const box = btn.querySelector(".thumb");
+  if (!box) return;
+  box.querySelectorAll("img").forEach(img => img.addEventListener("error", () => {
+    const fallback = box.querySelector(".thumb-fallback");
+    if (!fallback) return;
+    box.innerHTML = fallback.innerHTML;
+    box.classList.add("fallback");
+  }, { once: true }));
 }
 
 function renderHub() {
@@ -48,9 +71,9 @@ function renderHub() {
     const last = lv === LEVEL_NAMES.length - 1, into = wins - lv * WINS_PER_LEVEL;
     const on = GameSwitch.isOn(id), playable = on || isAdmin(user);   // desligado: só o administrador entra
     const btn = document.createElement(playable ? "a" : "div");     // cada jogo é uma página própria
-    btn.className = "game" + (on ? "" : " off") + (index === entries.length - 1 ? " wide" : "");
+    btn.className = "game" + (on ? "" : " off") + (index === entries.length - 1 && wideLast() ? " wide" : "");
     if (playable) btn.href = g.path; else btn.setAttribute("aria-disabled", "true");
-    btn.innerHTML = `${g.preview}<h3>${g.title}</h3><p>${g.desc}</p>
+    btn.innerHTML = `${thumb(id, g)}<h3>${g.title}</h3><p>${g.desc}</p>
       <div class="lvl"><span>${LEVEL_NAMES[lv]}</span><div class="bar"><i style="width:${last ? 100 : (into / WINS_PER_LEVEL) * 100}%"></i></div><span>${last ? wins + " vitórias" : into + "/" + WINS_PER_LEVEL}</span></div>
       <span class="play">${playable ? "Jogar" : "Indisponível"}</span>`;
     const title = btn.querySelector("h3");
@@ -62,6 +85,7 @@ function renderHub() {
       title.append(tag);
     }
     $("games").append(btn);
+    wireThumbFallback(btn);
   });
 }
 

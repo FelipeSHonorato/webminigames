@@ -28,13 +28,7 @@ button.game{font:inherit;color:inherit;cursor:pointer;transition:transform .15s,
 button.game:hover{transform:translateY(-3px)}
 .landing .game h3{font-size:1.05rem}
 .landing .game p{font-size:.88rem;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.thumb{display:block;border-radius:10px;overflow:hidden;background:var(--bg)}
-.thumb img{display:block;width:100%;height:auto;aspect-ratio:1}
-/* a miniatura segue o tema do site (mesma regra de css/site.css: sistema, a menos que o usuário tenha escolhido) */
-.thumb img.th-d{display:none}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .thumb img.th-l{display:none}:root:not([data-theme="light"]) .thumb img.th-d{display:block}}
-:root[data-theme="dark"] .thumb img.th-l{display:none}
-:root[data-theme="dark"] .thumb img.th-d{display:block}
+/* A miniatura (.thumb) e a troca por tema vivem em css/site.css, porque a lista de jogos também usa. */
 
 .l-save{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-top:56px;padding:26px 30px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 14%,var(--surface)),var(--surface))}
 .l-save h2{font-size:1.15rem}

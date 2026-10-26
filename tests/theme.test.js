@@ -24,7 +24,7 @@ test("tema claro do site: texto sobre o accent passa em AA", () => {
   assert.ok(ratio >= 4.5, `contraste ${ratio.toFixed(2)}:1`);
 });
 
-for (const game of ["arrows", "canos", "cruzadas", "patches", "sopa", "sudoku", "zip"]) {
+for (const game of ["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "zip"]) {
   test(`tema claro de ${game}: accent e caminho legíveis sobre o fundo`, () => {
     const style = css(`../games/${game}/style.css`);
     const bg = color(style, "bg");

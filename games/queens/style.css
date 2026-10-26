@@ -1,0 +1,82 @@
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#e9eef3;--fg:#14213d;--accent:#0f766e;--muted:#5b6b7e;--btn:#fff;--line:#c3ced9;
+/* Tokens usados por css/ranking.css, ranking-list.css e gamebar.css */
+--cell:#fff;--grid:#cfd8e1;
+--queen:#14213d;--bad:#e5484d;--badfg:#b3261e;--mark:#5b6b7e;
+/* Regiões: a UI escreve --h/--s/--l em cada casa (paleta fixa + vizinhança em games/queens/colors.js);
+   o tema escuro usa outra paleta. Ícones desenhados uma vez aqui e reaproveitados por máscara. */
+--ico-crown:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Ccircle%20cx='4.6'%20cy='7.6'%20r='2'/%3E%3Ccircle%20cx='12'%20cy='4.6'%20r='2.2'/%3E%3Ccircle%20cx='19.4'%20cy='7.6'%20r='2'/%3E%3Cpath%20d='M3.4%2017.2%205%208.6%208.7%2012.8%2012%205.4%2015.3%2012.8%2019%208.6%2020.6%2017.2Z'/%3E%3Crect%20x='3.1'%20y='17.4'%20width='17.8'%20height='3.6'%20rx='1.8'/%3E%3C/svg%3E");
+--ico-x:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Cpath%20d='M6.5%206.5L17.5%2017.5M17.5%206.5L6.5%2017.5'%20stroke='black'%20stroke-width='3.2'%20fill='none'%20stroke-linecap='round'/%3E%3C/svg%3E")}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1621;--fg:#e8eef5;--accent:#2cc4b6;--muted:#8da0b5;--btn:#17222f;--line:#2e4156;
+--cell:#17222f;--grid:#2a3a4c;--queen:#f3f7fb;--mark:#b7c6d8;--bad:#ff6b6b;--badfg:#ff8a80}}
+:root[data-theme="dark"]{--bg:#0e1621;--fg:#e8eef5;--accent:#2cc4b6;--muted:#8da0b5;--btn:#17222f;--line:#2e4156;
+--cell:#17222f;--grid:#2a3a4c;--queen:#f3f7fb;--mark:#b7c6d8;--bad:#ff6b6b;--badfg:#ff8a80}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif}
+main{max-width:940px;margin:0 auto;padding:20px 16px 28px}
+/* Jogo largo: com o painel de ranking aberto (≥900px) o main ocupa a área livre (o deslocamento genérico de
+   css/ranking.css só serve para jogos estreitos). Reserva 380px: 320 do painel + 12 de margem + 48 da aba. */
+@media (min-width:900px){html body.ranking-open main{transform:none;width:calc(100vw - 380px);margin:0 auto 0 max(0px,calc((100vw - 380px - 940px) / 2))}}
+header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+h1{margin:0;font-size:2rem;letter-spacing:-.02em}
+#timer{font-variant-numeric:tabular-nums;color:var(--muted);font-size:1.2rem;font-weight:700}
+#level{display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:.95rem}
+#level b{min-width:4.6em}
+#level .bar{flex:1;height:8px;border-radius:4px;background:var(--grid);overflow:hidden}
+#level .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+#level span{color:var(--muted);font-variant-numeric:tabular-nums}
+
+.layout{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+.boardwrap{flex:1 1 380px;max-width:640px;min-width:0}
+.side{flex:1 1 230px;min-width:210px}
+
+/* Tabuleiro: grade n×n de casas com relevo (gradiente + brilho no topo e sombra na base), separadas só
+   pelo vão de 1px. O relevo é o que evita a mancha de cor sólida — cada casa lê como uma peça. */
+#board{display:grid;grid-template-columns:repeat(var(--n,8),1fr);grid-template-rows:repeat(var(--n,8),1fr);width:100%;aspect-ratio:1;gap:1px;padding:3px;
+  background:var(--grid);border-radius:12px;user-select:none;-webkit-user-select:none;touch-action:manipulation;cursor:pointer;
+  box-shadow:0 2px 12px rgba(0,0,0,.10);outline:none}
+#board:focus-visible{box-shadow:0 2px 12px rgba(0,0,0,.10),0 0 0 3px var(--accent)}
+#board.won{box-shadow:0 2px 12px rgba(0,0,0,.10),0 0 0 3px var(--accent)}
+#board.locked{cursor:default}
+.cell{position:relative;display:grid;place-items:center;min-width:0;min-height:0;border-radius:4px;
+  background:linear-gradient(180deg,var(--region-hi,var(--region,#dfe7ee)) 0%,var(--region,#dfe7ee) 46%,var(--region-lo,var(--region,#dfe7ee)) 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.24),inset 0 -1px 0 rgba(0,0,0,.13);
+  transition:filter .12s}
+.cell.cur{outline:3px solid var(--accent);outline-offset:-3px;z-index:1}
+.cell.bad{box-shadow:inset 0 0 0 3px var(--bad)}
+/* Coroa da rainha e X do rascunho: desenhados por máscara e pintados com --ink (branco ou azul-escuro,
+   escolhido pelo contraste com a cor da casa). */
+.q,.x{position:absolute;inset:15%;opacity:0;transform:scale(.6);transition:opacity .12s ease,transform .12s ease;
+  background:var(--ink,var(--queen));-webkit-mask-position:center;mask-position:center;-webkit-mask-size:contain;mask-size:contain;
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;filter:drop-shadow(0 1px 1px rgba(0,0,0,.28))}
+.q{inset:14% 15% 15%;-webkit-mask-image:var(--ico-crown);mask-image:var(--ico-crown)}
+.x{inset:27%;-webkit-mask-image:var(--ico-x);mask-image:var(--ico-x)}
+.cell.hasq .q{opacity:1;transform:scale(1)}
+.cell.mark .x{opacity:1;transform:scale(1)}
+.cell.bad .q{background:var(--badfg)}
+
+#msg{min-height:1.6em;margin:12px 0 0;text-align:center;font-weight:700;color:var(--accent)}
+#msg.err{color:var(--bad)}
+#phase{padding:12px 14px;margin-bottom:12px;border-radius:10px;background:var(--btn);border:2px solid var(--line);font-weight:700;line-height:1.3}
+.legend{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:7px;font-size:.9rem;color:var(--muted)}
+.legend .sw{display:inline-block;width:15px;height:15px;vertical-align:-3px;margin-right:7px;background:var(--queen)}
+.legend .sw.q{-webkit-mask:var(--ico-crown) center/contain no-repeat;mask:var(--ico-crown) center/contain no-repeat}
+.legend .sw.x{background:var(--mark);-webkit-mask:var(--ico-x) center/contain no-repeat;mask:var(--ico-x) center/contain no-repeat}
+.legend .sw.bad{background:var(--bad);border-radius:50%}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px}
+button{flex:1;padding:12px 8px;font:inherit;color:var(--fg);background:var(--btn);border:2px solid var(--line);border-radius:8px;cursor:pointer}
+.actions button{min-width:96px}
+button:hover{border-color:var(--accent)}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button:disabled,button:disabled:hover{opacity:.45;cursor:not-allowed;border-color:var(--line)}
+p.help{color:var(--muted);font-size:.9rem;line-height:1.4}
+
+@media (max-width:720px){
+  main{padding:10px 14px 20px}
+  h1{font-size:1.5rem}
+  #timer{font-size:1.05rem}
+  .layout{display:block}
+  .boardwrap{max-width:none}
+  .side{margin-top:14px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
