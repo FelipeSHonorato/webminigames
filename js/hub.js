@@ -28,15 +28,11 @@ function balanceBadge(uid, id) {
   return coinBadge(Coins.get(uid, id));
 }
 
-/** O card "wide" (ocupando a linha inteira) só fecha bem quando o total é ímpar: com um número par ele
-    deixaria uma linha vazia ao lado do penúltimo jogo. */
-const wideLast = () => Object.keys(GAMES).length % 2 === 1;
-
 function renderSkeleton() {
   const count = Object.keys(GAMES).length;
   $("games").setAttribute("aria-busy", "true");
-  $("games").innerHTML = Array.from({ length: count }, (_, i) =>
-    `<div class="game skeleton${i === count - 1 && wideLast() ? " wide" : ""}" aria-hidden="true">
+  $("games").innerHTML = Array.from({ length: count }, () =>
+    `<div class="game skeleton" aria-hidden="true">
       <div class="sk-preview"></div><div class="sk-line short"></div><div class="sk-line"></div><div class="sk-line"></div>
     </div>`).join("");
 }
@@ -66,12 +62,12 @@ function renderHub() {
   $("hubSub").textContent = "Escolha um jogo para abrir o desafio de hoje. Cada jogo tem seu nível, seus tickets e seu ranking." + (user.provider === "anonymous" ? ` ${PROVIDER_NOTE.anonymous}.` : "");
   $("games").innerHTML = "";
   const entries = Object.entries(GAMES);
-  entries.forEach(([id, g], index) => {
+  entries.forEach(([id, g]) => {
     const wins = winsOf(g, user.id), lv = Math.min(LEVEL_NAMES.length - 1, Math.floor(wins / WINS_PER_LEVEL));
     const last = lv === LEVEL_NAMES.length - 1, into = wins - lv * WINS_PER_LEVEL;
     const on = GameSwitch.isOn(id), playable = on || isAdmin(user);   // desligado: só o administrador entra
     const btn = document.createElement(playable ? "a" : "div");     // cada jogo é uma página própria
-    btn.className = "game" + (on ? "" : " off") + (index === entries.length - 1 && wideLast() ? " wide" : "");
+    btn.className = "game" + (on ? "" : " off");
     if (playable) btn.href = g.path; else btn.setAttribute("aria-disabled", "true");
     btn.innerHTML = `${thumb(id, g)}<h3>${g.title}</h3><p>${g.desc}</p>
       <div class="lvl"><span>${LEVEL_NAMES[lv]}</span><div class="bar"><i style="width:${last ? 100 : (into / WINS_PER_LEVEL) * 100}%"></i></div><span>${last ? wins + " vitórias" : into + "/" + WINS_PER_LEVEL}</span></div>

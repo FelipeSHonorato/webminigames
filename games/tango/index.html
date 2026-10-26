@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tango</title>
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/email-logo.png" type="image/png" sizes="96x96">
+<link rel="apple-touch-icon" href="../../assets/email-logo.png">
+<script src="../../shared/theme-init.js"></script>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../css/gamebar.css">
+<link rel="stylesheet" href="../../css/ranking-list.css">
+<link rel="stylesheet" href="../../css/ranking.css">
+<link rel="stylesheet" href="../../css/userbar.css">
+<link rel="stylesheet" href="../../css/coins.css">
+<link rel="stylesheet" href="../../css/daily.css">
+</head>
+<body>
+<nav class="sitebar"><a href="../../jogos.html">← Jogos</a><div class="gametitle"><strong>Tango</strong><span id="coinBadge"></span></div><div id="userbar"></div></nav>
+<main>
+  <header><h1>Tango</h1><span id="timer" aria-label="Tempo">00:00</span></header>
+  <div id="level"><b id="levelName"></b><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
+  <div class="layout">
+    <section class="boardwrap">
+      <svg id="board" role="application" aria-label="Tabuleiro do Tango"></svg>
+      <div id="msg" role="status"></div>
+      <div id="daily" class="daily" hidden></div>
+    </section>
+    <aside class="side">
+      <div id="phase"></div>
+      <ul class="legend">
+        <li><i class="sw sun"></i>Sol</li>
+        <li><i class="sw moon"></i>Lua</li>
+        <li><i class="sw eq"></i>= mesmas casas · <b>≠</b> casas diferentes</li>
+        <li><i class="sw bad"></i>Vermelho: conflito</li>
+      </ul>
+      <div class="actions">
+        <button id="reset">Reiniciar</button>
+        <button id="next">Nova fase</button>
+      </div>
+    </aside>
+  </div>
+  <p class="help">Preencha a grade com sóis e luas: cada linha e cada coluna tem <b>metade de cada</b>, nunca três iguais seguidos, e os sinais entre as casas mandam <b>=</b> (iguais) ou <b>≠</b> (diferentes). Toque numa casa para alternar vazio → sol → lua → vazio; casas com símbolo mais escuro já vêm prontas e não mudam. No teclado: setas para andar, espaço para alternar e Backspace para limpar. Conflitos ficam em vermelho.</p>
+</main>
+<script src="../../shared/file-warning.js"></script>
+<script type="module" src="./ui.js"></script>
+</body>
+</html>

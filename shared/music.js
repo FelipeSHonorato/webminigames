@@ -56,6 +56,11 @@ const MOODS = {
     chords: [[0, 3, 7, 10], [-5, 0, 3, 7], [-2, 2, 5, 8], [-4, 0, 4, 7]],
     melody: 0.13, kick: 0.04, hat: 0.04, swing: 0.16,
   },
+  tango: {
+    bpm: 62, root: 50, scale: [0, 2, 3, 6, 7, 10], pad: "triangle", lead: "sine",
+    chords: [[0, 3, 7, 10], [-2, 2, 5, 9], [-4, 0, 3, 8], [-7, -3, 0, 5]],
+    melody: 0.12, kick: 0.04, hat: 0.05, swing: 0.20,
+  },
 };
 
 let ctx = null, master = null, bus = null, noise = null, timer = null, bar = 0, nextBar = 0;

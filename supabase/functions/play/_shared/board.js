@@ -10,11 +10,12 @@ import * as patches from "./patches/domain.js";
 import * as queens from "./queens/domain.js";
 import * as sopa from "./sopa/domain.js";
 import * as sudoku from "./sudoku/domain.js";
+import * as tango from "./tango/domain.js";
 import * as zip from "./zip/domain.js";
 
-export const GAMES = { arrows, canos, cruzadas, patches, queens, sopa, sudoku, zip };
+export const GAMES = { arrows, canos, cruzadas, patches, queens, sopa, sudoku, tango, zip };
 export const hasHints = game => game === "cruzadas" || game === "sopa";
-export const GENS = { arrows: arrows.GEN, canos: canos.GEN, cruzadas: cruzadas.GEN, queens: queens.GEN, sopa: sopa.GEN, patches: 1, sudoku: 1, zip: 1 };
+export const GENS = { arrows: arrows.GEN, canos: canos.GEN, cruzadas: cruzadas.GEN, queens: queens.GEN, tango: tango.GEN, sopa: sopa.GEN, patches: 1, sudoku: 1, zip: 1 };
 
 const build = (game, seed, level) => GAMES[game].generatePuzzle(makeRng(seed), GAMES[game].LEVELS[level]);
 
@@ -28,6 +29,8 @@ const viewOf = (game, p) => {
     case "patches":  return { n, clues: p.clues };
     /* Queens: só o mapa de regiões — as rainhas são a solução. */
     case "queens":   return { n, regions: p.regions };
+    /* Tango: dados e sinais — a grade é a solução. */
+    case "tango":    return { n, givens: p.givens, marks: p.marks };
     case "zip":      return { n, total: n * n, waypoints: [...p.waypoints], walls: [...p.walls], max: p.max };
     /* Sopa: sem cells/dir — a posição de cada palavra na grade É a solução. O jogador só recebe o texto (para ocultar as letras). */
     case "sopa":     return { n, grid: p.grid, words: p.words.map(w => ({ text: w.text, norm: w.norm })) };
@@ -50,6 +53,7 @@ function serialize(game, p) {
     case "zip":      return { n: p.n ?? zip.N, waypoints: [...p.waypoints], walls: [...p.walls], max: p.max, solution: p.solution };
     case "patches":  return { n: p.n ?? patches.N, clues: p.clues, solution: p.solution };
     case "queens":   return { n: p.n, regions: p.regions, solution: p.solution };
+    case "tango":    return { n: p.n, givens: p.givens, marks: p.marks, solution: p.solution };
     case "sudoku":   return { n: sudoku.SIZE, cells: p.cells, solution: p.solution, givens: p.givens };
     case "sopa":     return { n: p.n, grid: p.grid, words: p.words };
     case "cruzadas": return { n: p.n, cells: p.cells, answers: p.answers };
@@ -67,7 +71,8 @@ function revive(game, s) {
     case "queens":
     case "sudoku":
     case "sopa":
-    case "cruzadas": return s;
+    case "cruzadas":
+    case "tango": return s;
     default: throw new Error("unknown_game");
   }
 }
@@ -92,6 +97,8 @@ export function validatePuzzle(game, p, data) {
       return ints(data?.rots, p.n * p.n, 0, 3) && canos.simulate(p, data.rots).status === "win";
     case "queens":
       return ints(data?.queens, p.n, 0, p.n * p.n - 1) && queens.isSolved(p, data.queens);
+    case "tango":
+      return ints(data?.grid, p.n * p.n, 0, 1) && tango.isSolved(p, data.grid);
     case "zip": {
       zip.setSize(p.n ?? zip.N);
       if (!ints(data?.path, zip.TOTAL, 0, zip.TOTAL - 1)) return false;

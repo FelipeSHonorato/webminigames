@@ -1,0 +1,70 @@
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#e9eef3;--fg:#14213d;--accent:#0f766e;--muted:#5b6b7e;--btn:#fff;--line:#c3ced9;
+/* Tokens usados por css/ranking.css, ranking-list.css e gamebar.css */
+--cell:#fff;--grid:#cfd8e1;
+--given:#eef2f7;--chip:#e9eef3;--sun:#d98324;--moon:#3f66a8;--bad:#d64545;--badfg:#b3261e}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1621;--fg:#e8eef5;--accent:#2cc4b6;--muted:#8da0b5;--btn:#17222f;--line:#2e4156;
+--cell:#17222f;--grid:#2a3a4c;--given:#1f2c3b;--chip:#0e1621;--sun:#f2b134;--moon:#7fa6e0;--bad:#ff6b6b;--badfg:#ff8a80}}
+:root[data-theme="dark"]{--bg:#0e1621;--fg:#e8eef5;--accent:#2cc4b6;--muted:#8da0b5;--btn:#17222f;--line:#2e4156;
+--cell:#17222f;--grid:#2a3a4c;--given:#1f2c3b;--chip:#0e1621;--sun:#f2b134;--moon:#7fa6e0;--bad:#ff6b6b;--badfg:#ff8a80}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif}
+main{max-width:940px;margin:0 auto;padding:20px 16px 28px}
+@media (min-width:900px){html body.ranking-open main{transform:none;width:calc(100vw - 380px);margin:0 auto 0 max(0px,calc((100vw - 380px - 940px) / 2))}}
+header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+h1{margin:0;font-size:2rem;letter-spacing:-.02em}
+#timer{font-variant-numeric:tabular-nums;color:var(--muted);font-size:1.2rem;font-weight:700}
+#level{display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:.95rem}
+#level b{min-width:4.6em}
+#level .bar{flex:1;height:8px;border-radius:4px;background:var(--grid);overflow:hidden}
+#level .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+#level span{color:var(--muted);font-variant-numeric:tabular-nums}
+
+.layout{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+.boardwrap{flex:1 1 380px;max-width:640px;min-width:0}
+.side{flex:1 1 230px;min-width:210px}
+
+/* Tabuleiro em SVG: cada casa é um retângulo com os dois símbolos dentro (só um aparece). */
+#board{display:block;width:100%;aspect-ratio:1;user-select:none;-webkit-user-select:none;touch-action:manipulation;cursor:pointer;
+  border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,.10);outline:none}
+#board:focus-visible{box-shadow:0 2px 12px rgba(0,0,0,.10),0 0 0 3px var(--accent)}
+#board.won{box-shadow:0 2px 12px rgba(0,0,0,.10),0 0 0 3px var(--accent)}
+#board.locked{cursor:default}
+.cell rect{fill:var(--cell);stroke:var(--grid);stroke-width:2;transition:fill .12s,stroke .12s}
+.cell.given rect{fill:var(--given)}
+.cell .sun,.cell .moon{display:none}
+.cell.v0 .sun{display:block;fill:var(--sun)}
+.cell.v1 .moon{display:block;fill:var(--moon)}
+.cell.cur rect{stroke:var(--accent);stroke-width:6}
+.cell.bad rect{stroke:var(--bad);stroke-width:6}
+.mark rect{fill:var(--chip);stroke:var(--grid);stroke-width:2}
+.mark .ink{stroke:var(--muted);stroke-width:4;fill:none;stroke-linecap:round}
+.mark.bad rect{stroke:var(--bad)}
+.mark.bad .ink{stroke:var(--badfg)}
+
+#msg{min-height:1.6em;margin:12px 0 0;text-align:center;font-weight:700;color:var(--accent)}
+#msg.err{color:var(--bad)}
+#phase{padding:12px 14px;margin-bottom:12px;border-radius:10px;background:var(--btn);border:2px solid var(--line);font-weight:700;line-height:1.3}
+.legend{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:7px;font-size:.9rem;color:var(--muted)}
+.legend .sw{display:inline-block;width:15px;height:15px;vertical-align:-3px;margin-right:7px}
+.legend .sw.sun{border-radius:50%;background:var(--sun)}
+.legend .sw.moon{border-radius:50%;background:var(--moon)}
+.legend .sw.eq{width:auto;height:auto;margin-right:2px;color:var(--muted)}
+.legend .sw.bad{border-radius:50%;background:var(--bad)}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px}
+button{flex:1;padding:12px 8px;font:inherit;color:var(--fg);background:var(--btn);border:2px solid var(--line);border-radius:8px;cursor:pointer}
+.actions button{min-width:96px}
+button:hover{border-color:var(--accent)}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button:disabled,button:disabled:hover{opacity:.45;cursor:not-allowed;border-color:var(--line)}
+p.help{color:var(--muted);font-size:.9rem;line-height:1.4}
+
+@media (max-width:720px){
+  main{padding:10px 14px 20px}
+  h1{font-size:1.5rem}
+  #timer{font-size:1.05rem}
+  .layout{display:block}
+  .boardwrap{max-width:none}
+  .side{margin-top:14px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

@@ -15,6 +15,7 @@ import * as patches from "../games/patches/domain.js";
 import * as queens from "../games/queens/domain.js";
 import * as sopa from "../games/sopa/domain.js";
 import * as sudoku from "../games/sudoku/domain.js";
+import * as tango from "../games/tango/domain.js";
 import * as zip from "../games/zip/domain.js";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -23,7 +24,7 @@ const normPoints = s => s.replace(/"(?:\.\.\/)+(?:shared\/)?points\.js"/g, '"POI
 
 /* ---------- paridade entre games/ e a cópia usada pela Edge Function ---------- */
 test("cópias dos domínios na Edge Function batem com games/ (paridade)", () => {
-  for (const g of ["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "zip"]) {
+  for (const g of ["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "zip"]) {
     assert.equal(normPoints(read(`supabase/functions/play/_shared/${g}/domain.js`)), normPoints(read(`games/${g}/domain.js`)), `domain de ${g} divergiu`);
   }
   for (const g of ["cruzadas", "sopa"]) {
@@ -35,13 +36,15 @@ test("cópias dos domínios na Edge Function batem com games/ (paridade)", () =>
 
 /* ---------- o puzzle público NUNCA carrega a solução ---------- */
 test("visão pública não vaza a solução (jogos fortes)", () => {
-  for (const g of ["sudoku", "arrows", "canos", "patches", "queens", "zip"]) {
+  for (const g of ["sudoku", "arrows", "canos", "patches", "queens", "tango", "zip"]) {
     const view = JSON.stringify(publicView(g, 12345, 0));
     assert.ok(!view.includes("solution"), `${g} vazou a solução`);
     assert.ok(!view.includes("\"path\""), `${g} vazou o caminho`);
   }
   const queensView = publicView("queens", 12345, 0);
   assert.ok(Array.isArray(queensView.regions) && queensView.regions.length === queensView.n * queensView.n, "queens manda o mapa de regiões");
+  const tangoView = publicView("tango", 12345, 0);
+  assert.ok(Array.isArray(tangoView.givens) && Array.isArray(tangoView.marks), "tango manda dados e sinais");
   const canosView = publicView("canos", 12345, 0);
   assert.ok(Array.isArray(canosView.inlets) && canosView.inlets.length >= 1);
   assert.ok(Array.isArray(canosView.outlets) && canosView.outlets.length >= 1);
@@ -96,6 +99,16 @@ test("queens: as rainhas da solução são aceitas; uma casa trocada é recusada
   assert.equal(validate("queens", seed, lvl, { queens: queens.solutionCells(p).map((c, i) => (i === 0 ? (c + 1) % p.n : c)) }), false);
   assert.equal(validate("queens", seed, lvl, { queens: [] }), false);
   assert.equal(validate("queens", seed, lvl, {}), false);
+});
+
+test("tango: a grade da solução é aceita; uma casa trocada e uma vazia são recusadas", () => {
+  const seed = 911, lvl = 0;
+  const p = tango.generatePuzzle(makeRng(seed), tango.LEVELS[lvl]);
+  const grid = p.solution.slice();
+  assert.equal(validate("tango", seed, lvl, { grid }), true);
+  assert.equal(validate("tango", seed, lvl, { grid: grid.map((v, i) => (i === 0 ? 1 - v : v)) }), false);
+  assert.equal(validate("tango", seed, lvl, { grid: grid.map((v, i) => (i === 5 ? -1 : v)) }), false);
+  assert.equal(validate("tango", seed, lvl, {}), false);
 });
 
 test("patches: a partição solução é aceita; um retângulo fora do lugar é recusado", () => {
@@ -153,7 +166,7 @@ test("puzzles diferentes têm a mesma seed mas níveis diferentes mudam a dificu
 
 test("snapshot diário: o puzzle completo valida e a visão pública continua sem a solução", () => {
   const cases = [
-    ["sudoku", 801], ["arrows", 802], ["canos", 803], ["patches", 804], ["zip", 805], ["sopa", 806], ["cruzadas", 807], ["queens", 808],
+    ["sudoku", 801], ["arrows", 802], ["canos", 803], ["patches", 804], ["zip", 805], ["sopa", 806], ["cruzadas", 807], ["queens", 808], ["tango", 809],
   ];
   for (const [game, seed] of cases) {
     const snap = snapshot(game, seed, 0);
@@ -202,8 +215,13 @@ test("snapshot diário: o puzzle completo valida e a visão pública continua se
   const queensP = queens.generatePuzzle(makeRng(808), queens.LEVELS[0]);
   assert.equal(validateSnapshot("queens", queensSnap.fullPuzzle, { queens: queens.solutionCells(queensP) }), true);
   assert.equal(validateSnapshot("queens", queensSnap.fullPuzzle, { queens: [] }), false);
+
+  const tangoSnap = snapshot("tango", 809, 0);
+  const tangoP = tango.generatePuzzle(makeRng(809), tango.LEVELS[0]);
+  assert.equal(validateSnapshot("tango", tangoSnap.fullPuzzle, { grid: tangoP.solution }), true);
+  assert.equal(validateSnapshot("tango", tangoSnap.fullPuzzle, { grid: [] }), false);
 });
 
-test("GAMES agrupa os oito domínios", () => {
-  assert.deepEqual(Object.keys(GAMES).sort(), ["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "zip"]);
+test("GAMES agrupa os nove domínios", () => {
+  assert.deepEqual(Object.keys(GAMES).sort(), ["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "zip"]);
 });

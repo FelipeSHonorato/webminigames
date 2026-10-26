@@ -327,7 +327,7 @@ on conflict (id) do update set title = excluded.title, sort = excluded.sort;
 | 8 | `tests/supabase.test.js` | `migrationNames` (varreduras de RLS/`search_path`) |
 | 9 | `README.md` | descrição do jogo na lista e na tabela de estrutura |
 | 10 | `docs/CONTINUAR.md` | regras, decisões e sutilezas (é o que a próxima IA lê primeiro) |
-| 11 | `jogos.html` + CSS do hub | o grid dá a classe `wide` ao **último** card: 8 jogos mudam o layout — conferir no navegador |
+| 11 | `jogos.html` + CSS do hub | o grid é `auto-fit, minmax(220px, 1fr)` (3 colunas em telas largas): um jogo novo muda o número de linhas — conferir no navegador |
 
 `js/hub.js`, `js/perfil.js`, `js/admin.js` e `js/landing.js` **já iteram `GAMES`** e não precisam de código
 novo — mas entram no teste visual (card, painel do admin, lista do perfil, landing).

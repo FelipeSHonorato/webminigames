@@ -71,11 +71,6 @@ a.game{text-decoration:none;color:inherit}
 /* Sem as miniaturas (jogo novo, arquivo faltando): volta o SVG do catálogo, que não depende de arquivo. */
 .thumb.fallback{aspect-ratio:auto}
 .game p{margin:0;color:var(--muted);line-height:1.4;font-size:.95rem}
-.game.wide{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);grid-template-rows:auto auto 1fr auto;column-gap:20px}
-.game.wide>svg{grid-row:1/5;align-self:stretch;height:100%;min-height:170px}
-.game.wide>.thumb{grid-row:1/5;align-self:stretch;min-height:170px;aspect-ratio:auto}
-.game.wide>.thumb img{height:100%}
-.game.wide>h3,.game.wide>p,.game.wide>.lvl,.game.wide>.play{grid-column:2}
 .game.skeleton{pointer-events:none}
 .game.skeleton .sk-preview{width:100%;aspect-ratio:1;border-radius:10px;background:var(--line);opacity:.55}
 .game.skeleton .sk-line{height:12px;border-radius:6px;background:var(--line);opacity:.55}
@@ -94,11 +89,6 @@ a.game{text-decoration:none;color:inherit}
   .hero h1{font-size:clamp(1.75rem,7vw,2.4rem)}
   .hero p{font-size:.95rem}
   .hero svg.deco{display:none}
-}
-@media (max-width:700px){
-  .game.wide{grid-column:auto;display:flex}
-  .game.wide>svg{height:auto;min-height:0}
-  .game.wide>.thumb{min-height:0;aspect-ratio:1}
 }
 
 /* ---------- Perfil ---------- */
