@@ -33,6 +33,7 @@ const coinsEl = document.getElementById("coinBadge");
 /* Estado da rodada: phase = "playing" · "won" · "lost" (tempo acabou) · "locked" (sem coins / servidor). */
 let puzzle = null, order = [], typed = [], found = new Set();
 let phase = "locked", deadline = 0, tickId = null, credited = false, dailyTicket = null, roundDone = false;
+let clockStarted = false;          // no desafio, o servidor já sabe que a rodada começou (primeiro movimento)
 
 const lettersEl = document.getElementById("letters"), typedEl = document.getElementById("typed"), msgEl = document.getElementById("msg");
 const timerEl = document.getElementById("timer"), timeFill = document.getElementById("timeFill"), timeBar = document.getElementById("timeBar");
@@ -176,6 +177,18 @@ function paint() {
 function startClock() {
   if (phase !== "playing") return;
   if (!deadline) deadline = Date.now() + totalMs();
+  /* No desafio, o primeiro movimento avisa o servidor: o tempo dele começa agora, não quando a página
+     abriu. Sem isso, abrir o cenário e sair "queimava" a rodada (o relógio de 120 s corria sozinho). */
+  if (mode === "daily" && !clockStarted && dailyTicket) {
+    clockStarted = true;                                   // uma vez por rodada (não repete a cada tecla)
+    Cloud.dailyStart(GAME_ID, dailyTicket.day, dailyTicket.slot)
+      .then(d => {
+        if (phase !== "playing" || !d?.startedAt) return;
+        deadline = Number(d.startedAt) + totalMs();
+        renderClock(Math.max(0, deadline - Date.now()));
+      })
+      .catch(() => {});                                    // servidor sem daily_start: segue com o relógio local
+  }
   if (tickId) return;
   if (sessionUser) Activity.played(sessionUser.id, GAME_ID);   // alimenta "último jogo" no perfil
   tickId = setInterval(() => {
@@ -281,14 +294,16 @@ document.addEventListener("keydown", e => {
 });
 
 /* ----- Ciclo de vida ----- */
-function startRound(startedAt = 0) {
+function startRound(startedAt = 0, started = undefined) {
   stopClock();
   deadline = 0; typed = []; found = new Set(); credited = false; roundDone = false;
+  clockStarted = started !== false;       // false = o jogador ainda não fez o primeiro movimento
   order = puzzle.letters.map((_, i) => i);
   shuffleLetters();
   phase = "playing";
-  /* No desafio diário o relógio é o do servidor: retomar um cenário já aberto não devolve o tempo cheio. */
-  if (mode === "daily" && startedAt) {
+  /* No desafio diário o relógio é o do servidor. Se a rodada ainda não começou (o jogador só abriu a
+     página), espera o primeiro movimento com o tempo cheio; se já começou, retoma o que sobrou. */
+  if (mode === "daily" && started !== false && startedAt) {
     deadline = Number(startedAt) + totalMs();
     renderClock(Math.max(0, deadline - Date.now()));
     startClock();
@@ -297,9 +312,9 @@ function startRound(startedAt = 0) {
   }
   paint(); setMessage("");
 }
-function loadPuzzle(p, startedAt = 0) {
+function loadPuzzle(p, startedAt = 0, started = undefined) {
   puzzle = p;
-  startRound(startedAt);
+  startRound(startedAt, started);
 }
 resetBtn.disabled = true;
 nextBtn.onclick = async () => {
@@ -334,7 +349,7 @@ async function openDaily(ticket) {
   try {
     const d = await Cloud.dailyOpen(GAME_ID, ticket.day, ticket.slot);
     dailyTicket = { day: d.day, slot: d.slot };
-    loadPuzzle(serverPuzzle(d.puzzle, d.level), d.startedAt);
+    loadPuzzle(serverPuzzle(d.puzzle, d.level), d.startedAt, d.started);
     setMessage(`Desafio do dia · ${LEVELS[d.level].name}. Ache a palavra de ${LEVELS[d.level].n} letras!`);
     renderDaily(); renderCoins();
   } catch (e) {

@@ -37,6 +37,7 @@ Depois rode, também no SQL Editor, as demais migrações, **nesta ordem**:
 - `20261031000000_jogo_tango.sql`: registra o jogo **Tango** (`tango`) no catálogo (sem tabela nova).
 - `20261032000000_jogo_texttwist.sql`: registra o jogo **Text Twist** (`texttwist`) no catálogo (sem tabela nova).
 - `20261033000000_texttwist_trofeus.sql`: **troféus por palavras + tempo** do Text Twist: `daily_results` ganha `words` e `won`, `daily_finish` recebe `p_words`/`p_won`, e o pódio/média ordenam por **vitória → palavras → tempo**; rodada encerrada pelo tempo entra com `won = false` e não pontua.
+- `20261034000000_texttwist_inicio_rodada.sql`: o relógio do **Text Twist** no desafio diário só começa no **primeiro movimento**. `daily_runs` ganha `started`, a Edge ganha a ação `daily_start` e `daily_open` devolve `started`; abrir o cenário e sair não zera/registra mais uma derrota sem o jogador ter jogado.
 
 Para conferir o que já está aplicado:
 

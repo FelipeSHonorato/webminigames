@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
 
     /* ---- Desafio diário: mesmo cenário do dia para todos (por nível); o tempo fica nos troféus. A seed do dia
        (derivada de dia/jogo/nível/slot no banco) também nunca vai ao cliente; só o puzzle público. ---- */
-    if (action !== "daily_open" && action !== "daily_hint" && action !== "daily_finish") return json({ error: "unknown_action" }, 400);
+    if (action !== "daily_open" && action !== "daily_start" && action !== "daily_hint" && action !== "daily_finish") return json({ error: "unknown_action" }, 400);
     const slot = body?.slot;                                        // o limite real (tickets) é decidido no banco (daily_open)
     const day = typeof body?.day === "string" ? body.day : null;    // tickets atrasados mandam o dia original
     if (!Number.isInteger(slot) || slot < 1 || slot > 10) return json({ error: "bad_slot" }, 400);
@@ -149,7 +149,14 @@ Deno.serve(async (req) => {
         .catch(e => console.error("[WebMiniGames] pré-geração do dia falhou:", e));
       const wait = (globalThis as any).EdgeRuntime?.waitUntil;
       if (wait) wait.call((globalThis as any).EdgeRuntime, job);
-      return json({ day: data.day, level: data.level, slot: data.slot, slots: data.slots, startedAt: data.startedAt, puzzle: scenario.public_view, coins: data.coins, resumed: data.resumed });
+      return json({ day: data.day, level: data.level, slot: data.slot, slots: data.slots, startedAt: data.startedAt, started: data.started, puzzle: scenario.public_view, coins: data.coins, resumed: data.resumed });
+    }
+
+    /* Primeiro movimento do cenário: começa o relógio do servidor (Text Twist só conta a partir daqui). */
+    if (action === "daily_start") {
+      const { data, error } = await svc.rpc("daily_start", { p_uid: uid, p_game: game, p_slot: slot, p_day: day });
+      if (error) return json({ error: error.message }, error.message === "no_phase" ? 409 : 400);
+      return json(data);
     }
 
     if (action === "daily_hint") {

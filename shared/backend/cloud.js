@@ -315,6 +315,10 @@ export const Cloud = {
     g.open.sort(byDaySlot);
     return d;
   },
+  /** Primeiro movimento do cenário: o relógio do servidor (Text Twist) começa a contar daqui. */
+  async dailyStart(game, day, slot) {
+    return invoke("daily_start", { game, day: day ?? null, slot });
+  },
   dailyHint(game, day, slot, state) { return invoke("daily_hint", { game, day: day ?? null, slot, state }); },
   /** Conclui o ticket: o SERVIDOR mede o tempo e guarda o melhor por (dia, slot). */
   async dailyFinish(game, day, slot, state) {

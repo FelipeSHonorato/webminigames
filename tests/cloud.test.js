@@ -301,6 +301,16 @@ test("desafio diário: status guarda tickets e o dia original em open/finish/lea
   assert.equal(c.calls.find(x => x[0] === "rpc" && x[1] === "daily_leaderboard")[2].p_day, "2026-10-24");
 });
 
+test("desafio diário: o primeiro movimento começa o relógio no servidor (Text Twist)", async () => {
+  const c = await boot({
+    functions: { invoke: (name, body) => ({ data: body.action === "daily_start"
+      ? { startedAt: 123456, started: true }
+      : { day: "2026-10-20", level: 0, slot: 1, slots: 2, startedAt: 0, started: false, puzzle: {}, coins: 0, resumed: true }, error: null }) },
+  });
+  assert.deepEqual(await Cloud.dailyStart("texttwist", "2026-10-20", 1), { startedAt: 123456, started: true });
+  assert.deepEqual(c.calls.find(x => x[0] === "invoke" && x[2].action === "daily_start")[2], { action: "daily_start", game: "texttwist", day: "2026-10-20", slot: 1 });
+});
+
 test("administrador: dar tickets diários (por e-mail) passa pelo servidor; validação em português", async () => {
   const admin = { ...SNAP, profile: { ...SNAP.profile, role: "admin" } };
   const r = { email: "bia@t.com", name: "Bia", day: "2026-10-19", coins: 10, games: ["zip", "patches"] };
