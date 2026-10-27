@@ -16,6 +16,8 @@ import { GEN, LEVELS, STORE_KEY, conflicts, generatePuzzle, isSolved, solutionCe
 import { adjacencyOf, assignColors, inkFor, regionShades } from "./colors.js";
 import { fmtTime } from "../../shared/ranking-list.js";
 import { nextScenario as nextScenarioOf, nextSpMidnight, renderDailyPanel, spDay } from "../../shared/daily.js";
+import { mountTutorial } from "../../shared/tutorial.js";
+import { QUEENS_TUTORIAL } from "./tutorial.js";
 
 const GAME_ID = "queens";
 Music.play(GAME_ID);
@@ -26,6 +28,7 @@ const uid = sessionUser?.id ?? "guest";
 const isCloud = Cloud.owns(uid);                          // o desafio diário só existe na nuvem (a seed é do servidor)
 const ranking = mountRanking({ gameId: GAME_ID, title: "Queens" });
 const mode = isCloud ? "daily" : "random";
+mountTutorial({ trigger: "howto", ...QUEENS_TUTORIAL });
 const coinsEl = document.getElementById("coinBadge");
 
 /* Estado da partida: phase = "playing" (jogando) · "won" (concluída) · "locked" (sem coins / esperando o servidor). */

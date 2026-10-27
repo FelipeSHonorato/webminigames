@@ -1,0 +1,26 @@
+/* Mini-demos do tutorial da Conexão de Canos (usadas dentro do diálogo de css/tutorial.css). */
+
+.cp-board{fill:var(--board)}
+.cp-tile{fill:var(--tile);stroke:var(--line);stroke-width:2}
+.cp-pipe{fill:none;stroke:var(--line);stroke-width:16;stroke-linecap:round;stroke-linejoin:round}
+.cp-bore{fill:none;stroke:var(--tile2);stroke-width:8;stroke-linecap:round;stroke-linejoin:round}
+.cp-flow{fill:none;stroke:var(--water);stroke-width:7;stroke-linecap:round;stroke-linejoin:round}
+.cp-in{fill:var(--water)}
+.cp-out{fill:var(--out)}
+.cp-turn circle{fill:var(--btn);stroke:var(--accent);stroke-width:2}
+.cp-turn path{fill:none;stroke:var(--accent);stroke-width:3;stroke-linecap:round}
+.cp-turn polygon{fill:var(--accent)}
+.cp-leak-ring{fill:var(--leak);opacity:.28}
+.cp-leak-dot{fill:var(--leak)}
+.cp-x{fill:none;stroke:#fff;stroke-width:2.5;stroke-linecap:round}
+.cp-caption{fill:var(--muted);font-size:11px;font-weight:700;text-anchor:middle;letter-spacing:.03em}
+
+.cp-stage{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;padding:10px}
+.cp-clock{display:flex;align-items:center;gap:10px;color:var(--fg);font-size:1.6rem;font-weight:800;
+  font-variant-numeric:tabular-nums}
+.cp-clock span{font-size:1.5rem;line-height:1}
+.cp-bar{width:170px;height:10px;border-radius:5px;background:var(--line);overflow:hidden}
+.cp-bar i{display:block;height:100%;width:100%;background:var(--water);transform-origin:left center}
+.cp-btn{padding:8px 14px;border-radius:9px;border:2px solid var(--water);color:var(--water);
+  font-size:.82rem;font-weight:800;letter-spacing:.02em}
+.cp-note{color:var(--muted);font-size:.72rem;font-weight:700;text-align:center}

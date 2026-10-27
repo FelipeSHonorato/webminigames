@@ -15,6 +15,8 @@ import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/
 import { GEN, LEVELS, MOON, STORE_KEY, SUN, conflicts, generatePuzzle, isSolved } from "./domain.js";
 import { fmtTime } from "../../shared/ranking-list.js";
 import { nextScenario as nextScenarioOf, nextSpMidnight, renderDailyPanel, spDay } from "../../shared/daily.js";
+import { mountTutorial } from "../../shared/tutorial.js";
+import { TANGO_TUTORIAL } from "./tutorial.js";
 
 const GAME_ID = "tango";
 Music.play(GAME_ID);
@@ -25,6 +27,7 @@ const uid = sessionUser?.id ?? "guest";
 const isCloud = Cloud.owns(uid);                          // o desafio diário só existe na nuvem (a seed é do servidor)
 const ranking = mountRanking({ gameId: GAME_ID, title: "Tango" });
 const mode = isCloud ? "daily" : "random";
+mountTutorial({ trigger: "howto", ...TANGO_TUTORIAL });
 const coinsEl = document.getElementById("coinBadge");
 
 /* Estado da partida: phase = "playing" · "won" · "locked" (sem coins / esperando o servidor). */

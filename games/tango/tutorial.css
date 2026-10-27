@@ -1,0 +1,30 @@
+/* Mini-demos do tutorial do Tango (usadas dentro do diálogo de css/tutorial.css). */
+
+.tg-stage{display:flex;flex-direction:column;align-items:center;gap:4px;width:100%;padding:2px}
+.tg-grid{display:grid;grid-template-columns:repeat(4,26px);grid-template-rows:repeat(4,26px);gap:3px;padding:4px;
+  border-radius:9px;background:var(--line)}
+.tg-cell{display:grid;place-items:center;min-width:26px;height:26px;border-radius:5px;background:var(--cell);
+  border:1px solid var(--grid);font-size:1rem;line-height:1;font-weight:700}
+.tg-cell.sun{color:var(--sun)}
+.tg-cell.moon{color:var(--moon)}
+.tg-cell.given{background:var(--given);box-shadow:inset 0 0 0 2px var(--muted)}
+.tg-cell.bad{border-color:var(--bad);box-shadow:inset 0 0 0 2px var(--bad)}
+.tg-note{color:var(--muted);font-size:.7rem;font-weight:700;text-align:center}
+
+.tg-row{display:flex;gap:3px}
+.tg-row.bad .tg-cell{border-color:var(--bad)}
+.tg-row.bad .tg-cell:last-child{background:var(--bad);color:#fff}
+.tg-pair{display:flex;align-items:center;gap:10px}
+.tg-caption{font-size:.68rem;font-weight:800;letter-spacing:.03em;white-space:nowrap}
+.tg-caption.bad{color:var(--badfg)}
+.tg-caption.ok{color:var(--accent)}
+.tg-caption b{font-size:.9rem}
+
+.tg-signrow{display:flex;align-items:center;gap:2px}
+.tg-sign{display:grid;place-items:center;width:20px;color:var(--muted);font-size:1.1rem;font-weight:800}
+
+.tg-cycle{display:flex;align-items:center;gap:6px}
+.tg-cell.empty{background:var(--btn);border-style:dashed;color:var(--muted)}
+.tg-arrow{color:var(--accent);font-size:1rem;font-weight:800}
+.tg-given-demo{width:auto;height:auto;padding:3px 8px;gap:4px;font-size:1rem}
+.tg-given-demo i{font-style:normal;font-size:.58rem;font-weight:800;letter-spacing:.04em;color:var(--muted)}

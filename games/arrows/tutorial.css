@@ -1,0 +1,34 @@
+/* Mini-demos do tutorial da Fuga das Setas (usadas dentro do diálogo de css/tutorial.css). */
+
+.ar-board{fill:var(--tile);stroke:var(--frame);stroke-width:2}
+.ar-lines{fill:none;stroke:var(--grid);stroke-width:1.5}
+.ar-piece path{fill:none;stroke:var(--c);stroke-width:7;stroke-linecap:round}
+.ar-piece polygon{fill:var(--c)}
+.ar-free{fill:none;stroke:var(--accent);stroke-width:3;stroke-linecap:round;stroke-dasharray:5 7;opacity:.75}
+.ar-check circle{fill:var(--accent)}
+.ar-check path{fill:none;stroke:#fff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.ar-redirect{fill:var(--muted);opacity:.22;stroke:var(--frame);stroke-width:1.5}
+.ar-redir-arrow{fill:none;stroke:var(--muted);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.ar-flow{fill:none;stroke:var(--accent);stroke-width:7;stroke-linecap:round;stroke-linejoin:round}
+.ar-head{fill:var(--accent)}
+.ar-caption{fill:var(--muted);font-size:11px;font-weight:700;text-anchor:middle;letter-spacing:.03em}
+
+.ar-rot{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;padding:10px}
+.ar-tile{display:grid;place-items:center;width:62px;height:62px;border-radius:12px;
+  background:color-mix(in srgb,var(--muted) 22%,transparent);border:2px solid var(--frame);
+  color:var(--muted);font-size:2rem;font-weight:700;line-height:1}
+.ar-rot-arrow{display:flex;flex-direction:column;align-items:center;color:var(--accent);
+  font-size:2rem;font-weight:700;line-height:1}
+.ar-rot-arrow small{font-size:.62rem;letter-spacing:.05em}
+.ar-rot-note{flex:1 1 100%;text-align:center;color:var(--muted);font-size:.72rem;font-weight:700;letter-spacing:.03em}
+
+.ar-stage{display:flex;flex-direction:column;align-items:center;gap:14px;padding:10px}
+.ar-lives{display:flex;gap:8px;font-size:1.9rem;line-height:1}
+.ar-heart{color:var(--muted);opacity:.35}
+.ar-heart.on{color:#e4572e;opacity:1}
+.ar-bump{position:relative;display:flex;align-items:center;gap:0;width:150px;height:44px}
+.ar-bump-arrow{color:#23b3a4;font-size:2rem;font-weight:700;line-height:1;
+  animation:ar-bump .8s ease-in-out infinite alternate}
+.ar-bump-wall{width:7px;height:44px;border-radius:4px;background:var(--frame)}
+.ar-bump-x{position:absolute;right:18px;top:-10px;color:#d64545;font-size:1.5rem;font-weight:800}
+@keyframes ar-bump{from{transform:translateX(0)}to{transform:translateX(9px)}}

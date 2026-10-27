@@ -4,7 +4,7 @@
 
 /* ---------- Botão "Como jogar" no topo ---------- */
 .head-title{display:flex;align-items:center;gap:10px;min-width:0}
-.howto{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;
+.howto{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;width:auto;padding:6px 10px;
   font:inherit;font-size:.85rem;font-weight:700;line-height:1;color:var(--fg);
   background:var(--btn,transparent);border:2px solid var(--line,var(--grid,currentColor));
   border-radius:999px;cursor:pointer;transition:border-color .15s,background .15s}

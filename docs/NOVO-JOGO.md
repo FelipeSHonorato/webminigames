@@ -295,7 +295,7 @@ transparente e sem borda:
 ### 5.1 Tutorial animado e ajuda de níveis (recomendado)
 
 O tutorial é opcional e **não tem abertura automática**: só aparece pelo botão `#howto` ("Como jogar"). Para o
-jogo novo, siga o modelo do Zip/Text Twist:
+jogo novo, siga o modelo do Zip (o piloto) ou de qualquer um dos outros nove jogos:
 
 1. `games/<id>/tutorial.js` exporta `{ title, steps: [{ title, text, demo }] }`, com 3–5 passos. `demo` é HTML
    inline (SVG ou divs) usando as classes de animação de `css/tutorial.css` (`.fade`, `.pop`, `.draw`, `.rise`,
@@ -512,5 +512,5 @@ solução fornecida é aceita pelo próprio validador e que uma alteração mín
 | ver o contrato da Edge | `supabase/functions/play/index.ts` + `_shared/board.js` |
 | mudar o tempo por dica | `daily_hint_seconds()` (migração nova) |
 | mudar o teto de acúmulo | `daily_backlog_days()` / `daily_backlog_start()` (migração nova) |
-| criar o tutorial animado | `shared/tutorial.js` + `css/tutorial.css` (seção 5.1); modelos em `games/zip/tutorial.js` e `games/texttwist/tutorial.js` |
+| criar o tutorial animado | `shared/tutorial.js` + `css/tutorial.css` (seção 5.1); modelos em qualquer um dos dez jogos (o Zip é o piloto) |
 | explicar dificuldades e níveis | `shared/level-help.js` (`mountLevelHelp`) + `css/tutorial.css` (seção 5.1) |

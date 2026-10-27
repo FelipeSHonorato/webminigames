@@ -1,0 +1,26 @@
+/* Mini-demos do tutorial do Queens (usadas dentro do diálogo de css/tutorial.css). */
+
+.qn-stage{display:flex;flex-direction:column;align-items:center;gap:6px;width:100%;padding:4px}
+.qn-grid{display:grid;grid-template-columns:repeat(4,26px);grid-template-rows:repeat(4,26px);
+  gap:2px;padding:3px;border-radius:9px;background:var(--line)}
+.qn-cell{position:relative;display:grid;place-items:center;border-radius:4px;background:var(--cell)}
+.qn-cell.r0{background:#d9f0ea}
+.qn-cell.r1{background:#f7e6c4}
+.qn-cell.r2{background:#dbe6f7}
+.qn-cell.r3{background:#f2dbe6}
+.qn-cell.bad{box-shadow:inset 0 0 0 3px var(--bad)}
+.qn-q{color:var(--queen);font-size:1.1rem;line-height:1;font-weight:700}
+.qn-q.bad{color:var(--badfg)}
+.qn-x{color:var(--mark);font-size:1.2rem;line-height:1;font-weight:800}
+.qn-note{color:var(--muted);font-size:.7rem;font-weight:700;text-align:center;letter-spacing:.02em}
+
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .qn-cell.r0{background:#1b4846}
+  :root:not([data-theme="light"]) .qn-cell.r1{background:#4a3a1f}
+  :root:not([data-theme="light"]) .qn-cell.r2{background:#1f304a}
+  :root:not([data-theme="light"]) .qn-cell.r3{background:#42243a}
+}
+:root[data-theme="dark"] .qn-cell.r0{background:#1b4846}
+:root[data-theme="dark"] .qn-cell.r1{background:#4a3a1f}
+:root[data-theme="dark"] .qn-cell.r2{background:#1f304a}
+:root[data-theme="dark"] .qn-cell.r3{background:#42243a}

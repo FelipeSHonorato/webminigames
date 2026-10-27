@@ -4,6 +4,14 @@ import assert from "node:assert/strict";
 import { clampStep, isLastStep, mountTutorial, stepLabel } from "../shared/tutorial.js";
 import { ZIP_TUTORIAL } from "../games/zip/tutorial.js";
 import { TEXTTWIST_TUTORIAL } from "../games/texttwist/tutorial.js";
+import { ARROWS_TUTORIAL } from "../games/arrows/tutorial.js";
+import { CANOS_TUTORIAL } from "../games/canos/tutorial.js";
+import { CRUZADAS_TUTORIAL } from "../games/cruzadas/tutorial.js";
+import { PATCHES_TUTORIAL } from "../games/patches/tutorial.js";
+import { QUEENS_TUTORIAL } from "../games/queens/tutorial.js";
+import { SOPA_TUTORIAL } from "../games/sopa/tutorial.js";
+import { SUDOKU_TUTORIAL } from "../games/sudoku/tutorial.js";
+import { TANGO_TUTORIAL } from "../games/tango/tutorial.js";
 
 test("tutorial: índice do passo fica sempre dentro da lista", () => {
   assert.equal(clampStep(-5, 4), 0);
@@ -27,7 +35,18 @@ test("tutorial: sem DOM, montar devolve null em vez de quebrar", () => {
   assert.equal(mountTutorial({ trigger: "howto", steps: [{ title: "a", text: "b", demo: "c" }] }), null);
 });
 
-for (const [name, tutorial] of [["Zip", ZIP_TUTORIAL], ["Text Twist", TEXTTWIST_TUTORIAL]]) {
+for (const [name, tutorial] of [
+  ["Zip", ZIP_TUTORIAL],
+  ["Text Twist", TEXTTWIST_TUTORIAL],
+  ["Fuga das Setas", ARROWS_TUTORIAL],
+  ["Conexão de Canos", CANOS_TUTORIAL],
+  ["Palavras Cruzadas", CRUZADAS_TUTORIAL],
+  ["Patches", PATCHES_TUTORIAL],
+  ["Queens", QUEENS_TUTORIAL],
+  ["Sopa de Letras", SOPA_TUTORIAL],
+  ["Sudoku", SUDOKU_TUTORIAL],
+  ["Tango", TANGO_TUTORIAL],
+]) {
   test(`tutorial de ${name}: passos completos, sem script e sem recurso externo`, () => {
     assert.equal(typeof tutorial.title, "string");
     assert.ok(tutorial.steps.length >= 3 && tutorial.steps.length <= 5, `${name}: ${tutorial.steps.length} passos`);

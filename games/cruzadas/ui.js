@@ -18,6 +18,8 @@ import {
 } from "./domain.js";
 import { fmtTime } from "../../shared/ranking-list.js";
 import { nextScenario as nextScenarioOf, nextSpMidnight, renderDailyPanel, spDay } from "../../shared/daily.js";
+import { mountTutorial } from "../../shared/tutorial.js";
+import { CRUZADAS_TUTORIAL } from "./tutorial.js";
 
 const GAME_ID = "cruzadas";
 Music.play(GAME_ID);
@@ -30,6 +32,7 @@ const ranking = mountRanking({ gameId: GAME_ID, title: "Palavras Cruzadas" });
 const coinsEl = document.getElementById("coinBadge");
 /* Na nuvem o jogo é SÓ o desafio do dia (a fase aleatória deixou de existir); no modo local/visitante continua aleatória. */
 const mode = isCloud ? "daily" : "random";
+mountTutorial({ trigger: "howto", ...CRUZADAS_TUTORIAL });
 
 /* Estado da partida (declarado antes de qualquer função que o use).
    selected: id da resposta escolhida (-1 = nenhuma). active: casa onde o cursor está (-1 = nenhuma). locked: casas reveladas por dica. */

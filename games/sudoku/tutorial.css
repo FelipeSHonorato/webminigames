@@ -1,0 +1,32 @@
+/* Mini-demos do tutorial do Sudoku (usadas dentro do diálogo de css/tutorial.css). */
+
+.sd-stage{display:flex;flex-direction:column;align-items:center;gap:3px;width:100%;padding:2px}
+.sd-grid{display:grid;grid-template-columns:repeat(9,13px);grid-template-rows:repeat(9,13px);
+  background:var(--cell);border:2px solid var(--frame);border-radius:4px;overflow:hidden}
+.sd-cell{display:grid;place-items:center;min-width:0;min-height:0;border-right:1px solid var(--grid);
+  border-bottom:1px solid var(--grid);color:var(--fg);font-size:8px;line-height:1}
+.sd-cell.c2,.sd-cell.c5{border-right:2px solid var(--frame)}
+.sd-cell.r2,.sd-cell.r5{border-bottom:2px solid var(--frame)}
+.sd-cell.c8{border-right:0}
+.sd-cell.r8{border-bottom:0}
+.sd-cell.given{font-weight:800}
+.sd-cell.user{color:var(--user);font-weight:800}
+.sd-cell.hl{background:var(--peer)}
+.sd-cell.blk{box-shadow:inset 0 0 0 1.5px var(--accent)}
+.sd-cell.sel{background:var(--sel);box-shadow:inset 0 0 0 2px var(--accent)}
+.sd-cell.bad{background:var(--bad);color:var(--badfg);font-weight:800}
+.sd-note{color:var(--muted);font-size:.68rem;font-weight:700;text-align:center}
+
+.sd-pad{display:grid;grid-template-columns:repeat(9,1fr);gap:2px;width:130px}
+.sd-key{display:grid;place-items:center;height:15px;border-radius:3px;background:var(--btn);
+  border:1px solid var(--grid);color:var(--fg);font-size:9px;font-weight:800}
+.sd-key.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+.sd-notesstage{display:flex;flex-direction:column;align-items:center;gap:6px;width:100%;padding:4px}
+.sd-bigcell{display:grid;place-items:center;width:76px;height:76px;border-radius:7px;background:var(--cell);
+  border:2px solid var(--frame)}
+.sd-notes{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:1px;
+  width:62px;height:62px;font-size:10px;font-weight:700}
+.sd-notes span{display:grid;place-items:center;color:var(--muted);opacity:.35}
+.sd-notes span.on{color:var(--accent);opacity:1}
+.sd-toggle{padding:5px 10px;border-radius:8px;background:var(--accent);color:#fff;font-size:.7rem;font-weight:800}

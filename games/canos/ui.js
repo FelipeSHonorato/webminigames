@@ -15,6 +15,8 @@ import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/
 import { BIT, DELTA, E, GEN, LEVELS, N, S, STORE_KEY, W, firstLeaks, generatePuzzle, initialRots, inletsOf, maskOf, opposite, outletsOf, rotateTile, simulate, solutionRots } from "./domain.js";
 import { fmtTime } from "../../shared/ranking-list.js";
 import { nextScenario as nextScenarioOf, nextSpMidnight, renderDailyPanel, spDay } from "../../shared/daily.js";
+import { mountTutorial } from "../../shared/tutorial.js";
+import { CANOS_TUTORIAL } from "./tutorial.js";
 
 const GAME_ID = "canos";
 Music.play(GAME_ID);
@@ -27,6 +29,7 @@ const ranking = mountRanking({ gameId: GAME_ID, title: "Conexão de Canos" });
 const coinsEl = document.getElementById("coinBadge");
 /* Na nuvem o jogo é SÓ o desafio do dia (a fase aleatória deixou de existir); no modo local/visitante continua aleatória. */
 const mode = isCloud ? "daily" : "random";
+mountTutorial({ trigger: "howto", ...CANOS_TUTORIAL });
 
 /* Estado da partida (declarado antes de qualquer função que o use).
    phase: "ready" (esperando o 1º giro) · "counting" (contagem regressiva) · "flowing" (água correndo) · "won" · "lost" · "locked" (sem coins). */

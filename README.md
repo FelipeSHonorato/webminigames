@@ -157,16 +157,16 @@ Fluxo: `index.html` (entrada) → `jogos.html` (lista de jogos) → `games/<jogo
 
 ## Tutorial animado
 
-Os jogos têm um tutorial em passos com mini-demos animadas, aberto **só pelo botão "Como jogar"** no topo da página (nunca abre sozinho). Hoje ele existe no **Zip** e no **Text Twist**; os outros jogos seguem o mesmo modelo.
+Os jogos têm um tutorial em passos com mini-demos animadas, aberto **só pelo botão "Como jogar"** no topo da página (nunca abre sozinho). Hoje ele existe nos **dez jogos**: o Zip foi o piloto e os demais seguem o mesmo modelo.
 
 - `shared/tutorial.js` — motor compartilhado: cria um `<dialog>` nativo (foco preso, Esc e clique no fundo fecham), navegação Anterior/Próximo, bolinhas de progresso e atalhos ←/→. Também exporta `clampStep`, `isLastStep` e `stepLabel`, testados no Node.
 - `css/tutorial.css` — visual do botão, do diálogo e as classes de animação (`.fade`, `.pop`, `.draw`, `.rise`, `.slide`, `.grow`, `.glow`, `.press`, `.loop`). As cores vêm dos tokens de cada jogo (`--fg`, `--cell`, `--grid`/`--line`, `--accent`/`--path`, `--btn`, `--muted`), então funciona nos temas claro e escuro.
 - `games/<jogo>/tutorial.js` — 3 a 5 passos (`title`, `text`, `demo`). A demo é uma string de HTML/SVG inline, sem script e sem URL externa (o teste garante isso).
 - `games/<jogo>/tutorial.css` — estilos e keyframes específicos daquele jogo.
-- `games/<jogo>/ui.js` — `mountTutorial({ trigger: "howto", ...ZIP_TUTORIAL })` depois dos imports; o botão `#howto` fica no `index.html`, logo depois do `<h1>` (dentro de `.head-title`), longe do cronômetro.
+- `games/<jogo>/ui.js` — `mountTutorial({ trigger: "howto", ...<ID>_TUTORIAL })` depois dos imports; o botão `#howto` fica no `index.html`, logo depois do `<h1>` (dentro de `.head-title`), longe do cronômetro. No celular o rótulo "Como jogar" continua inteiro e, se faltar espaço, quebra para a linha de baixo.
 - `shared/level-help.js` — ajuda de **dificuldades e níveis**, aberta pelo `?` ao lado do nome do nível (`#levelHelp`). As linhas saem de `LEVEL_NAMES`/`WINS_PER_LEVEL` e o jogo passa em `details` o que muda em cada nível (ex.: "Grade 6×6 · 10 paredes"); o nível atual é destacado com um selo "atual". É montada com `mountLevelHelp({ trigger: "levelHelp", getLevel: () => levelOf(wins), details })` depois de `renderLevel()`.
 
-Como o tutorial e a ajuda de níveis já explicam as regras e a pontuação, o Zip e o Text Twist **não têm mais** o parágrafo `.help` abaixo do tabuleiro (os outros oito jogos ainda têm, até receberem o tutorial).
+Como o tutorial e a ajuda de níveis já explicam as regras e a pontuação, o Zip e o Text Twist **não têm mais** o parágrafo `.help` abaixo do tabuleiro. Os outros oito jogos receberam o tutorial, mas mantêm o `.help` por enquanto; a ideia é removê-lo quando a ajuda de níveis chegar a eles.
 
 As animações são CSS puro sobre SVG/HTML. A base de cada elemento é o **quadro final visível** e a animação só parte de um estado escondido; com `prefers-reduced-motion: reduce` todas as animações e transições são desligadas e o desenho continua legível. O tutorial não usa `localStorage`: como só abre por pedido, não há "não mostrar de novo".
 
