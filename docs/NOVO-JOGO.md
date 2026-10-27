@@ -138,7 +138,7 @@ import { mountUserBar } from "../../js/userbar.js";
 import { Music } from "../../shared/music.js";
 import { requireSession } from "../../shared/session.js";
 import { Cloud } from "../../shared/backend/cloud.js";
-import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/progress.js";
+import { WINS_PER_LEVEL, Progress, pointsFor } from "../../shared/progress.js";
 import { nextScenario, nextSpMidnight, renderDailyPanel, spDay } from "../../shared/daily.js";
 
 const GAME_ID = "<id>";
@@ -207,7 +207,7 @@ if (mode === "daily") {
 | `renderLevel()` | barra de progressão (`#levelName`, `#levelCount`, `#barFill`) |
 | `renderDaily()` | `renderDailyPanel({ el, gameId, info, day, slot, won, onNext })` |
 | `tickDaily` | `setInterval(..., 30000)` comparando `spDay()` para pegar a virada da meia-noite |
-| `pointsLegend()` | apêndice na explicação: `document.querySelector(".help")?.append(...)` |
+| `mountLevelHelp(...)` | `?` ao lado de `#levelName`: explica as dificuldades, os pontos e os níveis (seção 5.1) |
 | `Activity.played(...)` | alimenta "último jogo" no perfil (uma vez por partida) |
 | `ranking.refresh()` | depois de pontuar/concluir |
 
@@ -250,8 +250,8 @@ otimistas. No Canos não é preciso: `simulate(puzzle, rots)` só depende de `ti
   <div id="userbar"></div>
 </nav>
 <main>
-  <header><h1><Título></h1><div class="head-tools"><button id="howto" class="howto" type="button"><span class="howto-icon" aria-hidden="true">?</span><span class="howto-label">Como jogar</span></button><span id="timer"></span></div></header>
-  <div id="level"><b id="levelName"></b><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
+  <header><div class="head-title"><h1><Título></h1><button id="howto" class="howto" type="button" aria-haspopup="dialog"><span class="howto-icon" aria-hidden="true">?</span><span class="howto-label">Como jogar</span></button></div><span id="timer"></span></header>
+  <div id="level"><div class="level-title"><b id="levelName"></b><button id="levelHelp" class="level-help" type="button" aria-haspopup="dialog" aria-label="Como funcionam as dificuldades e os níveis"><span class="howto-icon" aria-hidden="true">?</span></button></div><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
   <section class="boardwrap">
     <div id="board" role="application" aria-label="…"></div>   <!-- o véu dos troféus ancora AQUI -->
     <div id="msg" role="status"></div>
@@ -261,14 +261,13 @@ otimistas. No Canos não é preciso: `simulate(puzzle, rots)` só depende de `ti
     <div id="phase"></div>
     <div class="actions"><button id="next">Nova fase</button></div>
   </aside>
-  <p class="help">Regras do jogo…</p>
 </main>
 <script src="../../shared/file-warning.js"></script>
 <script type="module" src="./ui.js"></script>
 </body>
 ```
 
-As duas folhas do tutorial e o botão `#howto` (dentro de `.head-tools`) só entram se o jogo tiver tutorial — veja a seção 5.1. Sem o botão, o `<header>` pode voltar a ter só o `<h1>` e o `#timer`.
+As duas folhas do tutorial, o botão `#howto` (dentro de `.head-title`, logo após o `<h1>`) e o `#levelHelp` só entram se o jogo tiver tutorial/ajuda de níveis — veja a seção 5.1. Sem eles, o `<header>` pode voltar a ter só o `<h1>` e o `#timer`, e o `#level` só o nome, a barra e a contagem. **Não use** o parágrafo `.help`: as regras ficam no tutorial e a pontuação, na ajuda de níveis.
 
 IDs que o código compartilhado procura (**sem eles a integração quebra silenciosamente**):
 
@@ -293,7 +292,7 @@ transparente e sem borda:
 **Jogo largo:** se o tabuleiro passar de ~900px, replique o ajuste de `body.ranking-open` de
 `games/canos/style.css`, `sopa` e `cruzadas` (reserva `100vw − 380px`), senão o painel de ranking cobre o jogo.
 
-### 5.1 Tutorial animado (recomendado)
+### 5.1 Tutorial animado e ajuda de níveis (recomendado)
 
 O tutorial é opcional e **não tem abertura automática**: só aparece pelo botão `#howto` ("Como jogar"). Para o
 jogo novo, siga o modelo do Zip/Text Twist:
@@ -304,17 +303,24 @@ jogo novo, siga o modelo do Zip/Text Twist:
    URL externa; o teste `tests/tutorial.test.js` recusa os dois.
 2. `games/<id>/tutorial.css` traz só o que é daquele jogo (formas, cores e keyframes próprios). Use os tokens do
    jogo (`--fg`, `--cell`, `--grid`/`--line`, `--accent`/`--path`, `--btn`, `--muted`) para funcionar nos dois temas.
-3. No `index.html`, carregue `../../css/tutorial.css` e `tutorial.css` e ponha o botão dentro de `.head-tools`
-   no `<header>` (veja a seção 5).
+3. No `index.html`, carregue `../../css/tutorial.css` e `tutorial.css` e ponha o botão dentro de `.head-title`,
+   imediatamente depois do `<h1>` (veja a seção 5) — não no lado do cronômetro.
 4. Na `ui.js`: `import { mountTutorial } from "../../shared/tutorial.js";` e
    `import { <ID>_TUTORIAL } from "./tutorial.js";`, depois chame
    `mountTutorial({ trigger: "howto", ...<ID>_TUTORIAL })` uma vez.
-5. A base de cada elemento animado deve ser o **quadro final visível**; a animação só parte de um estado
+5. Para a ajuda de dificuldades, ponha o `?` (`#levelHelp`) ao lado de `#levelName`, dentro de `.level-title`
+   (com `min-width:5em` no grupo, a barra não pula ao trocar de nível), importe
+   `mountLevelHelp` de `../../shared/level-help.js` e chame
+   `mountLevelHelp({ trigger: "levelHelp", getLevel: () => levelOf(wins) })` **depois** de `renderLevel()`
+   (a função usa `wins`). O conteúdo vem de `LEVEL_NAMES`/`POINTS_PER_LEVEL`/`WINS_PER_LEVEL`; não repita pontos
+   no HTML. Com isso, não acrescente o parágrafo `.help` nem `pointsLegend()`.
+6. A base de cada elemento animado deve ser o **quadro final visível**; a animação só parte de um estado
    escondido. Assim `prefers-reduced-motion` deixa o desenho legível (as animações são desligadas em
    `css/tutorial.css`).
 
 O motor (`shared/tutorial.js`) já cuida de `<dialog>`, foco, Esc, clique no fundo, Anterior/Próximo, "Concluir",
-bolinhas e setas ←/→. Não duplique isso no jogo.
+bolinhas e setas ←/→. A ajuda de níveis (`shared/level-help.js`) já cuida do `<dialog>`, do destaque do nível
+atual e do isolamento do teclado. Não duplique isso no jogo.
 
 ---
 
@@ -474,7 +480,7 @@ solução fornecida é aceita pelo próprio validador e que uma alteração mín
 3. Copiar o domínio para `_shared/<id>/domain.js`.
 4. Escrever `index.html` + `style.css` e conferir os IDs da seção 5.
 5. Escrever `ui.js` com os dois modos (local/aleatório e nuvem/diário).
-6. (Opcional) Criar `tutorial.js` + `tutorial.css` e montar com `mountTutorial` (seção 5.1).
+6. (Opcional) Criar `tutorial.js` + `tutorial.css`, montar com `mountTutorial` e pôr o `?` de níveis com `mountLevelHelp` (seção 5.1).
 7. Registrar o jogo: `js/games.js`, `init.sql`, migração nova, `board.js`, `index.ts`, `music.js`.
 8. Atualizar os testes de integração que enumeram jogos.
 9. Rodar `npm test`; abrir com `npm start` e jogar no modo local (fase aleatória, coins, reiniciar).
@@ -506,3 +512,4 @@ solução fornecida é aceita pelo próprio validador e que uma alteração mín
 | mudar o tempo por dica | `daily_hint_seconds()` (migração nova) |
 | mudar o teto de acúmulo | `daily_backlog_days()` / `daily_backlog_start()` (migração nova) |
 | criar o tutorial animado | `shared/tutorial.js` + `css/tutorial.css` (seção 5.1); modelos em `games/zip/tutorial.js` e `games/texttwist/tutorial.js` |
+| explicar dificuldades, pontos e níveis | `shared/level-help.js` (`mountLevelHelp`) + `css/tutorial.css` (seção 5.1) |

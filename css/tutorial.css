@@ -3,7 +3,7 @@
    então o mesmo componente funciona nos temas claro e escuro. */
 
 /* ---------- Botão "Como jogar" no topo ---------- */
-.head-tools{display:flex;align-items:center;gap:10px;flex:none}
+.head-title{display:flex;align-items:center;gap:10px;min-width:0}
 .howto{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;
   font:inherit;font-size:.85rem;font-weight:700;line-height:1;color:var(--fg);
   background:var(--btn,transparent);border:2px solid var(--line,var(--grid,currentColor));
@@ -16,6 +16,14 @@
   .howto{padding:6px}
   .howto-label{display:none}
 }
+
+/* "?" ao lado da dificuldade: mesma bolinha do botão "Como jogar". */
+.level-help{flex:0 0 auto;display:inline-grid;place-items:center;padding:0;border:0;background:transparent;
+  border-radius:50%;cursor:pointer;line-height:0}
+.level-help .howto-icon{width:1.45em;height:1.45em;font-size:.85rem}
+#level .level-help .howto-icon{color:#fff}   /* vence o #level span{color:var(--muted)} dos jogos */
+.level-help:hover .howto-icon{filter:brightness(1.08)}
+.level-help:focus-visible{outline:3px solid var(--accent,var(--path,currentColor));outline-offset:2px}
 
 /* ---------- Diálogo ---------- */
 .tut{width:min(600px,calc(100% - 24px));max-height:calc(100dvh - 24px);padding:0;
@@ -54,10 +62,28 @@
 .tut-nav button.primary{background:var(--accent,var(--path,#0f766e));border-color:var(--accent,var(--path,#0f766e));color:#fff}
 .tut-nav button:focus-visible,.tut-close:focus-visible,.tut-skip:focus-visible{outline:3px solid var(--accent,var(--path,currentColor));outline-offset:2px}
 
+/* ---------- Ajuda de dificuldades e níveis ---------- */
+.level-help-dialog{width:min(520px,calc(100% - 24px))}
+.level-help-intro{margin:0 0 14px;font-size:.95rem;line-height:1.5}
+.level-help-list{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:7px}
+.level-help-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 11px;
+  border:1px solid var(--line,var(--grid,#c3ced9));border-radius:10px;background:var(--btn,transparent)}
+.level-help-item.on{border-color:var(--accent,var(--path,#0f766e));
+  box-shadow:inset 0 0 0 1px var(--accent,var(--path,#0f766e))}
+.level-help-label{display:flex;align-items:center;gap:8px;min-width:0}
+.level-help-name{font-weight:700}
+.level-help-current{padding:2px 7px;border-radius:999px;background:var(--accent,var(--path,#0f766e));
+  color:#fff;font-size:.66rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.level-help-points{color:var(--muted,#5b6b7e);font-size:.8rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+.level-help-note{margin:0 0 8px;color:var(--muted,#5b6b7e);font-size:.85rem;line-height:1.45}
+.level-help-note:last-child{margin-bottom:0}
+
 @media (max-width:520px){
   .tut-demo{width:calc(100% - 24px)}
   .tut-head,.tut-body,.tut-actions{padding-left:14px;padding-right:14px}
   .tut-step-title{font-size:1.05rem}
+  .level-help-item{padding:8px 9px}
+  .level-help-points{font-size:.75rem}
 }
 
 /* ---------- Utilidades de animação das mini-demos ----------

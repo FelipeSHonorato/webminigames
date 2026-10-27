@@ -21,7 +21,7 @@ h1{margin:0;font-size:2rem;letter-spacing:-.02em}
 .wall{stroke:var(--wall);stroke-width:8;stroke-linecap:round}
 .frame{fill:none;stroke:var(--wall);stroke-width:6}
 #level{display:flex;align-items:center;gap:10px;margin:0 0 12px;font-size:.95rem}
-#level b{min-width:4.6em}
+#level .level-title{display:flex;align-items:center;gap:6px;min-width:5em}
 #level .bar{flex:1;height:8px;border-radius:4px;background:var(--grid);overflow:hidden}
 #level .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
 #level span{color:var(--muted);font-variant-numeric:tabular-nums}
@@ -30,8 +30,6 @@ h1{margin:0;font-size:2rem;letter-spacing:-.02em}
 button{flex:1;padding:12px 8px;font:inherit;color:var(--fg);background:var(--btn);border:2px solid var(--grid);border-radius:8px;cursor:pointer}
 button:hover{border-color:var(--path)}
 button:focus-visible,#board:focus-visible{outline:3px solid var(--path);outline-offset:2px}
-p.help{color:var(--muted);font-size:.9rem;line-height:1.4}
-
 button:disabled,button:disabled:hover{opacity:.45;cursor:not-allowed;border-color:var(--grid)}
 
 [hidden]{display:none!important}

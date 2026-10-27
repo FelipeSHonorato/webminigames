@@ -119,7 +119,7 @@ export function mountTutorial({ trigger, title = "Como jogar", steps = [] } = {}
     if (event.key === "ArrowLeft") { event.preventDefault(); go(-1); }
     else if (event.key === "ArrowRight") { event.preventDefault(); go(1); }
   });
-  dialog.addEventListener("close", () => button.focus());
+  dialog.addEventListener("close", () => setTimeout(() => button.focus(), 0));
 
   const open = () => {
     index = 0;

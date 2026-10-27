@@ -119,9 +119,9 @@ admin.html            painel do administrador: liga/desliga de cada jogo, nível
 confirmar.html        confirma o e-mail pelo link enviado e abre a sessão
 redefinir.html        cria a nova senha, aberto pelo link do "Esqueceu a senha?"
 assets/               favicon.svg, email-logo.png (ícones e logotipo dos e-mails) e thumbs/ (miniaturas dos cards, tema claro e escuro)
-css/                  site.css, gamebar.css (barra dos jogos), ranking.css (painel lateral) e ranking-list.css (linhas e abas do ranking), daily.css (painel do desafio diário), coins.css, userbar.css, tutorial.css (diálogo "Como jogar" e animações)
+css/                  site.css, gamebar.css (barra dos jogos), ranking.css (painel lateral) e ranking-list.css (linhas e abas do ranking), daily.css (painel do desafio diário), coins.css, userbar.css, tutorial.css (diálogos "Como jogar" e de níveis, e animações)
 js/                   login.js, hub.js, perfil.js, admin.js, confirmar.js e redefinir.js (uma por página), auth.js (contas), password-rules.js (requisitos da senha), userbar.js, games.js (catálogo)
-shared/               roles.js, game-switch.js (liga/desliga dos jogos), coins.js, run.js, coin-badge.js (coins e fase atual), theme.js e theme-init.js (modo escuro), rng.js, storage.js, session.js, progress.js (níveis e pontos), admin-level.js (nível de teste do administrador), regions.js, ranking-list.js (linhas e abas do ranking), tutorial.js (motor do tutorial animado),
+shared/               roles.js, game-switch.js (liga/desliga dos jogos), coins.js, run.js, coin-badge.js (coins e fase atual), theme.js e theme-init.js (modo escuro), rng.js, storage.js, session.js, progress.js (níveis e pontos), admin-level.js (nível de teste do administrador), regions.js, ranking-list.js (linhas e abas do ranking), tutorial.js (motor do tutorial animado), level-help.js (ajuda de dificuldades e níveis),
                       scores.js (pontuação e ranking), ranking-panel.js (painel lateral),
                       profile.js (apelido, foto, atividade), avatar.js (redimensiona a foto), password.js (regra de senha), password-toggle.js (botão de mostrar/ocultar senha), admin-config.js (config do desafio diário no painel), admin-coins.js (coins de teste por conta no painel), capture-auth-hash.js (guarda o "#" do link), file-warning.js (aviso no file://)
   backend/            config.js (URL/chave do Supabase; vazio = modo local), boot.js (carrega a conta), cloud.js (acesso ao Supabase), auth-redirect.js (lê o link do e-mail)
@@ -163,7 +163,10 @@ Os jogos têm um tutorial em passos com mini-demos animadas, aberto **só pelo b
 - `css/tutorial.css` — visual do botão, do diálogo e as classes de animação (`.fade`, `.pop`, `.draw`, `.rise`, `.slide`, `.grow`, `.glow`, `.press`, `.loop`). As cores vêm dos tokens de cada jogo (`--fg`, `--cell`, `--grid`/`--line`, `--accent`/`--path`, `--btn`, `--muted`), então funciona nos temas claro e escuro.
 - `games/<jogo>/tutorial.js` — 3 a 5 passos (`title`, `text`, `demo`). A demo é uma string de HTML/SVG inline, sem script e sem URL externa (o teste garante isso).
 - `games/<jogo>/tutorial.css` — estilos e keyframes específicos daquele jogo.
-- `games/<jogo>/ui.js` — `mountTutorial({ trigger: "howto", ...ZIP_TUTORIAL })` depois dos imports; o botão `#howto` fica no `index.html`.
+- `games/<jogo>/ui.js` — `mountTutorial({ trigger: "howto", ...ZIP_TUTORIAL })` depois dos imports; o botão `#howto` fica no `index.html`, logo depois do `<h1>` (dentro de `.head-title`), longe do cronômetro.
+- `shared/level-help.js` — ajuda de **dificuldades e níveis**, aberta pelo `?` ao lado do nome do nível (`#levelHelp`). As linhas saem de `LEVEL_NAMES`, `POINTS_PER_LEVEL` e `WINS_PER_LEVEL`, então os pontos não ficam repetidos no texto; o nível atual é destacado com um selo "atual". É montada com `mountLevelHelp({ trigger: "levelHelp", getLevel: () => levelOf(wins) })` depois de `renderLevel()`.
+
+Como o tutorial e a ajuda de níveis já explicam as regras e a pontuação, o Zip e o Text Twist **não têm mais** o parágrafo `.help` abaixo do tabuleiro (os outros oito jogos ainda têm, até receberem o tutorial).
 
 As animações são CSS puro sobre SVG/HTML. A base de cada elemento é o **quadro final visível** e a animação só parte de um estado escondido; com `prefers-reduced-motion: reduce` todas as animações e transições são desligadas e o desenho continua legível. O tutorial não usa `localStorage`: como só abre por pedido, não há "não mostrar de novo".
 

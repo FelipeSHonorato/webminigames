@@ -11,11 +11,12 @@ import { Music } from "../../shared/music.js";
 import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
 import { Cloud } from "../../shared/backend/cloud.js";
-import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/progress.js";
+import { WINS_PER_LEVEL, Progress, pointsFor } from "../../shared/progress.js";
 import { LEVELS, N, STORE_KEY, TOTAL, applyMove, generatePuzzle, isSolved, setSize } from "./domain.js";
 import { fmtTime } from "../../shared/ranking-list.js";
 import { nextScenario as nextScenarioOf, nextSpMidnight, renderDailyPanel, spDay } from "../../shared/daily.js";
 import { mountTutorial } from "../../shared/tutorial.js";
+import { mountLevelHelp } from "../../shared/level-help.js";
 import { ZIP_TUTORIAL } from "./tutorial.js";
 
 const sessionUser = requireSession("../../index.html");   // sem sessão, volta para o login
@@ -65,7 +66,6 @@ function tickDaily() {
   renderCoins();
 }
 setInterval(tickDaily, 30000);
-document.querySelector(".help")?.append(` ${pointsLegend()}`);   // pontuação junto da explicação do jogo
 
 /* ===================== UI ===================== */
 const svg = document.getElementById("board");
@@ -90,6 +90,7 @@ function renderLevel() {
   levelCount.textContent = last ? `${wins} vitórias` : `${into}/${WINS_PER_LEVEL}`;
   barFill.style.width = (last ? 100 : (into / WINS_PER_LEVEL) * 100) + "%";
 }
+mountLevelHelp({ trigger: "levelHelp", getLevel: () => levelOf(wins) });
 /** Conta a vitória uma única vez por fase (reiniciar e resolver de novo não conta). */
 function creditWin() {
   if (credited) { renderCoins(); return ""; }          // rejogar a mesma fase não pontua nem gasta coin

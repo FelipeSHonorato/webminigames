@@ -21,9 +21,9 @@
 <body>
 <nav class="sitebar"><a href="../../jogos.html">← Jogos</a><div class="gametitle"><strong>Text Twist</strong><span id="coinBadge"></span></div><div id="userbar"></div></nav>
 <main>
-  <header><h1>Text Twist</h1><div class="head-tools"><button id="howto" class="howto" type="button"><span class="howto-icon" aria-hidden="true">?</span><span class="howto-label">Como jogar</span></button><span id="timer" aria-label="Tempo restante">02:00</span></div></header>
+  <header><div class="head-title"><h1>Text Twist</h1><button id="howto" class="howto" type="button" aria-haspopup="dialog"><span class="howto-icon" aria-hidden="true">?</span><span class="howto-label">Como jogar</span></button></div><span id="timer" aria-label="Tempo restante">02:00</span></header>
   <div id="timeBar" aria-hidden="true"><i id="timeFill"></i></div>
-  <div id="level"><b id="levelName"></b><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
+  <div id="level"><div class="level-title"><b id="levelName"></b><button id="levelHelp" class="level-help" type="button" aria-haspopup="dialog" aria-label="Como funcionam as dificuldades e os níveis"><span class="howto-icon" aria-hidden="true">?</span></button></div><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
   <div class="layout">
     <section class="boardwrap">
       <div id="board" class="board" aria-label="Rodada">
@@ -47,7 +47,6 @@
       </div>
     </aside>
   </div>
-  <p class="help">Monte palavras de <b>3 letras ou mais</b> com as letras dadas — cada letra só pode ser usada tantas vezes quanto aparece. A rodada termina quando você achar a palavra que usa <b>todas</b> as letras. Digite no teclado (Enter envia, Backspace apaga) ou toque nas letras; <b>Embaralhar</b> muda a ordem e <b>Apagar</b> limpa a palavra. As lacunas à direita mostram quantas palavras existem em cada tamanho.</p>
 </main>
 <script src="../../shared/file-warning.js"></script>
 <script type="module" src="./ui.js"></script>
