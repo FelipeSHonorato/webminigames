@@ -11,11 +11,12 @@ import { Music } from "../../shared/music.js";
 import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
 import { Cloud } from "../../shared/backend/cloud.js";
-import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/progress.js";
+import { WINS_PER_LEVEL, Progress, pointsFor } from "../../shared/progress.js";
 import { GEN, LEVELS, MOON, STORE_KEY, SUN, conflicts, generatePuzzle, isSolved } from "./domain.js";
 import { fmtTime } from "../../shared/ranking-list.js";
 import { nextScenario as nextScenarioOf, nextSpMidnight, renderDailyPanel, spDay } from "../../shared/daily.js";
 import { mountTutorial } from "../../shared/tutorial.js";
+import { mountLevelHelp } from "../../shared/level-help.js";
 import { TANGO_TUTORIAL } from "./tutorial.js";
 
 const GAME_ID = "tango";
@@ -70,7 +71,6 @@ function tickDaily() {
   renderCoins();
 }
 setInterval(tickDaily, 30000);
-document.querySelector(".help")?.append(` ${pointsLegend()}`);   // pontuação junto da explicação do jogo
 
 /* ----- Progressão: a cada 15 vitórias o nível sobe ----- */
 const loadWins = () => Progress.wins(STORE_KEY);
@@ -84,6 +84,8 @@ function renderLevel() {
   levelCount.textContent = last ? `${wins} vitórias` : `${into}/${WINS_PER_LEVEL}`;
   barFill.style.width = (last ? 100 : (into / WINS_PER_LEVEL) * 100) + "%";
 }
+const LEVEL_HELP_DETAILS = LEVELS.map(l => `Grade ${l.n}×${l.n} · ${l.minGivens} casas dadas · ${l.minMarks} sinais`);
+mountLevelHelp({ trigger: "levelHelp", getLevel: () => levelOf(wins), details: LEVEL_HELP_DETAILS });
 
 /* ----- Fase ----- */
 const buildPuzzle = (seed, level) => ({ ...generatePuzzle(makeRng(seed), LEVELS[level]), level, seed });

@@ -22,7 +22,7 @@
 <nav class="sitebar"><a href="../../jogos.html">← Jogos</a><div class="gametitle"><strong>Sopa de Letras</strong><span id="coinBadge"></span></div><div id="userbar"></div></nav>
 <main>
   <header><div class="head-title"><h1>Sopa de Letras</h1><button id="howto" class="howto" type="button" aria-haspopup="dialog"><span class="howto-icon" aria-hidden="true">?</span><span class="howto-label">Como jogar</span></button></div><span id="timer">00:00</span></header>
-  <div id="level"><b id="levelName"></b><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
+  <div id="level"><div class="level-title"><b id="levelName"></b><button id="levelHelp" class="level-help" type="button" aria-haspopup="dialog" aria-label="Como funcionam as dificuldades e os níveis"><span class="howto-icon" aria-hidden="true">?</span></button></div><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
   <div class="layout">
     <section class="boardwrap">
       <div id="board" aria-label="Grade de letras"></div>
@@ -37,7 +37,6 @@
     </aside>
   </div>
   <div class="actions"><button id="next">Nova fase</button></div>
-  <p class="help">Encontre todas as palavras da lista. Elas estão escondidas na horizontal, na vertical e na diagonal, e também de trás para frente. Clique e arraste (ou deslize o dedo) do começo ao fim da palavra para marcá-la. A lista mostra uma casinha por letra; cada “Dica” revela mais uma letra de cada palavra que falta e custa 1 ponto da fase (a fase nunca vale menos que 1).</p>
 </main>
 <script src="../../shared/file-warning.js"></script>
 <script type="module" src="./ui.js"></script>

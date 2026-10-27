@@ -11,11 +11,12 @@ import { Music } from "../../shared/music.js";
 import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
 import { Cloud } from "../../shared/backend/cloud.js";
-import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/progress.js";
+import { WINS_PER_LEVEL, Progress, pointsFor } from "../../shared/progress.js";
 import { BIT, DELTA, E, GEN, LEVELS, N, S, STORE_KEY, W, firstLeaks, generatePuzzle, initialRots, inletsOf, maskOf, opposite, outletsOf, rotateTile, simulate, solutionRots } from "./domain.js";
 import { fmtTime } from "../../shared/ranking-list.js";
 import { nextScenario as nextScenarioOf, nextSpMidnight, renderDailyPanel, spDay } from "../../shared/daily.js";
 import { mountTutorial } from "../../shared/tutorial.js";
+import { mountLevelHelp } from "../../shared/level-help.js";
 import { CANOS_TUTORIAL } from "./tutorial.js";
 
 const GAME_ID = "canos";
@@ -68,7 +69,6 @@ function tickDaily() {
   renderCoins();
 }
 setInterval(tickDaily, 30000);
-document.querySelector(".help")?.append(` ${pointsLegend()}`);   // pontuação junto da explicação do jogo
 
 /* ===================== UI ===================== */
 const svg = document.getElementById("board"), msg = document.getElementById("msg"), timerEl = document.getElementById("timer");
@@ -87,6 +87,8 @@ function renderLevel() {
   levelCount.textContent = last ? `${wins} vitórias` : `${into}/${WINS_PER_LEVEL}`;
   barFill.style.width = (last ? 100 : (into / WINS_PER_LEVEL) * 100) + "%";
 }
+const LEVEL_HELP_DETAILS = LEVELS.map(l => `Grade ${l.n}×${l.n} · ${l.seconds} s`);
+mountLevelHelp({ trigger: "levelHelp", getLevel: () => levelOf(wins), details: LEVEL_HELP_DETAILS });
 
 /** Conta a vitória uma única vez por fase. Os pontos são os do nível em que a fase foi gerada. */
 function creditWin() {

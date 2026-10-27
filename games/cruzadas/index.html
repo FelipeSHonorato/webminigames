@@ -22,7 +22,7 @@
 <nav class="sitebar"><a href="../../jogos.html">← Jogos</a><div class="gametitle"><strong>Palavras Cruzadas</strong><span id="coinBadge"></span></div><div id="userbar"></div></nav>
 <main>
   <header><div class="head-title"><h1>Palavras Cruzadas</h1><button id="howto" class="howto" type="button" aria-haspopup="dialog"><span class="howto-icon" aria-hidden="true">?</span><span class="howto-label">Como jogar</span></button></div><span id="timer">00:00</span></header>
-  <div id="level"><b id="levelName"></b><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
+  <div id="level"><div class="level-title"><b id="levelName"></b><button id="levelHelp" class="level-help" type="button" aria-haspopup="dialog" aria-label="Como funcionam as dificuldades e os níveis"><span class="howto-icon" aria-hidden="true">?</span></button></div><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
   <div class="layout">
     <section class="boardwrap">
       <div id="board" tabindex="0" role="application" aria-label="Grade de palavras cruzadas"></div>
@@ -43,7 +43,6 @@
     </aside>
   </div>
   <div class="actions"><button id="next">Nova fase</button></div>
-  <p class="help">Preencha a grade com as respostas. Cada casa amarela traz uma dica, e a seta mostra onde a resposta começa e para onde ela segue (→ para a direita, ↓ para baixo; as setas dobradas ↴ e ↳ também começam ao lado ou abaixo da dica). Como o texto fica pequeno na grade, toque na dica: ela aparece inteira ao lado e a linha da resposta é destacada. Toque de novo numa letra que cruza duas palavras para trocar de sentido. Com uma dica selecionada, o botão “Dica” preenche a próxima letra daquela resposta (da primeira à última) e custa 1 ponto da fase, que nunca vale menos que 1. Casas divididas por uma diagonal (\) recebem duas letras: digite uma de cada vez. Nessas casas a dica nunca preenche as duas letras: ela revela só a primeira e você digita a outra. No teclado, use as letras, Backspace, as setas e Espaço para trocar de sentido.</p>
 </main>
 <script src="../../shared/file-warning.js"></script>
 <script type="module" src="./ui.js"></script>

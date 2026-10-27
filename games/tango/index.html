@@ -22,7 +22,7 @@
 <nav class="sitebar"><a href="../../jogos.html">← Jogos</a><div class="gametitle"><strong>Tango</strong><span id="coinBadge"></span></div><div id="userbar"></div></nav>
 <main>
   <header><div class="head-title"><h1>Tango</h1><button id="howto" class="howto" type="button" aria-haspopup="dialog"><span class="howto-icon" aria-hidden="true">?</span><span class="howto-label">Como jogar</span></button></div><span id="timer" aria-label="Tempo">00:00</span></header>
-  <div id="level"><b id="levelName"></b><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
+  <div id="level"><div class="level-title"><b id="levelName"></b><button id="levelHelp" class="level-help" type="button" aria-haspopup="dialog" aria-label="Como funcionam as dificuldades e os níveis"><span class="howto-icon" aria-hidden="true">?</span></button></div><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
   <div class="layout">
     <section class="boardwrap">
       <svg id="board" role="application" aria-label="Tabuleiro do Tango"></svg>
@@ -43,7 +43,6 @@
       </div>
     </aside>
   </div>
-  <p class="help">Preencha a grade com sóis e luas: cada linha e cada coluna tem <b>metade de cada</b>, nunca três iguais seguidos, e os sinais entre as casas mandam <b>=</b> (iguais) ou <b>≠</b> (diferentes). Toque numa casa para alternar vazio → sol → lua → vazio; casas com símbolo mais escuro já vêm prontas e não mudam. No teclado: setas para andar, espaço para alternar e Backspace para limpar. Conflitos ficam em vermelho.</p>
 </main>
 <script src="../../shared/file-warning.js"></script>
 <script type="module" src="./ui.js"></script>

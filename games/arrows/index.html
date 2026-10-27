@@ -22,7 +22,7 @@
 <nav class="sitebar"><a href="../../jogos.html">← Jogos</a><div class="gametitle"><strong>Fuga das Setas</strong><span id="coinBadge"></span></div><div id="userbar"></div></nav>
 <main>
   <header><div class="head-title"><h1>Fuga das Setas</h1><button id="howto" class="howto" type="button" aria-haspopup="dialog"><span class="howto-icon" aria-hidden="true">?</span><span class="howto-label">Como jogar</span></button></div><div class="hud"><span id="lives" class="lives" aria-label="Vidas"></span><span id="timer">00:00</span></div></header>
-  <div id="level"><b id="levelName"></b><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
+  <div id="level"><div class="level-title"><b id="levelName"></b><button id="levelHelp" class="level-help" type="button" aria-haspopup="dialog" aria-label="Como funcionam as dificuldades e os níveis"><span class="howto-icon" aria-hidden="true">?</span></button></div><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
   <div id="board" aria-label="Tabuleiro de setas"></div>
   <div id="msg" role="status"></div>
   <div id="daily" class="daily" hidden></div>
@@ -30,7 +30,6 @@
     <button id="reset">Reiniciar</button>
     <button id="next">Nova fase</button>
   </div>
-  <p class="help">Cada seta é uma peça com curvas que escoa pelo próprio caminho e sai na direção da ponta. Ela só sai se o caminho da ponta estiver livre — outra peça encostada no corpo não trava. Os blocos com uma seta dentro são <b>desviadores</b>: nenhuma seta ocupa essas casas, e a seta que entra neles continua na direção indicada, podendo atravessar vários em corrente. Se o caminho desviado bater em outra seta ou entrar em ciclo, ela fica travada. A cada seta que sai do tabuleiro, todos os desviadores giram 90° no sentido horário. Travada, a seta bate e você perde uma vida (♥). Ao perder as três, o tabuleiro volta ao início, mas o cronômetro continua correndo. Se o giro deixar o tabuleiro sem nenhuma seta livre, ele também volta ao início sozinho (o tempo continua). Tire todas as setas para vencer. Cada direção tem uma cor: cima, direita, baixo e esquerda.</p>
 </main>
 <script src="../../shared/file-warning.js"></script>
 <script type="module" src="./ui.js"></script>

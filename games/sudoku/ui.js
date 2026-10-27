@@ -11,7 +11,7 @@ import { mountUserBar } from "../../js/userbar.js";
 import { Music } from "../../shared/music.js";
 import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
-import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/progress.js";
+import { WINS_PER_LEVEL, Progress, pointsFor } from "../../shared/progress.js";
 import {
   LEVELS, PEERS, SIZE, STORE_KEY, TOTAL, colOf, conflicts, digitCounts, generatePuzzle, isSolved, newState, noteDigits, rowOf,
   setDigit, toggleNote,
@@ -19,6 +19,7 @@ import {
 import { fmtTime } from "../../shared/ranking-list.js";
 import { nextScenario as nextScenarioOf, nextSpMidnight, renderDailyPanel, spDay } from "../../shared/daily.js";
 import { mountTutorial } from "../../shared/tutorial.js";
+import { mountLevelHelp } from "../../shared/level-help.js";
 import { SUDOKU_TUTORIAL } from "./tutorial.js";
 
 const GAME_ID = "sudoku";
@@ -73,7 +74,6 @@ function tickDaily() {
   renderCoins();
 }
 setInterval(tickDaily, 30000);
-document.querySelector(".help")?.append(` ${pointsLegend()}`);   // pontuação junto da explicação do jogo
 
 /* ===================== UI ===================== */
 const board = document.getElementById("board");
@@ -95,6 +95,8 @@ function renderLevel() {
   levelCount.textContent = last ? `${wins} vitórias` : `${into}/${WINS_PER_LEVEL}`;
   barFill.style.width = (last ? 100 : (into / WINS_PER_LEVEL) * 100) + "%";
 }
+const LEVEL_HELP_DETAILS = LEVELS.map(l => `Grade 9×9 · ${l.givens} pistas`);
+mountLevelHelp({ trigger: "levelHelp", getLevel: () => levelOf(wins), details: LEVEL_HELP_DETAILS });
 /** Conta a vitória uma única vez por fase (reiniciar e resolver de novo não conta). */
 function creditWin() {
   if (credited) { renderCoins(); return ""; }          // rejogar a mesma fase não pontua nem gasta coin

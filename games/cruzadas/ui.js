@@ -11,7 +11,7 @@ import { Music } from "../../shared/music.js";
 import { requireSession } from "../../shared/session.js";
 import { makeRng } from "../../shared/rng.js";
 import { Cloud } from "../../shared/backend/cloud.js";
-import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/progress.js";
+import { WINS_PER_LEVEL, Progress, pointsFor } from "../../shared/progress.js";
 import {
   GEN, LEVELS, STORE_KEY, answersAt, canHint, hintValue, isAnswerCorrect, isDouble, decodeEntries, encodeEntries, firstOpenCell, generatePuzzle, isComplete, isFilled, jumpTarget,
   letterCells, maxHints, newEntries, nextHintCell, normalizeLetter, pickAnswerAt, pointsAfterHints, setLetter, stepInAnswer, toggleAnswerAt, neighborAnswer, typeInCell, eraseAt,
@@ -19,6 +19,7 @@ import {
 import { fmtTime } from "../../shared/ranking-list.js";
 import { nextScenario as nextScenarioOf, nextSpMidnight, renderDailyPanel, spDay } from "../../shared/daily.js";
 import { mountTutorial } from "../../shared/tutorial.js";
+import { mountLevelHelp } from "../../shared/level-help.js";
 import { CRUZADAS_TUTORIAL } from "./tutorial.js";
 
 const GAME_ID = "cruzadas";
@@ -70,7 +71,6 @@ function tickDaily() {
   renderCoins();
 }
 setInterval(tickDaily, 30000);
-document.querySelector(".help")?.append(` ${pointsLegend()}`);   // pontuação junto da explicação do jogo
 
 /* ===================== UI ===================== */
 const board = document.getElementById("board");
@@ -93,6 +93,8 @@ function renderLevel() {
   levelCount.textContent = last ? `${wins} vitórias` : `${into}/${WINS_PER_LEVEL}`;
   barFill.style.width = (last ? 100 : (into / WINS_PER_LEVEL) * 100) + "%";
 }
+const LEVEL_HELP_DETAILS = LEVELS.map(l => `Grade ${l.n}×${l.n} · ${l.minDouble}–${l.maxDouble} casas com dígrafo`);
+mountLevelHelp({ trigger: "levelHelp", getLevel: () => levelOf(wins), details: LEVEL_HELP_DETAILS });
 
 /** Pontos da fase agora: base do nível em que ela foi gerada menos 1 por dica usada (mínimo 1). */
 const phasePoints = () => pointsAfterHints(pointsFor(puzzle.level), hints);
