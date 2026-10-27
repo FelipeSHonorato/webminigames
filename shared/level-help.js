@@ -9,12 +9,15 @@
    `getLevel` é consultado a cada abertura para destacar o nível atual. O diálogo não tem
    persistência: é só uma explicação, disponível quando o jogador quiser. */
 
-import { LEVEL_NAMES, POINTS_PER_LEVEL, WINS_PER_LEVEL } from "./progress.js";
+import { LEVEL_NAMES, WINS_PER_LEVEL } from "./progress.js";
+
+/** Pontos creditados por vitória (sempre 1, em qualquer dificuldade). */
+export const POINTS_PER_WIN = 1;
 
 /** Linhas exibidas no diálogo: nome do nível, pontos por vitória e vitórias para subir. */
-export const levelHelpRows = () => LEVEL_NAMES.map((name, i) => ({
+export const levelHelpRows = () => LEVEL_NAMES.map(name => ({
   name,
-  points: POINTS_PER_LEVEL[i],
+  points: POINTS_PER_WIN,
   wins: WINS_PER_LEVEL,
 }));
 

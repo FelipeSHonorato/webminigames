@@ -2,13 +2,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { levelHelpRows, mountLevelHelp } from "../shared/level-help.js";
-import { LEVEL_NAMES, POINTS_PER_LEVEL, WINS_PER_LEVEL } from "../shared/progress.js";
+import { LEVEL_NAMES, WINS_PER_LEVEL } from "../shared/progress.js";
 
-test("ajuda de níveis: lista os quatro níveis com pontos e meta", () => {
+test("ajuda de níveis: lista os quatro níveis com 1 ponto por vitória e a meta", () => {
   const rows = levelHelpRows();
   assert.equal(rows.length, 4);
   assert.deepEqual(rows.map(row => row.name), LEVEL_NAMES);
-  assert.deepEqual(rows.map(row => row.points), POINTS_PER_LEVEL);
+  assert.ok(rows.every(row => row.points === 1));
   assert.ok(rows.every(row => row.wins === WINS_PER_LEVEL));
 });
 

@@ -312,8 +312,8 @@ jogo novo, siga o modelo do Zip/Text Twist:
    (com `min-width:5em` no grupo, a barra não pula ao trocar de nível), importe
    `mountLevelHelp` de `../../shared/level-help.js` e chame
    `mountLevelHelp({ trigger: "levelHelp", getLevel: () => levelOf(wins) })` **depois** de `renderLevel()`
-   (a função usa `wins`). O conteúdo vem de `LEVEL_NAMES`/`POINTS_PER_LEVEL`/`WINS_PER_LEVEL`; não repita pontos
-   no HTML. Com isso, não acrescente o parágrafo `.help` nem `pointsLegend()`.
+   (a função usa `wins`). O conteúdo vem de `LEVEL_NAMES`/`WINS_PER_LEVEL`; os pontos por vitória são fixos
+   (1) e não devem ser repetidos no HTML. Com isso, não acrescente o parágrafo `.help` nem `pointsLegend()`.
 6. A base de cada elemento animado deve ser o **quadro final visível**; a animação só parte de um estado
    escondido. Assim `prefers-reduced-motion` deixa o desenho legível (as animações são desligadas em
    `css/tutorial.css`).
