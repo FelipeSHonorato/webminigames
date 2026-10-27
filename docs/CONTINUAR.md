@@ -18,7 +18,7 @@ Funcionalidades prontas: entrada (criar conta, Google **simulado**, anônimo, "E
 
 ```bash
 npm start     # servidor local (usa serve.json); não abra o index.html com duplo clique
-npm test      # 303 testes, Node 20+
+npm test      # 304 testes, Node 20+
 ```
 
 ## Estrutura e decisões importantes

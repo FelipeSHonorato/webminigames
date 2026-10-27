@@ -404,14 +404,15 @@ Detalhes que mordem:
 
 ### 8.2 `index.ts`
 
-```ts
-const GAME_IDS = new Set(["arrows", "canos", "cruzadas", "patches", "sopa", "sudoku", "zip", "<id>"]);
-```
-
-`generateDayScenarios` percorre `GAME_IDS` e usa `BOARD_GAMES[game].LEVELS.length` — mais um jogo
-aumenta o custo da pré-geração e do cron.
+A Edge aceita **todos** os jogos de `_shared/board.js` (`const GAME_IDS = new Set(Object.keys(BOARD_GAMES))`):
+não há lista fixa para editar. `generateDayScenarios` percorre esses jogos e usa
+`BOARD_GAMES[game].LEVELS.length` — mais um jogo aumenta o custo da pré-geração e do cron.
 
 ### 8.3 Deploy
+
+Sempre que um jogo novo entra, **faça o deploy da Edge** junto com as migrações. Um deploy antigo não
+conhece o jogo, responde `unknown_game` e o desafio diário dele não abre — mesmo com banco e cliente
+atualizados (foi o que aconteceu com Queens, Tango e Text Twist).
 
 ```bash
 supabase db push                 # ou rodar as migrações em ordem no SQL Editor

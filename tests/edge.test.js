@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { makeRng } from "../shared/rng.js";
 import { publicView, validate, validateSnapshot, validatePartial, countWords, snapshot, GAMES } from "../supabase/functions/play/_shared/board.js";
+import { GAMES as CATALOG } from "../js/games.js";
 import * as arrows from "../games/arrows/domain.js";
 import * as canos from "../games/canos/domain.js";
 import * as cruzadas from "../games/cruzadas/domain.js";
@@ -268,4 +269,16 @@ test("snapshot diário: o puzzle completo valida e a visão pública continua se
 
 test("GAMES agrupa os dez domínios", () => {
   assert.deepEqual(Object.keys(GAMES).sort(), ["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
+});
+
+test("a Edge aceita todo jogo do catálogo (lista vem do board, não fixa)", () => {
+  /* Regressão: a Edge tinha uma lista fixa de jogos e, depois de Queens/Tango/Text Twist entrarem no
+     catálogo, respondia `unknown_game` para eles — o desafio diário nunca abria. */
+  const entry = read("supabase/functions/play/index.ts");
+  assert.match(entry, /const GAME_IDS = new Set\(Object\.keys\(BOARD_GAMES\)\)/,
+    "GAME_IDS precisa ser derivado de BOARD_GAMES para acompanhar jogos novos");
+  assert.doesNotMatch(entry, /const GAME_IDS = new Set\(\[/,
+    "não fixe a lista de jogos na Edge Function: ela desatualiza e recusa jogos novos");
+  assert.deepEqual(Object.keys(CATALOG).sort(), Object.keys(GAMES).sort(),
+    "todo jogo do catálogo do hub precisa de domínio em _shared/board.js");
 });

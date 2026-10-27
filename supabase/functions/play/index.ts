@@ -11,7 +11,9 @@ const URL = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const GAME_IDS = new Set(["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
+/* A lista de jogos sai do próprio board: um jogo novo em `_shared/` passa a ser aceito sem editar aqui.
+   (Uma lista fixa já esqueceu Queens, Tango e Text Twist e a Edge respondia `unknown_game` para eles.) */
+const GAME_IDS = new Set(Object.keys(BOARD_GAMES));
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
