@@ -87,7 +87,8 @@ function renderLevel() {
   levelCount.textContent = last ? `${wins} vitórias` : `${into}/${WINS_PER_LEVEL}`;
   barFill.style.width = (last ? 100 : (into / WINS_PER_LEVEL) * 100) + "%";
 }
-mountLevelHelp({ trigger: "levelHelp", getLevel: () => levelOf(wins) });
+const LEVEL_HELP_DETAILS = LEVELS.map(l => `${l.n} letras · ${fmtTime(l.seconds)} · ${l.minWords}+ palavras`);
+mountLevelHelp({ trigger: "levelHelp", getLevel: () => levelOf(wins), details: LEVEL_HELP_DETAILS });
 
 /* ----- Fase ----- */
 const buildPuzzle = (seed, level) => ({ ...generatePuzzle(makeRng(seed), LEVELS[level]), level, seed });

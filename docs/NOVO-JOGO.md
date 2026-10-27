@@ -311,9 +311,10 @@ jogo novo, siga o modelo do Zip/Text Twist:
 5. Para a ajuda de dificuldades, ponha o `?` (`#levelHelp`) ao lado de `#levelName`, dentro de `.level-title`
    (com `min-width:5em` no grupo, a barra não pula ao trocar de nível), importe
    `mountLevelHelp` de `../../shared/level-help.js` e chame
-   `mountLevelHelp({ trigger: "levelHelp", getLevel: () => levelOf(wins) })` **depois** de `renderLevel()`
-   (a função usa `wins`). O conteúdo vem de `LEVEL_NAMES`/`WINS_PER_LEVEL`; os pontos por vitória são fixos
-   (1) e não devem ser repetidos no HTML. Com isso, não acrescente o parágrafo `.help` nem `pointsLegend()`.
+   `mountLevelHelp({ trigger: "levelHelp", getLevel: () => levelOf(wins), details })` **depois** de
+   `renderLevel()` (a função usa `wins`). `details` é um array na ordem dos níveis com o que muda em cada um
+   (tamanho, tempo, pistas etc.); derive dos `LEVELS` do jogo para não duplicar valores. Com isso, não
+   acrescente o parágrafo `.help` nem `pointsLegend()`.
 6. A base de cada elemento animado deve ser o **quadro final visível**; a animação só parte de um estado
    escondido. Assim `prefers-reduced-motion` deixa o desenho legível (as animações são desligadas em
    `css/tutorial.css`).
@@ -512,4 +513,4 @@ solução fornecida é aceita pelo próprio validador e que uma alteração mín
 | mudar o tempo por dica | `daily_hint_seconds()` (migração nova) |
 | mudar o teto de acúmulo | `daily_backlog_days()` / `daily_backlog_start()` (migração nova) |
 | criar o tutorial animado | `shared/tutorial.js` + `css/tutorial.css` (seção 5.1); modelos em `games/zip/tutorial.js` e `games/texttwist/tutorial.js` |
-| explicar dificuldades, pontos e níveis | `shared/level-help.js` (`mountLevelHelp`) + `css/tutorial.css` (seção 5.1) |
+| explicar dificuldades e níveis | `shared/level-help.js` (`mountLevelHelp`) + `css/tutorial.css` (seção 5.1) |

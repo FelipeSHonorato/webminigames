@@ -13,8 +13,9 @@
 .howto-icon{display:inline-grid;place-items:center;width:1.15em;height:1.15em;border-radius:50%;
   background:var(--accent,var(--path,currentColor));color:#fff;font-size:.8em;font-weight:700;line-height:1}
 @media (max-width:720px){
-  .howto{padding:6px}
-  .howto-label{display:none}
+  .head-title{flex-wrap:wrap;gap:8px}
+  .head-title h1{white-space:nowrap}
+  .howto{padding:5px 9px;font-size:.8rem}
 }
 
 /* "?" ao lado da dificuldade: mesma bolinha do botão "Como jogar". */
@@ -74,7 +75,7 @@
 .level-help-name{font-weight:700}
 .level-help-current{padding:2px 7px;border-radius:999px;background:var(--accent,var(--path,#0f766e));
   color:#fff;font-size:.66rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
-.level-help-points{color:var(--muted,#5b6b7e);font-size:.8rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+.level-help-detail{color:var(--muted,#5b6b7e);font-size:.8rem;line-height:1.3;text-align:right;font-variant-numeric:tabular-nums}
 .level-help-note{margin:0 0 8px;color:var(--muted,#5b6b7e);font-size:.85rem;line-height:1.45}
 .level-help-note:last-child{margin-bottom:0}
 
@@ -83,7 +84,7 @@
   .tut-head,.tut-body,.tut-actions{padding-left:14px;padding-right:14px}
   .tut-step-title{font-size:1.05rem}
   .level-help-item{padding:8px 9px}
-  .level-help-points{font-size:.75rem}
+  .level-help-detail{font-size:.75rem}
 }
 
 /* ---------- Utilidades de animação das mini-demos ----------

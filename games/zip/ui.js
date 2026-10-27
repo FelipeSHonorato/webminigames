@@ -90,7 +90,8 @@ function renderLevel() {
   levelCount.textContent = last ? `${wins} vitórias` : `${into}/${WINS_PER_LEVEL}`;
   barFill.style.width = (last ? 100 : (into / WINS_PER_LEVEL) * 100) + "%";
 }
-mountLevelHelp({ trigger: "levelHelp", getLevel: () => levelOf(wins) });
+const LEVEL_HELP_DETAILS = LEVELS.map(l => `Grade ${l.n}×${l.n} · ${l.walls} paredes`);
+mountLevelHelp({ trigger: "levelHelp", getLevel: () => levelOf(wins), details: LEVEL_HELP_DETAILS });
 /** Conta a vitória uma única vez por fase (reiniciar e resolver de novo não conta). */
 function creditWin() {
   if (credited) { renderCoins(); return ""; }          // rejogar a mesma fase não pontua nem gasta coin

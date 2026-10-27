@@ -1,23 +1,24 @@
 /* Ajuda compartilhada de dificuldades e níveis: um <dialog> aberto pelo "?" ao lado da
-   dificuldade do jogo. O conteúdo é montado a partir das constantes de shared/progress.js,
-   então pontos e vitórias por nível não ficam duplicados no texto.
+   dificuldade do jogo. O motor é genérico; cada jogo informa, em `details`, o que muda de
+   um nível para o outro (tamanho do tabuleiro, tempo, quantidade de palavras etc.).
 
    Uso em um jogo:
      import { mountLevelHelp } from "../../shared/level-help.js";
-     mountLevelHelp({ trigger: "levelHelp", getLevel: () => levelOf(wins) });
+     mountLevelHelp({
+       trigger: "levelHelp",
+       getLevel: () => levelOf(wins),
+       details: LEVELS.map(l => `Grade ${l.n}×${l.n} · ${l.walls} paredes`),
+     });
 
    `getLevel` é consultado a cada abertura para destacar o nível atual. O diálogo não tem
    persistência: é só uma explicação, disponível quando o jogador quiser. */
 
 import { LEVEL_NAMES, WINS_PER_LEVEL } from "./progress.js";
 
-/** Pontos creditados por vitória (sempre 1, em qualquer dificuldade). */
-export const POINTS_PER_WIN = 1;
-
-/** Linhas exibidas no diálogo: nome do nível, pontos por vitória e vitórias para subir. */
-export const levelHelpRows = () => LEVEL_NAMES.map(name => ({
+/** Linhas exibidas no diálogo: nome do nível, o que muda nele e vitórias para subir. */
+export const levelHelpRows = (details = []) => LEVEL_NAMES.map((name, i) => ({
   name,
-  points: POINTS_PER_WIN,
+  detail: details[i] ?? "",
   wins: WINS_PER_LEVEL,
 }));
 
@@ -26,14 +27,15 @@ export const levelHelpRows = () => LEVEL_NAMES.map(name => ({
  * @param {object} options
  * @param {string|HTMLElement} options.trigger id (ou elemento) do botão "?".
  * @param {() => number} [options.getLevel] nível atual (0–3), destacado ao abrir.
+ * @param {string[]} [options.details] o que muda em cada nível, na ordem de `LEVEL_NAMES`.
  * @returns {{dialog: HTMLDialogElement, open: Function, close: Function}|null}
  */
-export function mountLevelHelp({ trigger, getLevel = () => -1 } = {}) {
+export function mountLevelHelp({ trigger, getLevel = () => -1, details = [] } = {}) {
   if (typeof document === "undefined") return null;
   const button = typeof trigger === "string" ? document.getElementById(trigger) : trigger;
   if (!button) return null;
 
-  const rows = levelHelpRows();
+  const rows = levelHelpRows(details);
   const dialog = document.createElement("dialog");
   dialog.className = "tut level-help-dialog";
   dialog.setAttribute("aria-labelledby", "level-help-title");
@@ -51,12 +53,11 @@ export function mountLevelHelp({ trigger, getLevel = () => -1 } = {}) {
               <span class="level-help-name">${row.name}</span>
               <span class="level-help-current" hidden>atual</span>
             </span>
-            <span class="level-help-points">${row.points} pts por vitória</span>
+            <span class="level-help-detail">${row.detail}</span>
           </li>`).join("")}
       </ol>
       <p class="level-help-note">A barra ao lado mostra o progresso dentro do nível (x/${WINS_PER_LEVEL}). No <b>Genius</b>, ela mostra o total de vitórias.</p>
       <p class="level-help-note">O nível é independente por jogo: as vitórias em um jogo não contam nos outros. Os pontos só entram no ranking para quem tem conta.</p>
-      <p class="level-help-note">O que muda em cada nível depende do jogo: tamanho do tabuleiro, tempo, quantidade de pistas e outras regras.</p>
     </div>
     <div class="tut-actions">
       <div class="tut-nav"><button type="button" class="tut-next primary">Entendi</button></div>
