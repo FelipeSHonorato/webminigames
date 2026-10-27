@@ -1,6 +1,7 @@
 /* Testes do tutorial animado: navegação entre passos e sanidade do conteúdo dos jogos. */
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { clampStep, isLastStep, mountTutorial, stepLabel } from "../shared/tutorial.js";
 import { ZIP_TUTORIAL } from "../games/zip/tutorial.js";
 import { TEXTTWIST_TUTORIAL } from "../games/texttwist/tutorial.js";
@@ -33,6 +34,17 @@ test("tutorial: último passo e rótulo começam em 1", () => {
 
 test("tutorial: sem DOM, montar devolve null em vez de quebrar", () => {
   assert.equal(mountTutorial({ trigger: "howto", steps: [{ title: "a", text: "b", demo: "c" }] }), null);
+});
+
+test("tutorial: botões do diálogo não herdam o width:100% dos jogos", () => {
+  const css = readFileSync(new URL("../css/tutorial.css", import.meta.url), "utf8");
+  const escape = selector => selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const ruleFor = selector => css.match(new RegExp(`${escape(selector)}\\{([^}]*)\\}`, "m"))?.[1];
+  for (const selector of [".howto", ".level-help", ".tut-skip", ".tut-nav button"]) {
+    const rule = ruleFor(selector);
+    assert.ok(rule, `regra ${selector} ausente em css/tutorial.css`);
+    assert.match(rule, /width:\s*auto/, `${selector} precisa de width:auto`);
+  }
 });
 
 for (const [name, tutorial] of [

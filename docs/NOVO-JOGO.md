@@ -318,6 +318,8 @@ jogo novo, siga o modelo do Zip (o piloto) ou de qualquer um dos outros nove jog
 6. A base de cada elemento animado deve ser o **quadro final visível**; a animação só parte de um estado
    escondido. Assim `prefers-reduced-motion` deixa o desenho legível (as animações são desligadas em
    `css/tutorial.css`).
+7. Se o jogo tiver um `button{width:100%}` global, não mexa nos botões do tutorial: `css/tutorial.css` já
+   fixa `width:auto` em `.howto`, `.level-help`, `.tut-skip` e `.tut-nav button` para eles não esticarem.
 
 O motor (`shared/tutorial.js`) já cuida de `<dialog>`, foco, Esc, clique no fundo, Anterior/Próximo, "Concluir",
 bolinhas e setas ←/→. A ajuda de níveis (`shared/level-help.js`) já cuida do `<dialog>`, do destaque do nível
