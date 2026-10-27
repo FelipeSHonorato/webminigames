@@ -15,6 +15,8 @@ import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/
 import { LEVELS, N, STORE_KEY, TOTAL, applyMove, generatePuzzle, isSolved, setSize } from "./domain.js";
 import { fmtTime } from "../../shared/ranking-list.js";
 import { nextScenario as nextScenarioOf, nextSpMidnight, renderDailyPanel, spDay } from "../../shared/daily.js";
+import { mountTutorial } from "../../shared/tutorial.js";
+import { ZIP_TUTORIAL } from "./tutorial.js";
 
 const sessionUser = requireSession("../../index.html");   // sem sessão, volta para o login
 if (sessionUser && !gameAllowed("zip", sessionUser)) location.replace("../../jogos.html");   // jogo desligado pelo administrador
@@ -27,6 +29,7 @@ const ranking = mountRanking({ gameId: GAME_ID, title: "Zip" });
 const coinsEl = document.getElementById("coinBadge");
 /* Na nuvem o jogo é SÓ o desafio do dia (a fase aleatória deixou de existir); no modo local/visitante continua aleatória. */
 const mode = isCloud ? "daily" : "random";
+mountTutorial({ trigger: "howto", ...ZIP_TUTORIAL });
 
 
 /* Coins: saldo ao lado do nome do jogo e liberação do botão "Nova fase" (só com fase concluída e coin disponível).

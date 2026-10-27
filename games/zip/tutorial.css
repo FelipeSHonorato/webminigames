@@ -1,0 +1,38 @@
+/* Mini-demos do tutorial do Zip (usadas dentro do diálogo de css/tutorial.css). */
+
+.zp-board{fill:var(--cell);stroke:var(--grid);stroke-width:2}
+.zp-lines{fill:none;stroke:var(--grid);stroke-width:2}
+.zp-path{fill:none;stroke:var(--path);stroke-width:10;stroke-linecap:round;stroke-linejoin:round}
+.zp-trail{fill:none;stroke:var(--path);stroke-width:38;stroke-linecap:round;stroke-linejoin:round;opacity:.16}
+.zp-node{fill:var(--node)}
+.zp-num{fill:var(--nodefg);font-size:13px;font-weight:700;text-anchor:middle;dominant-baseline:central}
+.zp-wall{fill:none;stroke:var(--wall);stroke-width:9;stroke-linecap:round}
+.zp-attempt{fill:none;stroke:#d64545;stroke-width:8;stroke-linecap:round;stroke-dasharray:6 7;opacity:.55;
+  animation:zp-blocked 1.7s .5s both}
+.zp-x{fill:#d64545;font-size:20px;font-weight:700;text-anchor:middle;dominant-baseline:central;opacity:1;
+  animation:zp-x 1.7s .5s both}
+.zp-count{fill:var(--muted);font-size:11px;font-weight:700;text-anchor:middle;letter-spacing:.04em}
+
+.zp-stage{display:flex;flex-direction:column;align-items:center;gap:14px;padding:8px}
+.zp-keys{display:flex;flex-direction:column;align-items:center;gap:6px}
+.zp-keyrow{display:flex;gap:6px}
+.zp-key{display:grid;place-items:center;min-width:38px;height:34px;padding:0 8px;border-radius:8px;
+  background:var(--btn);border:2px solid var(--grid);color:var(--fg);font-weight:700;font-size:.95rem}
+.zp-wide{font-size:.75rem;letter-spacing:.04em}
+.zp-btns{display:flex;gap:8px}
+.zp-btn{padding:7px 12px;border-radius:8px;border:2px solid var(--grid);background:var(--btn);
+  color:var(--fg);font-weight:700;font-size:.82rem}
+
+@keyframes zp-blocked{
+  0%{opacity:0;transform:translateX(0)}
+  12%{opacity:.9}
+  28%{opacity:.9;transform:translateX(-2px)}
+  44%{transform:translateX(2px)}
+  60%{opacity:.9;transform:translateX(0)}
+  100%{opacity:0}
+}
+@keyframes zp-x{
+  0%,60%{opacity:0}
+  72%,88%{opacity:1}
+  100%{opacity:0}
+}

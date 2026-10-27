@@ -240,6 +240,8 @@ otimistas. No Canos não é preciso: `simulate(puzzle, rots)` só depende de `ti
   <link rel="stylesheet" href="../../css/userbar.css">
   <link rel="stylesheet" href="../../css/coins.css">
   <link rel="stylesheet" href="../../css/daily.css">
+  <link rel="stylesheet" href="../../css/tutorial.css">
+  <link rel="stylesheet" href="tutorial.css">   <!-- só se o jogo tiver tutorial -->
 </head>
 <body>
 <nav class="sitebar">
@@ -248,7 +250,7 @@ otimistas. No Canos não é preciso: `simulate(puzzle, rots)` só depende de `ti
   <div id="userbar"></div>
 </nav>
 <main>
-  <header><h1><Título></h1><span id="timer"></span></header>
+  <header><h1><Título></h1><div class="head-tools"><button id="howto" class="howto" type="button"><span class="howto-icon" aria-hidden="true">?</span><span class="howto-label">Como jogar</span></button><span id="timer"></span></div></header>
   <div id="level"><b id="levelName"></b><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
   <section class="boardwrap">
     <div id="board" role="application" aria-label="…"></div>   <!-- o véu dos troféus ancora AQUI -->
@@ -265,6 +267,8 @@ otimistas. No Canos não é preciso: `simulate(puzzle, rots)` só depende de `ti
 <script type="module" src="./ui.js"></script>
 </body>
 ```
+
+As duas folhas do tutorial e o botão `#howto` (dentro de `.head-tools`) só entram se o jogo tiver tutorial — veja a seção 5.1. Sem o botão, o `<header>` pode voltar a ter só o `<h1>` e o `#timer`.
 
 IDs que o código compartilhado procura (**sem eles a integração quebra silenciosamente**):
 
@@ -289,6 +293,29 @@ transparente e sem borda:
 **Jogo largo:** se o tabuleiro passar de ~900px, replique o ajuste de `body.ranking-open` de
 `games/canos/style.css`, `sopa` e `cruzadas` (reserva `100vw − 380px`), senão o painel de ranking cobre o jogo.
 
+### 5.1 Tutorial animado (recomendado)
+
+O tutorial é opcional e **não tem abertura automática**: só aparece pelo botão `#howto` ("Como jogar"). Para o
+jogo novo, siga o modelo do Zip/Text Twist:
+
+1. `games/<id>/tutorial.js` exporta `{ title, steps: [{ title, text, demo }] }`, com 3–5 passos. `demo` é HTML
+   inline (SVG ou divs) usando as classes de animação de `css/tutorial.css` (`.fade`, `.pop`, `.draw`, `.rise`,
+   `.slide`, `.grow`, `.glow`, `.press`, `.loop`) e o `--d` para escalonar os atrasos. Nada de `<script>` nem de
+   URL externa; o teste `tests/tutorial.test.js` recusa os dois.
+2. `games/<id>/tutorial.css` traz só o que é daquele jogo (formas, cores e keyframes próprios). Use os tokens do
+   jogo (`--fg`, `--cell`, `--grid`/`--line`, `--accent`/`--path`, `--btn`, `--muted`) para funcionar nos dois temas.
+3. No `index.html`, carregue `../../css/tutorial.css` e `tutorial.css` e ponha o botão dentro de `.head-tools`
+   no `<header>` (veja a seção 5).
+4. Na `ui.js`: `import { mountTutorial } from "../../shared/tutorial.js";` e
+   `import { <ID>_TUTORIAL } from "./tutorial.js";`, depois chame
+   `mountTutorial({ trigger: "howto", ...<ID>_TUTORIAL })` uma vez.
+5. A base de cada elemento animado deve ser o **quadro final visível**; a animação só parte de um estado
+   escondido. Assim `prefers-reduced-motion` deixa o desenho legível (as animações são desligadas em
+   `css/tutorial.css`).
+
+O motor (`shared/tutorial.js`) já cuida de `<dialog>`, foco, Esc, clique no fundo, Anterior/Próximo, "Concluir",
+bolinhas e setas ←/→. Não duplique isso no jogo.
+
 ---
 
 ## 6. Checklist — arquivos NOVOS
@@ -303,6 +330,8 @@ transparente e sem borda:
 | 6 | `supabase/migrations/<timestamp>_jogo_<id>.sql` | registra o jogo (modelo: `20261023000000_jogo_setas.sql`) |
 | 7 | `tests/<id>.test.js` | cada nível gera fase solucionável/única; validador aceita a solução e recusa lixo |
 | 8 | `assets/thumbs/<id>-light.webp` e `<id>-dark.webp` | captura do tabuleiro (360×360), uma por tema — é o que aparece nos cards da página inicial **e** da lista de jogos |
+| 9 | `games/<id>/tutorial.js` | (opcional) passos e mini-demos do "Como jogar" — seção 5.1 |
+| 10 | `games/<id>/tutorial.css` | (opcional) estilos e keyframes das demos — seção 5.1 |
 
 Migração mínima:
 
@@ -445,11 +474,12 @@ solução fornecida é aceita pelo próprio validador e que uma alteração mín
 3. Copiar o domínio para `_shared/<id>/domain.js`.
 4. Escrever `index.html` + `style.css` e conferir os IDs da seção 5.
 5. Escrever `ui.js` com os dois modos (local/aleatório e nuvem/diário).
-6. Registrar o jogo: `js/games.js`, `init.sql`, migração nova, `board.js`, `index.ts`, `music.js`.
-7. Atualizar os testes de integração que enumeram jogos.
-8. Rodar `npm test`; abrir com `npm start` e jogar no modo local (fase aleatória, coins, reiniciar).
-9. Com a nuvem ligada: `daily_status`, abrir ticket, vencer, conferir pontos, troféus e pódio.
-10. Escrever a seção do jogo no `README.md` e no `docs/CONTINUAR.md`.
+6. (Opcional) Criar `tutorial.js` + `tutorial.css` e montar com `mountTutorial` (seção 5.1).
+7. Registrar o jogo: `js/games.js`, `init.sql`, migração nova, `board.js`, `index.ts`, `music.js`.
+8. Atualizar os testes de integração que enumeram jogos.
+9. Rodar `npm test`; abrir com `npm start` e jogar no modo local (fase aleatória, coins, reiniciar).
+10. Com a nuvem ligada: `daily_status`, abrir ticket, vencer, conferir pontos, troféus e pódio.
+11. Escrever a seção do jogo no `README.md` e no `docs/CONTINUAR.md`.
 
 ---
 
@@ -475,3 +505,4 @@ solução fornecida é aceita pelo próprio validador e que uma alteração mín
 | ver o contrato da Edge | `supabase/functions/play/index.ts` + `_shared/board.js` |
 | mudar o tempo por dica | `daily_hint_seconds()` (migração nova) |
 | mudar o teto de acúmulo | `daily_backlog_days()` / `daily_backlog_start()` (migração nova) |
+| criar o tutorial animado | `shared/tutorial.js` + `css/tutorial.css` (seção 5.1); modelos em `games/zip/tutorial.js` e `games/texttwist/tutorial.js` |

@@ -119,9 +119,9 @@ admin.html            painel do administrador: liga/desliga de cada jogo, nível
 confirmar.html        confirma o e-mail pelo link enviado e abre a sessão
 redefinir.html        cria a nova senha, aberto pelo link do "Esqueceu a senha?"
 assets/               favicon.svg, email-logo.png (ícones e logotipo dos e-mails) e thumbs/ (miniaturas dos cards, tema claro e escuro)
-css/                  site.css, gamebar.css (barra dos jogos), ranking.css (painel lateral) e ranking-list.css (linhas e abas do ranking), daily.css (painel do desafio diário), coins.css, userbar.css
+css/                  site.css, gamebar.css (barra dos jogos), ranking.css (painel lateral) e ranking-list.css (linhas e abas do ranking), daily.css (painel do desafio diário), coins.css, userbar.css, tutorial.css (diálogo "Como jogar" e animações)
 js/                   login.js, hub.js, perfil.js, admin.js, confirmar.js e redefinir.js (uma por página), auth.js (contas), password-rules.js (requisitos da senha), userbar.js, games.js (catálogo)
-shared/               roles.js, game-switch.js (liga/desliga dos jogos), coins.js, run.js, coin-badge.js (coins e fase atual), theme.js e theme-init.js (modo escuro), rng.js, storage.js, session.js, progress.js (níveis e pontos), admin-level.js (nível de teste do administrador), regions.js, ranking-list.js (linhas e abas do ranking),
+shared/               roles.js, game-switch.js (liga/desliga dos jogos), coins.js, run.js, coin-badge.js (coins e fase atual), theme.js e theme-init.js (modo escuro), rng.js, storage.js, session.js, progress.js (níveis e pontos), admin-level.js (nível de teste do administrador), regions.js, ranking-list.js (linhas e abas do ranking), tutorial.js (motor do tutorial animado),
                       scores.js (pontuação e ranking), ranking-panel.js (painel lateral),
                       profile.js (apelido, foto, atividade), avatar.js (redimensiona a foto), password.js (regra de senha), password-toggle.js (botão de mostrar/ocultar senha), admin-config.js (config do desafio diário no painel), admin-coins.js (coins de teste por conta no painel), capture-auth-hash.js (guarda o "#" do link), file-warning.js (aviso no file://)
   backend/            config.js (URL/chave do Supabase; vazio = modo local), boot.js (carrega a conta), cloud.js (acesso ao Supabase), auth-redirect.js (lê o link do e-mail)
@@ -129,6 +129,8 @@ games/<jogo>/
   domain.js           regras, solver e gerador (puro, sem DOM)
   ui.js               renderização e entrada (Pointer Events)
   index.html, style.css
+  tutorial.js         passos e mini-demos do "Como jogar" (opcional)
+  tutorial.css        estilos/keyframes das mini-demos (opcional)
   words.js            vocabulário de Sopa de Letras e Palavras Cruzadas
 supabase/             migrations/ (esquema do banco), functions/play/ (Edge Function que serve e valida as fases e o desafio do dia), templates/ (e-mails em pt-BR) e tests/database/ (pgTAP)
 vendor/               supabase-js.mjs (biblioteca do Supabase, versão fixa, sem CDN)
@@ -152,6 +154,18 @@ Fluxo: `index.html` (entrada) → `jogos.html` (lista de jogos) → `games/<jogo
 - **Tango:** grades 8×8, 10×10, 12×12 e 14×14 (Fácil a Genius). O gerador sorteia uma grade válida (N/2 de cada por linha e coluna, sem três iguais seguidos) **com o próprio solver** — propagação de candidatas por casa mais ramificação aleatória —, sorteia dados e sinais `=`/`≠` coerentes com ela e vai acrescentando o sinal que mata mais soluções alternativas até sobrar uma. Há orçamento de nós por tentativa: a tentativa cara é descartada e outra grade é sorteada. Até o 12 o gerador ainda **tira as pistas redundantes**; no Genius a prova de unicidade custa caro, então ele fica com as pistas que sobraram. O estado enviado é `{ grid }` e a visão pública é `{ n, givens, marks }` — o navegador decide sozinho que venceu.
 - **Text Twist:** 6, 7, 8 e 9 letras (Fácil a Genius), com 2 a 3,5 minutos por rodada. O dicionário (`games/texttwist/words.js`, 3.000 palavras de 3 a 9 letras) é o mesmo no navegador e no servidor; a base curada foi ampliada com a lista ICF do [fserb/pt-br](https://github.com/fserb/pt-br) (MIT), filtrada contra dicionários pt-BR e listas de nomes próprios, siglas e estrangeirismos óbvios (créditos em [THIRD_PARTY.md](THIRD_PARTY.md)). A fase sorteia uma palavra do dicionário que renda pelo menos `minWords` sub-palavras (8 a 10, conforme o nível) e embaralha as letras dela — o jogador recebe só as letras. A validação é a mesma dos dois lados: a palavra tem de estar no dicionário, caber nas letras disponíveis e ter de 3 a N letras; a rodada acaba quando alguma palavra usa todas as letras. Perder por tempo **não gasta coin**: o "Tentar de novo" recomeça com o mesmo conjunto de letras. No desafio diário, o relógio usa o `startedAt` do servidor (retomar não devolve o tempo cheio) e o fim do tempo **encerra o cenário** mesmo sem nenhuma palavra (as palavras vão para o servidor, sem pontos); os troféus comparam **vitória → palavras achadas → tempo** e contam palavras distintas.
 - Os dez usam um orçamento no gerador: os jogos de unicidade descartam fases que não provam isso a tempo (limite de nós no solver), e o Fuga das Setas constrói a fase já solucionável e depois ajusta as pontas com uma busca **exata por peça**, dentro de um limite de tentativas (desistindo se não fechar).
+
+## Tutorial animado
+
+Os jogos têm um tutorial em passos com mini-demos animadas, aberto **só pelo botão "Como jogar"** no topo da página (nunca abre sozinho). Hoje ele existe no **Zip** e no **Text Twist**; os outros jogos seguem o mesmo modelo.
+
+- `shared/tutorial.js` — motor compartilhado: cria um `<dialog>` nativo (foco preso, Esc e clique no fundo fecham), navegação Anterior/Próximo, bolinhas de progresso e atalhos ←/→. Também exporta `clampStep`, `isLastStep` e `stepLabel`, testados no Node.
+- `css/tutorial.css` — visual do botão, do diálogo e as classes de animação (`.fade`, `.pop`, `.draw`, `.rise`, `.slide`, `.grow`, `.glow`, `.press`, `.loop`). As cores vêm dos tokens de cada jogo (`--fg`, `--cell`, `--grid`/`--line`, `--accent`/`--path`, `--btn`, `--muted`), então funciona nos temas claro e escuro.
+- `games/<jogo>/tutorial.js` — 3 a 5 passos (`title`, `text`, `demo`). A demo é uma string de HTML/SVG inline, sem script e sem URL externa (o teste garante isso).
+- `games/<jogo>/tutorial.css` — estilos e keyframes específicos daquele jogo.
+- `games/<jogo>/ui.js` — `mountTutorial({ trigger: "howto", ...ZIP_TUTORIAL })` depois dos imports; o botão `#howto` fica no `index.html`.
+
+As animações são CSS puro sobre SVG/HTML. A base de cada elemento é o **quadro final visível** e a animação só parte de um estado escondido; com `prefers-reduced-motion: reduce` todas as animações e transições são desligadas e o desenho continua legível. O tutorial não usa `localStorage`: como só abre por pedido, não há "não mostrar de novo".
 
 ## Limitações conhecidas
 

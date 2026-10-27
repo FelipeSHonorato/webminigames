@@ -15,6 +15,8 @@ import { WINS_PER_LEVEL, Progress, pointsFor, pointsLegend } from "../../shared/
 import { GEN, LEVELS, MIN_WORD, STORE_KEY, displayOf, generatePuzzle, isValidWord, wordsFrom } from "./domain.js";
 import { fmtTime } from "../../shared/ranking-list.js";
 import { nextScenario as nextScenarioOf, nextSpMidnight, renderDailyPanel, spDay } from "../../shared/daily.js";
+import { mountTutorial } from "../../shared/tutorial.js";
+import { TEXTTWIST_TUTORIAL } from "./tutorial.js";
 
 const GAME_ID = "texttwist";
 Music.play(GAME_ID);
@@ -37,6 +39,7 @@ const phaseEl = document.getElementById("phase"), foundEl = document.getElementB
 const resetBtn = document.getElementById("retry"), nextBtn = document.getElementById("next"), submitBtn = document.getElementById("submit");
 const levelName = document.getElementById("levelName"), levelCount = document.getElementById("levelCount"), barFill = document.getElementById("barFill");
 const dailyEl = document.getElementById("daily");
+mountTutorial({ trigger: "howto", ...TEXTTWIST_TUTORIAL });
 
 function setMessage(text, isError = false) { msgEl.textContent = text; msgEl.classList.toggle("err", isError); }
 const countOf = (list, ch) => list.reduce((n, c) => n + (c === ch ? 1 : 0), 0);

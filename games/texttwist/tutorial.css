@@ -1,0 +1,26 @@
+/* Mini-demos do tutorial do Text Twist (usadas dentro do diálogo de css/tutorial.css). */
+
+.tw-stage{display:flex;flex-direction:column;align-items:center;gap:16px;width:100%;padding:10px}
+.tw-tiles{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
+.tw-tile{display:grid;place-items:center;width:38px;height:38px;border-radius:8px;
+  background:var(--tile,#f4f6f8);border:2px solid var(--tile-line,#b9c6d3);
+  color:var(--fg);font-weight:700;font-size:1.1rem}
+.tw-tile.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.tw-tile.used{opacity:.35}
+.tw-dim{animation-name:tw-dim}
+.tw-slots{display:flex;justify-content:center;gap:5px}
+.tw-slot{display:grid;place-items:center;width:30px;height:36px;border-bottom:3px solid var(--line,#c3ced9);
+  color:var(--fg);font-weight:700;font-size:1.1rem}
+.tw-slot.on,.tw-slots.win .tw-slot{border-color:var(--accent)}
+.tw-slot b{font:inherit}
+.tw-badge{padding:4px 10px;border-radius:999px;background:var(--accent);color:#fff;
+  font-size:.78rem;font-weight:800;letter-spacing:.08em}
+.tw-panel{display:grid;gap:11px;width:100%;max-width:280px}
+.tw-row{display:flex;flex-direction:column;gap:5px}
+.tw-len{font-size:.72rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.tw-chips{display:flex;flex-wrap:wrap;gap:5px}
+.tw-chip{padding:3px 7px;border-radius:6px;background:var(--line);color:var(--muted);
+  font-style:normal;font-size:.75rem;font-weight:700;letter-spacing:.04em}
+.tw-chip.ok{background:var(--accent);color:#fff}
+
+@keyframes tw-dim{from{opacity:1}to{opacity:.35}}
