@@ -16,6 +16,20 @@ import * as zip from "./zip/domain.js";
 
 export const GAMES = { arrows, canos, cruzadas, patches, queens, sopa, sudoku, tango, texttwist, zip };
 export const hasHints = game => game === "cruzadas" || game === "sopa";
+
+/* Contrato de duelo. Só jogos criados PARA o modo 1×1 declaram, no próprio domínio:
+     export const DUEL = { rule: "first" | "words", maxSeconds: 30..3600, progressOf(state, puzzle) => 0..1 }
+   A Edge lê daqui; nada de lista fixa. Nenhum jogo atual declara DUEL de propósito:
+   converter um jogo existente em multiplayer mudaria as regras dele. */
+export const duelContract = domain => {
+  const d = domain?.DUEL;
+  if (!d || (d.rule !== "first" && d.rule !== "words")) return null;
+  return d;
+};
+export const duelOf = game => duelContract(GAMES[game]);
+export const DUELS = Object.fromEntries(
+  Object.entries(GAMES).filter(([, domain]) => duelContract(domain)).map(([id]) => [id, duelContract(GAMES[id])]),
+);
 export const GENS = { arrows: arrows.GEN, canos: canos.GEN, cruzadas: cruzadas.GEN, queens: queens.GEN, tango: tango.GEN, texttwist: texttwist.GEN, sopa: sopa.GEN, patches: 1, sudoku: 1, zip: 1 };
 
 const build = (game, seed, level) => GAMES[game].generatePuzzle(makeRng(seed), GAMES[game].LEVELS[level]);

@@ -5,7 +5,7 @@
 // Deploy:  supabase functions deploy play
 // Segredo: supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...   (URL e ANON_KEY são injetadas automaticamente)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { publicView, validate, hint, hasHints, snapshot, validateSnapshot, validatePartial, countWords, hintSnapshot, GAMES as BOARD_GAMES } from "./_shared/board.js";
+import { publicView, validate, hint, hasHints, snapshot, validateSnapshot, validatePartial, countWords, hintSnapshot, duelOf, GAMES as BOARD_GAMES } from "./_shared/board.js";
 
 const URL = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -68,6 +68,107 @@ async function scenarioSlots(svc: any) {
 
 const spDay = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 
+/* ====================================================================================================
+   Duelos 1×1
+   ----------------------------------------------------------------------------------------------------
+   Só entram aqui jogos que declaram `DUEL = { rule, maxSeconds, progressOf }` no domínio (jogos
+   criados PARA o modo duelo — nenhum jogo antigo é convertido). A Edge é a autoridade:
+     * gera o cenário com seed secreta e guarda public_view/full_puzzle no Postgres;
+     * valida o tabuleiro antes de chamar duel_finish (o cliente nunca decide vitória);
+     * quem decide o vencedor é o Postgres (duel_finish/duel_settle), não a Edge.
+   ==================================================================================================== */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUuid = (v: unknown) => typeof v === "string" && UUID_RE.test(v);
+const CODE_RE = /^[A-Z0-9]{4,8}$/;
+const isDuelCode = (v: unknown) => typeof v === "string" && CODE_RE.test(v.trim().toUpperCase());
+
+/** Erros de duelo viram 4xx com significado (o cliente mostra a mensagem certa). */
+const duelStatus = (msg: string) =>
+  msg === "not_member" ? 403
+    : msg === "duel_not_found" ? 404
+      : msg === "too_many_open" || msg === "duel_full" || msg === "bad_status"
+        || msg === "expired" || msg === "not_started" ? 409
+        : 400;
+
+const duelRow = async (svc: any, id: string) => {
+  const { data, error } = await svc.from("duels")
+    .select("id, game_id, level, rule, max_seconds, full_puzzle, status")
+    .eq("id", id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+const DUEL_ACTIONS = new Set([
+  "duel_create", "duel_join", "duel_ready", "duel_start", "duel_state", "duel_finish", "duel_leave",
+]);
+
+async function handleDuel(svc: any, uid: string, action: string, body: any) {
+  if (!DUEL_ACTIONS.has(action)) return json({ error: "unknown_action" }, 400);
+
+  /* Criar sala: o jogo precisa declarar DUEL; seed e regra vêm do servidor, não do cliente. */
+  if (action === "duel_create") {
+    const game = body?.game;
+    const duel = duelOf(game);
+    if (!duel) return json({ error: "not_duel_game" }, 400);
+
+    const levels = Number((BOARD_GAMES as any)[game]?.LEVELS?.length ?? 0);
+    const level = Number.isInteger(body?.level) ? body.level : 0;
+    if (level < 0 || level >= levels) return json({ error: "bad_level" }, 400);
+
+    const maxSeconds = Math.min(3600, Math.max(30, Number(duel.maxSeconds) || 300));
+    const rule = duel.rule;                                  // 'first' | 'words' — validado no board
+    const seed = crypto.getRandomValues(new Uint32Array(1))[0];
+    const built = snapshot(game, seed, level);               // sem await entre gerar e guardar (isolate)
+    const { data, error } = await svc.rpc("duel_create", {
+      p_uid: uid, p_game: game, p_level: level, p_seed: seed, p_gen: built.gen,
+      p_public: built.publicView, p_full: built.fullPuzzle, p_rule: rule, p_max_seconds: maxSeconds,
+    });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    return json({ ...data, gameId: game, rule });
+  }
+
+  /* Entrar por código: o cliente pode não saber o jogo ainda, então não exige `game`. */
+  if (action === "duel_join") {
+    const code = typeof body?.code === "string" ? body.code.trim().toUpperCase() : "";
+    if (!isDuelCode(code)) return json({ error: "bad_code" }, 400);
+    const { data, error } = await svc.rpc("duel_join", { p_uid: uid, p_code: code });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    return json(data);
+  }
+
+  const duelId = body?.duel;
+  if (!isUuid(duelId)) return json({ error: "bad_duel" }, 400);
+
+  if (action === "duel_ready" || action === "duel_start" || action === "duel_state" || action === "duel_leave") {
+    const { data, error } = await svc.rpc(action, { p_uid: uid, p_duel: duelId });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    return json(data);
+  }
+
+  /* Finalizar: valida o tabuleiro contra o full_puzzle guardado antes de avisar o Postgres. */
+  if (action === "duel_finish") {
+    const row = await duelRow(svc, duelId);
+    if (!row) return json({ error: "duel_not_found" }, 404);
+    if (!duelOf(row.game_id)) return json({ error: "not_duel_game" }, 400);
+
+    const state = body?.state;
+    const won = validateSnapshot(row.game_id, row.full_puzzle, state);
+    /* Na regra 'words' o fim de rodada sem a jogada-chave (timeout) também vale — só não é vitória. */
+    if (!won && !(row.rule === "words" && validatePartial(row.game_id, row.full_puzzle, state))) {
+      return json({ error: "invalid" }, 422);
+    }
+
+    const { data, error } = await svc.rpc("duel_finish", {
+      p_uid: uid, p_duel: duelId, p_op: body?.op ?? null,
+      p_words: row.rule === "words" ? countWords(row.game_id, state) : null,
+    });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    return json(data);
+  }
+
+  return json({ error: "unknown_action" }, 400);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
@@ -99,6 +200,10 @@ Deno.serve(async (req) => {
       let scenarios = 0;
       for (const id of GAME_IDS) scenarios += await generateDayScenarios(svc, day, id, slots);
       return json({ day, slots, games: GAME_IDS.size, scenarios });
+    }
+
+    if (typeof action === "string" && action.startsWith("duel_")) {
+      return await handleDuel(svc, uid, action, body);
     }
 
     if (!GAME_IDS.has(game)) return json({ error: "unknown_game" }, 400);
