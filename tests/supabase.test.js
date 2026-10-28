@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql"];
+const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql"];
 const migration = f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
 const migrations = migrationNames.map(migration);
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
@@ -21,6 +21,7 @@ const flowSql = migration("20261027000000_daily_fluxo.sql");
 const topTimesSql = migration("20261028000000_daily_top_times.sql");
 const adminLevelDailySql = migration("20261029000000_admin_level_daily.sql");
 const duelsFixSql = migration("20261036000000_duels_ajustes.sql");
+const duelsRealtimeSql = migration("20261037000000_duels_realtime_cron.sql");
 const fn = name => sql.match(new RegExp(`function public\\.${name}\\(\\)[^$]*\\$\\$ select ([^$]*?) \\$\\$`))?.[1];
 
 test("SQL: constantes do jogo iguais às do JS (nível, pontos, coins)", () => {
@@ -150,6 +151,26 @@ test("SQL: ajustes dos duelos corrigem avatar, LGPD, regra words e Realtime", ()
   const settleIdx = duelsFixSql.indexOf("for v_duel in select id from public.duels");
   const tieIdx = duelsFixSql.indexOf("-- Demais running expiradas sem vencedor");
   assert.ok(settleIdx > -1 && tieIdx > settleIdx, "settle das words deve vir antes do empate");
+});
+
+test("SQL: canal Realtime privado do duelo e limpeza agendada", () => {
+  // A tabela é do supabase_realtime_admin: ALTER TABLE falharia e derrubaria a migração inteira.
+  assert.doesNotMatch(duelsRealtimeSql, /alter table realtime\.messages/i);
+  assert.match(duelsRealtimeSql, /RLS de realtime\.messages já vem ligada/);
+
+  // Tópico malformado não pode virar cast inválido: o parse é guardado por regex dentro de CASE.
+  assert.match(duelsRealtimeSql, /create or replace function public\.duel_topic_id\(p_topic text\) returns uuid/);
+  assert.match(duelsRealtimeSql, /when p_topic ~ '\^duel:\[0-9a-fA-F\]\{8\}/);
+  assert.match(duelsRealtimeSql, /grant execute on function public\.duel_topic_id\(text\) to authenticated/);
+
+  // Leitura e escrita liberadas só para os dois jogadores da sala.
+  assert.match(duelsRealtimeSql, /create policy duel_channel_read on realtime\.messages for select to authenticated[\s\S]*public\.is_duel_member\(public\.duel_topic_id\(realtime\.topic\(\)\)\)/);
+  assert.match(duelsRealtimeSql, /create policy duel_channel_write on realtime\.messages for insert to authenticated[\s\S]*public\.is_duel_member\(public\.duel_topic_id\(realtime\.topic\(\)\)\)/);
+
+  // Cron como rede de segurança (a limpeza preguiçosa continua valendo).
+  assert.match(duelsRealtimeSql, /create extension if not exists pg_cron/);
+  assert.match(duelsRealtimeSql, /select cron\.unschedule\(jobid\) from cron\.job where jobname = 'duel_cleanup'/);
+  assert.match(duelsRealtimeSql, /cron\.schedule\(\s*'duel_cleanup',\s*'\*\/5 \* \* \* \*',\s*\$\$select public\.duel_cleanup\(\)\$\$/);
 });
 
 test("SQL: coins por dia é configurável (settings) e manda no nº de cenários/cenários do dia", () => {

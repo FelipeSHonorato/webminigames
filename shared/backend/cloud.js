@@ -358,10 +358,11 @@ export const Cloud = {
   async duelFinish(duel, state, op = crypto.randomUUID()) {
     return { ok: await invoke("duel_finish", { duel, state, op }) };
   },
-  /** Canal Realtime do duelo (só espelho). Devolve `null` quando a nuvem está desligada/degradada. */
-  channel(topic) {
+  /** Canal Realtime do duelo (só espelho). Devolve `null` quando a nuvem está desligada/degradada.
+      `options` repassa a configuração do SDK (o duelo usa `{ config: { private: true } }`). */
+  channel(topic, options) {
     if (!S.client || S.degraded) return null;
-    return S.client.channel(topic);
+    return S.client.channel(topic, options);
   },
 
   recordPlay(g) {

@@ -24,7 +24,7 @@ function fakeCloud({ uid = UID, responses = {} } = {}) {
   const cloud = {
     uid,
     duelTopic: id => `duel:${id}`,
-    channel(topic) { calls.push(["channel", topic]); channel.topic = topic; return channel; },
+    channel(topic, options) { calls.push(["channel", topic, options]); channel.topic = topic; channel.options = options; return channel; },
     async duelCreate(game, level) {
       calls.push(["create", game, level]);
       return responses.create ?? { id: "d1", code: "ABC123", gameId: game, level, rule: "first", maxSeconds: 120 };
@@ -86,7 +86,7 @@ test("sessão de duelo: criar e entrar guardam a sala e abrem o canal do tópico
   assert.equal(s.rule, "first");
   assert.equal(s.maxSeconds, 120);
   assert.deepEqual(calls.find(c => c[0] === "create"), ["create", "duelgame", 2]);
-  assert.deepEqual(calls.find(c => c[0] === "channel"), ["channel", "duel:d1"]);
+  assert.deepEqual(calls.find(c => c[0] === "channel"), ["channel", "duel:d1", { config: { private: true } }], "o canal é privado (policy do Realtime)");
 
   const outro = fakeCloud();
   const s2 = createDuelSession({ cloud: outro.cloud, pollMs: 0 });

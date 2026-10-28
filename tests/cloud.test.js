@@ -45,7 +45,7 @@ function fakeClient({ session = { user: { id: UID, email: "ana@t.com", app_metad
       update: patch => { calls.push(["update", table, patch]); return chain(tables.update?.(patch) ?? { data: [{ id: "x" }], error: null }); },
     }),
     rpc: async (fn, args) => { calls.push(["rpc", fn, args]); return (rpc[fn] ?? (() => (fn === "my_snapshot" ? { data: structuredClone(snapshot), error: null } : { data: null, error: null })))(args); },
-    channel: topic => { calls.push(["channel", topic]); return { topic, on() { return this; }, subscribe() { calls.push(["subscribe", topic]); return this; }, unsubscribe() { calls.push(["unsubscribe", topic]); } }; },
+    channel: (topic, options) => { calls.push(["channel", topic, options]); return { topic, options, on() { return this; }, subscribe() { calls.push(["subscribe", topic]); return this; }, unsubscribe() { calls.push(["unsubscribe", topic]); } }; },
   };
 }
 const boot = async (opts) => { Cloud._reset(); store.set("wmg.outbox", "[]"); store.set("wmg.session", "null"); const c = fakeClient(opts); await Cloud.start({ client: c }); return c; };
@@ -360,9 +360,9 @@ test("duelos: erro da Edge chega com o código (sala cheia / jogo sem duelo)", a
 test("duelos: canal Realtime usa um tópico por duelo; em modo local não existe canal", async () => {
   const c = await boot();
   assert.equal(Cloud.duelTopic("d1"), "duel:d1");
-  const ch = Cloud.channel(Cloud.duelTopic("d1"));
+  const ch = Cloud.channel(Cloud.duelTopic("d1"), { config: { private: true } });
   assert.equal(ch.topic, "duel:d1");
-  assert.deepEqual(c.calls.find(x => x[0] === "channel"), ["channel", "duel:d1"]);
+  assert.deepEqual(c.calls.find(x => x[0] === "channel"), ["channel", "duel:d1", { config: { private: true } }]);
 
   Cloud._reset();
   assert.equal(Cloud.channel("duel:d1"), null, "sem nuvem não há Realtime");

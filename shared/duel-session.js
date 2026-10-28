@@ -101,7 +101,7 @@ export function createDuelSession({
   function openChannel() {
     if (channel || !id) return;
     let ch;
-    try { ch = cloud.channel?.(cloud.duelTopic(id)); } catch { return; }
+    try { ch = cloud.channel?.(cloud.duelTopic(id), { config: { private: true } }); } catch { return; }
     if (!ch) return;
     channel = ch;
     ch.on?.("broadcast", { event: "progress" }, msg => {
