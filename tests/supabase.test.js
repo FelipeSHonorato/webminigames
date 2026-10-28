@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql"];
+const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql"];
 const migration = f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
 const migrations = migrationNames.map(migration);
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
@@ -20,6 +20,7 @@ const ticketSql = migration("20261026000000_daily_tickets.sql");
 const flowSql = migration("20261027000000_daily_fluxo.sql");
 const topTimesSql = migration("20261028000000_daily_top_times.sql");
 const adminLevelDailySql = migration("20261029000000_admin_level_daily.sql");
+const duelsFixSql = migration("20261036000000_duels_ajustes.sql");
 const fn = name => sql.match(new RegExp(`function public\\.${name}\\(\\)[^$]*\\$\\$ select ([^$]*?) \\$\\$`))?.[1];
 
 test("SQL: constantes do jogo iguais às do JS (nível, pontos, coins)", () => {
@@ -99,6 +100,56 @@ test("SQL: o desafio diário tem tabelas, funções e só a Edge escreve a fase"
   assert.match(sqlAll, /create table public\.daily_scenarios[\s\S]*?public_view jsonb not null,[\s\S]*?full_puzzle jsonb not null/); // snapshot imutável
   assert.match(sqlAll, /daily_backlog_days\(\)[^$]*\$\$ select 30/); // teto de 30 dias de tickets
   assert.match(sqlAll, /create or replace function public\.daily_backlog_start\(\)[^$]*\$\$ select date '2026-10-20'/); // início do backlog no lançamento
+});
+
+test("SQL: duelos 1x1 — tabelas, funções, RLS e grants", () => {
+  for (const t of ["duels", "duel_players"]) {
+    assert.match(sqlAll, new RegExp(`create table public\\.${t} \\(`), `${t} ausente`);
+    assert.match(sqlAll, new RegExp(`alter table public\\.${t}\\s+enable row level security`), `${t} sem RLS`);
+    assert.match(sqlAll, new RegExp(`revoke all on public\\.${t}`), `${t} sem revoke`);
+  }
+  for (const f of [
+    "duel_create\\(uuid, text, int, bigint, int, jsonb, jsonb, text, int\\)",
+    "duel_join\\(uuid, text\\)",
+    "duel_ready\\(uuid, uuid\\)",
+    "duel_start\\(uuid, uuid\\)",
+    "duel_state\\(uuid, uuid\\)",
+    "duel_finish\\(uuid, uuid, uuid, int\\)",
+    "duel_settle\\(uuid\\)",
+    "duel_leave\\(uuid, uuid\\)",
+    "duel_cleanup\\(\\)",
+    "duel_gen_code\\(\\)"
+  ]) {
+    assert.match(sqlAll, new RegExp(`revoke all on function public\\.${f}\\s+from public, anon, authenticated`), `${f} acessivel ao cliente`);
+    assert.match(sqlAll, new RegExp(`grant execute on function public\\.${f}\\s+to service_role`), `${f} deveria ser da Edge`);
+  }
+  // A policy do Realtime roda como `authenticated`; por isso is_duel_member é a exceção.
+  assert.match(duelsFixSql, /grant execute on function public\.is_duel_member\(uuid\) to authenticated/);
+  assert.match(sqlAll, /create or replace function public\.duel_gen_code\(\) returns text/);
+  assert.match(sqlAll, /create or replace function public\.is_duel_member\(p_duel uuid\) returns boolean/);
+  assert.match(sqlAll, /code\s+text\s+not\s+null\s+unique/);
+  assert.match(sqlAll, /expires_at.*default now\(\) \+ interval '15 minutes'/);
+  assert.match(sqlAll, /duel_players[\s\S]*primary key \(duel_id, user_id\)/);
+  assert.match(sqlAll, /duel_finish[\s\S]*for update/);
+  assert.match(sqlAll, /duel_settle[\s\S]*for update/);
+  assert.match(sqlAll, /rule in \('first'\s*,\s*'words'\)/);
+  assert.match(sqlAll, /status in \('waiting'\s*,\s*'running'\s*,\s*'finished'\s*,\s*'cancelled'\)/);
+});
+
+test("SQL: ajustes dos duelos corrigem avatar, LGPD, regra words e Realtime", () => {
+  assert.match(duelsFixSql, /alter column created_by drop not null/);              // exclusão de conta
+  assert.match(duelsFixSql, /p\.avatar/);                                          // coluna real de profiles
+  assert.doesNotMatch(duelsFixSql, /p\.avatar_url/);
+  assert.match(duelsFixSql, /drop function if exists public\.duel_finish\(uuid, uuid, uuid\)/);
+  assert.match(duelsFixSql, /duel_finish\([\s\S]*p_words int default null/);       // grava words
+  assert.match(duelsFixSql, /perform public\.duel_settle\(p_duel\)/);              // decide no 2º fim
+  assert.match(duelsFixSql, /revoke all on function public\.duel_gen_code\(\)/);
+  assert.match(duelsFixSql, /grant execute on function public\.is_duel_member\(uuid\) to authenticated/);
+  assert.match(duelsFixSql, /if v_duel\.status <> 'running' then[\s\S]*return jsonb_build_object\('winner', v_duel\.winner_id, 'status', v_duel\.status\)/);
+  // O settle das words precisa vir antes do empate genérico.
+  const settleIdx = duelsFixSql.indexOf("for v_duel in select id from public.duels");
+  const tieIdx = duelsFixSql.indexOf("-- Demais running expiradas sem vencedor");
+  assert.ok(settleIdx > -1 && tieIdx > settleIdx, "settle das words deve vir antes do empate");
 });
 
 test("SQL: coins por dia é configurável (settings) e manda no nº de cenários/cenários do dia", () => {
