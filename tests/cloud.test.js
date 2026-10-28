@@ -45,6 +45,7 @@ function fakeClient({ session = { user: { id: UID, email: "ana@t.com", app_metad
       update: patch => { calls.push(["update", table, patch]); return chain(tables.update?.(patch) ?? { data: [{ id: "x" }], error: null }); },
     }),
     rpc: async (fn, args) => { calls.push(["rpc", fn, args]); return (rpc[fn] ?? (() => (fn === "my_snapshot" ? { data: structuredClone(snapshot), error: null } : { data: null, error: null })))(args); },
+    channel: topic => { calls.push(["channel", topic]); return { topic, on() { return this; }, subscribe() { calls.push(["subscribe", topic]); return this; }, unsubscribe() { calls.push(["unsubscribe", topic]); } }; },
   };
 }
 const boot = async (opts) => { Cloud._reset(); store.set("wmg.outbox", "[]"); store.set("wmg.session", "null"); const c = fakeClient(opts); await Cloud.start({ client: c }); return c; };
@@ -309,6 +310,62 @@ test("desafio diário: o primeiro movimento começa o relógio no servidor (Text
   });
   assert.deepEqual(await Cloud.dailyStart("texttwist", "2026-10-20", 1), { startedAt: 123456, started: true });
   assert.deepEqual(c.calls.find(x => x[0] === "invoke" && x[2].action === "daily_start")[2], { action: "daily_start", game: "texttwist", day: "2026-10-20", slot: 1 });
+});
+
+/* ---------- duelos 1×1 ---------- */
+test("duelos: cada ação chama a Edge com os campos certos", async () => {
+  const c = await boot({ functions: { invoke: (name, body) => ({ data: { action: body.action }, error: null }) } });
+
+  await Cloud.duelCreate("duelgame", 2);
+  await Cloud.duelJoin("abc123");
+  await Cloud.duelReady("d1");
+  await Cloud.duelStart("d1");
+  await Cloud.duelState("d1");
+  await Cloud.duelLeave("d1");
+
+  const bodies = c.calls.filter(x => x[0] === "invoke").map(x => x[2]);
+  assert.deepEqual(bodies, [
+    { action: "duel_create", game: "duelgame", level: 2 },
+    { action: "duel_join", code: "abc123" },
+    { action: "duel_ready", duel: "d1" },
+    { action: "duel_start", duel: "d1" },
+    { action: "duel_state", duel: "d1" },
+    { action: "duel_leave", duel: "d1" },
+  ]);
+});
+
+test("duelos: finalizar valida no servidor e reaproveita o op no reenvio", async () => {
+  const result = { won: true, winner: UID, seconds: 12, words: null };
+  const c = await boot({ functions: { invoke: () => ({ data: result, error: null }) } });
+
+  assert.deepEqual(await Cloud.duelFinish("d1", { order: [1, 2, 3] }), { ok: result });
+  const first = c.calls.find(x => x[2]?.action === "duel_finish")[2];
+  assert.equal(first.duel, "d1");
+  assert.deepEqual(first.state, { order: [1, 2, 3] });
+  assert.match(first.op, /^[0-9a-f-]{36}$/, "cada tentativa leva um op único");
+
+  await Cloud.duelFinish("d1", { order: [1, 2, 3] }, first.op);        // reenvio idempotente
+  const last = c.calls.filter(x => x[2]?.action === "duel_finish").at(-1)[2];
+  assert.equal(last.op, first.op);
+});
+
+test("duelos: erro da Edge chega com o código (sala cheia / jogo sem duelo)", async () => {
+  await boot({ functions: { invoke: () => ({ data: null, error: { message: "duel_full", context: { status: 409, json: async () => ({ error: "duel_full" }) } } }) } });
+  await assert.rejects(Cloud.duelJoin("ABC123"), e => e.code === "duel_full" && e.status === 409);
+
+  await boot({ functions: { invoke: () => ({ data: null, error: { message: "not_duel_game", context: { status: 400, json: async () => ({ error: "not_duel_game" }) } } }) } });
+  await assert.rejects(Cloud.duelCreate("zip"), e => e.code === "not_duel_game" && e.status === 400);
+});
+
+test("duelos: canal Realtime usa um tópico por duelo; em modo local não existe canal", async () => {
+  const c = await boot();
+  assert.equal(Cloud.duelTopic("d1"), "duel:d1");
+  const ch = Cloud.channel(Cloud.duelTopic("d1"));
+  assert.equal(ch.topic, "duel:d1");
+  assert.deepEqual(c.calls.find(x => x[0] === "channel"), ["channel", "duel:d1"]);
+
+  Cloud._reset();
+  assert.equal(Cloud.channel("duel:d1"), null, "sem nuvem não há Realtime");
 });
 
 test("administrador: dar tickets diários (por e-mail) passa pelo servidor; validação em português", async () => {

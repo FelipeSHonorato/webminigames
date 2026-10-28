@@ -337,6 +337,33 @@ export const Cloud = {
     return data;
   },
 
+  /* ----- duelos 1×1 (só jogos que declaram DUEL no domínio) -----
+     A Edge + Postgres decidem tudo: o cliente pede, o servidor gera o cenário e valida o tabuleiro.
+     O Realtime é apenas espelho visual (progresso do oponente e presença). */
+  /** Tópico do canal Realtime: um por duelo. A policy do banco libera só para os dois jogadores. */
+  duelTopic: duel => `duel:${duel}`,
+  /** Cria a sala (código de convite). Devolve { id, code, rule, maxSeconds, level, gameId }. */
+  duelCreate(game, level = 0) { return invoke("duel_create", { game, level }); },
+  /** Entra pelo código do convite. Devolve a sala com os jogadores e o oponente. */
+  duelJoin(code) { return invoke("duel_join", { code }); },
+  /** Marca "pronto"; quando os dois marcam, o servidor fixa `starts_at` (contagem regressiva). */
+  duelReady(duel) { return invoke("duel_ready", { duel }); },
+  /** Só depois de `starts_at` o servidor entrega o puzzle — não dá para resolver durante a contagem. */
+  duelStart(duel) { return invoke("duel_start", { duel }); },
+  /** Estado para reconexão/polling: status, placar, tempos e vencedor. */
+  duelState(duel) { return invoke("duel_state", { duel }); },
+  /** Sai da sala: em `waiting` cancela (criador) ou libera a vaga; em `running` conta como desistência. */
+  duelLeave(duel) { return invoke("duel_leave", { duel }); },
+  /** Finaliza: a Edge valida o tabuleiro e o Postgres decide o vencedor. Reuse o mesmo `op` ao reenviar. */
+  async duelFinish(duel, state, op = crypto.randomUUID()) {
+    return { ok: await invoke("duel_finish", { duel, state, op }) };
+  },
+  /** Canal Realtime do duelo (só espelho). Devolve `null` quando a nuvem está desligada/degradada. */
+  channel(topic) {
+    if (!S.client || S.degraded) return null;
+    return S.client.channel(topic);
+  },
+
   recordPlay(g) {
     const a = (S.cache.activity[g] ??= { plays: 0, lastPlayedAt: 0 });
     a.plays += 1; a.lastPlayedAt = Date.now();
