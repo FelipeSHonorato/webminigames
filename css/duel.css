@@ -1,0 +1,57 @@
+/* Painel do duelo 1×1 — compartilhado pelos jogos feitos PARA o modo duelo.
+   Só a moldura: lobby, contagem, barra do oponente e resultado. O tabuleiro é do jogo.
+   Cores vêm das variáveis do tema/jogo, com reserva para não quebrar em página nova. */
+.duel{box-sizing:border-box;width:100%;max-width:100%;margin:0 0 12px;padding:12px;border:1px solid var(--grid,var(--line));border-radius:14px;background:var(--cell,var(--surface));color:var(--fg)}
+.duel [hidden]{display:none}
+.duel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.duel-tag{font-size:.72rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.duel-status{font-size:.8rem;color:var(--muted)}
+
+.duel-lobby{display:grid;gap:8px;justify-items:center;text-align:center}
+.duel-label{margin:0;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.duel-code{margin:0;max-width:100%;font-size:clamp(1.5rem,8vw,2.1rem);font-weight:900;letter-spacing:.16em;color:var(--fg);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.duel-hint{margin:2px 0 0;font-size:.8rem;line-height:1.4;color:var(--muted)}
+
+.duel-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;width:100%}
+.duel-btn{flex:1 1 140px;min-width:0;max-width:100%;padding:10px 12px;border:2px solid var(--grid,var(--line));border-radius:10px;background:var(--btn,var(--surface));color:var(--fg);font:inherit;font-weight:700;cursor:pointer}
+.duel-btn:hover:not(:disabled){border-color:var(--accent)}
+.duel-btn:disabled{opacity:.55;cursor:default}
+.duel-primary{border-color:var(--accent);background:var(--accent);color:var(--accent-fg,var(--bg))}
+
+.duel-count{margin:14px 0;text-align:center;font-size:clamp(1.3rem,6vw,1.8rem);font-weight:900;color:var(--accent)}
+
+.duel-rival{display:grid;grid-template-columns:40px minmax(0,1fr) auto;align-items:center;gap:10px;margin:10px 0 6px;min-width:0}
+.duel-mine{display:grid;gap:4px;margin-top:4px;min-width:0}
+.duel-avatar{display:grid;place-items:center;width:40px;height:40px}
+.duel-avatar .avatar{width:40px;height:40px;border-radius:50%}
+.duel-rival-info{display:grid;gap:4px;min-width:0}
+.duel-rival-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.85rem;font-weight:700}
+.duel-bar{position:relative;width:100%;height:10px;overflow:hidden;border-radius:999px;background:var(--line,var(--grid))}
+.duel-bar-mine{height:6px}
+.duel-bar-fill{display:block;width:0;height:100%;border-radius:inherit;background:var(--accent);transition:width .18s ease}
+.duel-pct{font-size:.8rem;font-variant-numeric:tabular-nums;color:var(--muted)}
+
+.duel-result{display:grid;gap:6px;justify-items:center;text-align:center;padding:6px 0}
+.duel-result-title{font-size:1.1rem}
+.duel-result-detail{font-size:.82rem;color:var(--muted)}
+.duel-note{margin:8px 0 0;font-size:.8rem;font-weight:700;text-align:center;color:var(--accent)}
+
+@media (max-width:360px){
+  .duel{padding:10px}
+  .duel-btn{flex:1 1 100%}
+  .duel-rival{grid-template-columns:32px minmax(0,1fr) auto}
+  .duel-avatar,.duel-avatar .avatar{width:32px;height:32px}
+}
+@media (prefers-reduced-motion:reduce){.duel-bar-fill{transition:none}}
+
+/* Entrada dos duelos no hub ("Desafiar amigo" / "Entrar com código"). */
+.duel-entry{margin:0 0 16px;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.duel-entry[hidden]{display:none}
+.duel-entry-title{margin:0 0 4px;font-size:1.05rem}
+.duel-entry .sub{margin:0 0 12px;font-size:.85rem;color:var(--muted)}
+.duel-entry-row{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-top:10px}
+.duel-entry-field{display:grid;gap:4px;flex:1 1 180px;min-width:0;font-size:.8rem;font-weight:700;color:var(--muted)}
+.duel-entry-field select,.duel-entry-field input{width:100%;max-width:100%;margin:0;padding:9px 10px;border:2px solid var(--line);border-radius:9px;background:var(--bg);color:var(--fg);font:inherit}
+.duel-entry-field input{text-transform:uppercase;letter-spacing:.1em}
+.duel-entry-row .duel-btn{flex:0 1 auto}
+@media (max-width:360px){.duel-entry-row .duel-btn{flex:1 1 100%}}

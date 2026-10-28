@@ -11,6 +11,7 @@ import { scopeTabs, renderLeaderboard } from "../shared/ranking-list.js";
 import { requireSession } from "../shared/session.js";
 import { GAMES } from "./games.js";
 import { LEVEL_NAMES, WINS_PER_LEVEL, Progress } from "../shared/progress.js";
+import { mountDuelEntry } from "../shared/duel-hub.js";
 
 const $ = id => document.getElementById(id);
 const user = requireSession("index.html");
@@ -111,5 +112,9 @@ if (user) {
   refreshOverall();
   if (Cloud.owns(user.id)) renderSkeleton();
   const ready = Cloud.owns(user.id) ? Cloud.dailyStatus().catch(() => {}) : Promise.resolve();
-  ready.then(() => { renderHub(); $("hub-title").focus({ preventScroll: true }); });
+  ready.then(() => {
+    mountDuelEntry($("duelEntry"), { games: GAMES, cloud: Cloud });   // só aparece com a nuvem ligada
+    renderHub();
+    $("hub-title").focus({ preventScroll: true });
+  });
 }

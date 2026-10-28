@@ -300,6 +300,14 @@ test("nenhum jogo atual declara DUEL (multiplayer é só para jogos novos)", () 
   assert.deepEqual(DUELS, {});
 });
 
+test("catálogo e domínios concordam sobre quais jogos são de duelo", () => {
+  /* O hub mostra a entrada de duelo pelo `duel` do catálogo; a Edge decide pelo `DUEL` do domínio.
+     Se os dois divergirem, o hub oferece um duelo que a Edge recusa (ou esconde um que funciona). */
+  for (const id of Object.keys(CATALOG)) {
+    assert.equal(Boolean(CATALOG[id].duel), Boolean(duelOf(id)), `${id}: catálogo e domínio divergem sobre DUEL`);
+  }
+});
+
 test("a Edge expõe as ações de duelo e valida o tabuleiro antes de finalizar", () => {
   const entry = read("supabase/functions/play/index.ts");
   const board = read("supabase/functions/play/_shared/board.js");
