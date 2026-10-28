@@ -38,6 +38,9 @@ Depois rode, também no SQL Editor, as demais migrações, **nesta ordem**:
 - `20261032000000_jogo_texttwist.sql`: registra o jogo **Text Twist** (`texttwist`) no catálogo (sem tabela nova).
 - `20261033000000_texttwist_trofeus.sql`: **troféus por palavras + tempo** do Text Twist: `daily_results` ganha `words` e `won`, `daily_finish` recebe `p_words`/`p_won`, e o pódio/média ordenam por **vitória → palavras → tempo**; rodada encerrada pelo tempo entra com `won = false` e não pontua.
 - `20261034000000_texttwist_inicio_rodada.sql`: o relógio do **Text Twist** no desafio diário só começa no **primeiro movimento**. `daily_runs` ganha `started`, a Edge ganha a ação `daily_start` e `daily_open` devolve `started`; abrir o cenário e sair não zera/registra mais uma derrota sem o jogador ter jogado.
+- `20261035000000_duels.sql`: **duelos 1×1** — tabelas `duels`/`duel_players` e funções `duel_create/join/ready/start/state/finish/settle/leave/cleanup/gen_code/is_duel_member`. Só jogos **novos** que declaram `DUEL` no domínio entram no modo.
+- `20261036000000_duels_ajustes.sql`: correções da revisão — `avatar` (não `avatar_url`), `created_by` anulável na exclusão de conta, regra `words`, ordem da limpeza, grants e campos completos do `duel_state`.
+- `20261037000000_duels_realtime_cron.sql`: canal **privado** `duel:<id>` no Realtime (policies em `realtime.messages` só para os dois jogadores) e job `duel_cleanup` a cada 5 minutos via `pg_cron`.
 
 Para conferir o que já está aplicado:
 
@@ -49,7 +52,10 @@ select
   to_regproc('public.daily_open')      as daily_open,
   to_regproc('public.daily_finish')    as daily_finish,
   to_regproc('public.set_coins_per_day') as set_coins_per_day,
-  to_regproc('public.admin_grant_coins') as admin_grant_coins;
+  to_regproc('public.admin_grant_coins') as admin_grant_coins,
+  to_regclass('public.duels')          as duels,
+  to_regproc('public.duel_create')     as duel_create,
+  to_regproc('public.duel_finish')     as duel_finish;
 ```
 
 O que der `null` ainda falta rodar (re-rodar é seguro: os arquivos são idempotentes). Com a CLI, `supabase db push` aplica todas na ordem.
@@ -189,6 +195,8 @@ on conflict do nothing;
 | `daily_scenarios` | cenário compartilhado e imutável por dia/jogo/nível/slot (`public_view` + `full_puzzle`) | só a Edge Function |
 | `daily_runs` | a tentativa aberta de um ticket (dia original, momento de início, dicas) | `daily_open`/`daily_hint` (Edge Function) |
 | `daily_results` | o **tempo** de cada conclusão, no **dia original** do ticket, por jogador/nível/slot | `daily_finish` (Edge Function) |
+| `duels` | sala 1×1: código, jogo, nível, seed secreta, puzzle público/completo, regra, status e vencedor | só funções (`duel_*` via Edge) |
+| `duel_players` | as duas vagas da sala: pronto, fim, tempo e palavras | só funções (`duel_*` via Edge) |
 | `runs` | a fase atual de cada jogo | o próprio dono |
 | `activity` | último jogo e fases abertas | só `record_play` |
 
@@ -200,18 +208,21 @@ A Edge pré-gera, em segundo plano, **todos os níveis e slots do dia** no prime
 
 Ações `daily_open`/`daily_hint`/`daily_finish` rodam na Edge (`Cloud.daily*`, outbox com `slot`). O cliente lê a situação com `daily_status()` (fila, tentativas abertas, histórico, `slots` e `maxCoins`) e usa `daily_hint` (sopa/cruzadas) quando o jogo tem dica. `daily_leaderboard(...)` continua existindo para consulta do tempo por dia, mas não aparece mais na interface. `delete_my_account()` (migração `20261017000000_delete_account.sql`) apaga a própria conta em `auth.users`; o `on delete cascade` leva embora todo o rastro do jogador.
 
+**Duelos 1×1** (migrações `20261035000000_duels.sql` a `20261037000000_duels_realtime_cron.sql`; Edge Function `play`). Só entram jogos **criados para o modo** e que declaram `DUEL = { rule, maxSeconds, progressOf }` no `domain.js`; nenhum jogo antigo é convertido. O criador abre a sala (`duel_create`, código de 6 caracteres), o amigo entra (`duel_join`), os dois marcam pronto (`duel_ready`) e o servidor fixa `starts_at` (contagem de ~4 s). O puzzle só sai em `duel_start`, depois da largada. Regras: `first` = quem termina primeiro vence; `words` = mais palavras vence, empate no menor tempo (`duel_settle`). O tabuleiro é validado pela Edge (`validateSnapshot`/`validatePartial` + `countWords`) antes de `duel_finish`; o vencedor é sempre decidido no Postgres, com `for update` serializando os dois envios. O Realtime é **só espelho visual**: canal privado `duel:<id>`, com policies em `realtime.messages` que liberam leitura/escrita apenas para os dois jogadores (`is_duel_member`), e o polling de `duel_state` cobre reconexão. Duelo **não** dá pontos, coins nem progressão, e não tem dicas. Salas `waiting` expiram em 15 min; o `pg_cron` roda `duel_cleanup` a cada 5 min como rede de segurança (a limpeza preguiçosa do `duel_state` continua valendo).
+
 **Site** (`shared/backend/`; a biblioteca do Supabase vem do próprio repositório, `vendor/supabase-js.mjs`, sem CDN):
 - `boot.js` é importado como **primeira linha de cada página**. Ele carrega os dados da conta de uma vez para um cache em memória; os jogos continuam lendo coins, fase e nível de forma síncrona, e as escritas vão para o servidor em segundo plano.
 - `cloud.js` concentra o acesso ao Supabase. Os serviços de `shared/` (`Coins`, `Run`, `Scores`, `Profile`, `GameSwitch`, `Progress`, `AdminLevel`) e `js/auth.js` escolhem sozinhos entre local e nuvem.
 - **A fase é servida pelo servidor**: o jogo chama `Cloud.open` (Edge Function `play`) e recebe o puzzle **sem a solução**, pronto para desenhar; ao concluir, manda o **tabuleiro** em `Scores.submit`/`Cloud.finish` e o servidor só pontua se ele bater com a seed guardada. No modo local nada disso acontece: o puzzle é gerado no navegador, como antes.
+- **Duelos**: `shared/duel-session.js` é a máquina de estados (sem DOM) e `shared/duel-ui.js` é o painel (lobby/código, contagem, barra do oponente e resultado); `shared/duel-hub.js` monta "Desafiar amigo"/"Entrar com código" no hub. O jogo de duelo só monta o tabuleiro no evento `start` (o puzzle chega depois da largada) e reporta progresso com `session.progress(DUEL.progressOf(puzzle, state))`. A vitória nunca é decidida no cliente.
 - **Vitórias** entram numa fila guardada no navegador (com o tabuleiro e um id único): sem internet, ficam esperando e são reenviadas depois **sem contar em dobro**. Se o servidor recusar por ritmo (`too_fast`), a vitória **continua na fila** e é reenviada mais tarde (uma de cada vez) — terminar várias fases offline não perde nenhuma. Se recusar por tabuleiro inválido, sai da fila.
 - **Falha ao carregar a conta**: o site avisa numa faixa vermelha e usa o armazenamento local, **sem gravar** na nuvem (para nunca sobrescrever o que está no servidor com dados vazios).
 
 **Regra para páginas e jogos novos**: importe `shared/backend/boot.js` primeiro, leia/grave vitórias por `Progress` (nunca direto no `localStorage`) e, no banco, cadastre o jogo em `games` e em `js/games.js` com a mesma id (`tests/supabase.test.js` confere).
 
 ## Testes
-- `npm test`: inclui `tests/supabase.test.js` (o SQL e o JS precisam concordar em níveis, pontos, coins, regiões e jogos; RLS ligado em toda tabela; o visitante e o cliente só têm as permissões mínimas), `tests/cloud.test.js` (modo nuvem com um cliente simulado: cache, fila, reenvio, modo degradado) e `tests/edge.test.js` (validação server-side de cada jogo + paridade das cópias dos domínios com `games/`).
-- `supabase test db` (CLI do Supabase, precisa de Docker): roda `supabase/tests/database/*.test.sql` (pgTAP) contra um banco local com a migração. Cobre RLS, permissões, cada função, idempotência, tetos de pontos, recarga de coins e ranking.
+- `npm test`: inclui `tests/supabase.test.js` (o SQL e o JS precisam concordar em níveis, pontos, coins, regiões e jogos; RLS ligado em toda tabela; o visitante e o cliente só têm as permissões mínimas), `tests/cloud.test.js` (modo nuvem com um cliente simulado: cache, fila, reenvio, modo degradado), `tests/edge.test.js` (validação server-side de cada jogo + paridade das cópias dos domínios com `games/`) e `tests/duel.test.js` (sessão, painel e entrada de duelos no hub; catálogo × `DUEL`).
+- `supabase test db` (CLI do Supabase, precisa de Docker): roda `supabase/tests/database/*.test.sql` (pgTAP) contra um banco local com a migração. Cobre RLS, permissões, cada função, idempotência, tetos de pontos, recarga de coins, ranking e o fluxo completo dos duelos (`02_duelos.test.sql`).
 
 ## Limites e próximos passos
 1. **Validação de jogada no servidor (todos os dez jogos).** A Edge Function `play` serve a fase (seed secreta + puzzle sem solução) e valida o tabuleiro antes de pontuar — ligada de ponta a ponta em **zip, patches, canos, sudoku, cruzadas, sopa, arrows, queens, tango e texttwist**. Cada UI chama `Cloud.open`, desenha a visão pública e, ao concluir, manda o tabuleiro via `Scores.submit(game, points, { state })` → `Cloud.finish`; a validação de cada jogo está em `supabase/functions/play/_shared/board.js` (com testes em `tests/edge.test.js`). A visão pública **não** entrega a solução em jogo nenhum: em `sopa` as palavras vão só com o texto (sem as células) e o servidor confere a seleção do jogador; em `cruzadas` cada casa de letra vira `cap` (quantas letras cabem) e cada resposta vira `len` (o tamanho), de modo que a UI desenha e fecha a grade sem nunca receber as letras — quem diz se está certa é o servidor, pelo `Cloud.finishNow`. Andamento parcial (letras/palavras achadas) **não** é retomado após recarregar a página no modo nuvem: a fase e as dicas voltam do snapshot, mas o preenchimento recomeça.

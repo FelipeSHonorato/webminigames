@@ -83,6 +83,23 @@ antigo, com `localStorage`:
 
 A `ui.js` **precisa dos dois caminhos**. O padrão é `const mode = isCloud ? "daily" : "random"`.
 
+### 2.5 Duelos 1×1 (só para jogos novos do modo)
+
+Duelo **não** é um modo que se liga em jogo existente: a decisão de produto é que só jogos criados para
+duelo declaram `DUEL` no domínio. O hub mostra "Desafiar amigo" quando `Cloud.active` e existe ao menos
+um jogo com `duel: true` no catálogo (`js/games.js`), e a Edge só cria sala quando `duelOf(game)` existe.
+
+Fluxo: o criador abre a sala (`duel_create`) e recebe um código de 6 caracteres; o amigo entra
+(`duel_join`); os dois marcam "pronto" (`duel_ready`) e o servidor fixa `starts_at` (~4 s). O puzzle só é
+entregue por `duel_start` **depois** de `starts_at`. A cada jogada a UI chama `session.progress(0..1)` e
+o oponente vê a barra pelo Realtime (canal privado `duel:<id>`); ao concluir, o jogo manda o tabuleiro em
+`session.finish(state)` e a Edge valida com o `domain.js` antes de o Postgres decidir. O polling de
+`duel_state` cobre reconexão e a decisão final.
+
+Regras: `first` = quem termina primeiro vence; `words` = mais palavras vence, empate no menor tempo. O
+duelo **não** dá pontos, coins nem progressão. Sem dicas. Salas `waiting` expiram em 15 min; o cron
+`duel_cleanup` (a cada 5 min) é a rede de segurança para salas abandonadas.
+
 ---
 
 ## 3. Contrato do `domain.js`
@@ -118,6 +135,25 @@ Regras de ouro:
    fase concluída ao recarregar. Ela **nunca** entra no `public_view`.
 4. **Estado enviado (`state`) pequeno e autoexplicativo:** no Canos é `{ rots: number[] }`; no Fubá das Setas,
    `{ order: number[] }`; no Sudoku, `{ grid: number[] }`. É o que a UI manda e a Edge revalida.
+
+### 3.1 Jogos de duelo: `DUEL`
+
+Além do contrato acima, um jogo criado **para** o duelo declara no `domain.js`:
+
+```js
+export const DUEL = {
+  rule: "first",                          // "first" | "words"
+  maxSeconds: 180,                        // 30..3600 (a Edge limita)
+  progressOf: (puzzle, state) => 0.42,    // 0..1; puro e barato (barra do oponente)
+};
+```
+
+- `rule: "first"` para quebra-cabeças de conclusão única; `"words"` para jogos de contagem (no timeout a
+  UI envia o estado parcial e a Edge conta as palavras).
+- `progressOf` é chamado pela UI a cada jogada; sem DOM, `Date.now()` ou `Math.random()`.
+- O catálogo (`js/games.js`) precisa do mesmo `duel: true`; `tests/edge.test.js` falha se o catálogo e o
+  domínio divergirem.
+- Não há dicas no duelo: `hasHints` não é consultado e a UI não mostra o botão.
 
 ---
 
@@ -394,6 +430,11 @@ export function validatePuzzle(game, p, data) { switch (game) {
 }};
 ```
 
+Os **duelos** não têm switch novo: `DUELS`/`duelOf(game)` são derivados de `GAMES[game].DUEL`. Ao criar a
+sala, a Edge usa `snapshot()` (puzzle completo + visão pública) e, ao finalizar, valida com
+`validateSnapshot()` (ou `validatePartial()` na regra `words`) e conta as palavras com `countWords()` antes
+de chamar `duel_finish`.
+
 Detalhes que mordem:
 
 - A visão pública é serializada em JSON: `Map` e `Set` viram `{}` — converta para array e reconstrua no
@@ -420,6 +461,12 @@ supabase functions deploy play
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...   # + DAILY_CRON_KEY para o cron
 ```
 
+Se o jogo for de **duelo**, as migrações `20261035000000_duels.sql` a
+`20261037000000_duels_realtime_cron.sql` precisam estar aplicadas, a Edge `play` publicada e o canal
+privado do Realtime habilitado (policies em `realtime.messages`, criadas pela última migração). O
+`pg_cron` roda `duel_cleanup` a cada 5 minutos; sem ele, a limpeza preguiçosa do `duel_state` ainda fecha
+as salas quando alguém consulta.
+
 ---
 
 ## 9. Testes
@@ -440,7 +487,10 @@ O que o `npm test` já cobre e você precisa manter verde:
 - catálogo SQL × `js/games.js` (id, título, ordem e `key`);
 - visão pública **sem** `"solution"` nem `"path"`;
 - validação server-side aceitando a solução e recusando tabuleiro inválido;
-- RLS e `search_path` em toda função `security definer` das migrações listadas.
+- RLS e `search_path` em toda função `security definer` das migrações listadas;
+- duelos: contrato `DUEL` × catálogo (`tests/edge.test.js`), sessão/UI/hub (`tests/duel.test.js`) e o fluxo
+  completo no banco (`supabase/tests/database/02_duelos.test.sql`: criar/entrar/pronto/largada, `first`,
+  `words`, empate por tempo, desistência, limpeza, não-membro e exclusão de conta).
 
 Teste novo do domínio (item 7 do checklist) deve, no mínimo: gerar cada um dos 4 níveis, provar que a
 solução fornecida é aceita pelo próprio validador e que uma alteração mínima é recusada.
