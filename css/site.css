@@ -53,10 +53,10 @@ input:focus,select:focus{border-color:var(--accent)}
 .user{display:flex;align-items:center;gap:10px;font-size:.9rem;color:var(--muted)}
 .user b{color:var(--fg)}
 .user .btn{width:auto;padding:8px 14px}
-.hub{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:24px;align-items:start;max-width:1180px;margin:0 auto;padding:32px 20px}
+.hub{display:grid;grid-template-columns:200px minmax(0,1fr) 340px;gap:24px;align-items:start;max-width:1320px;margin:0 auto;padding:32px 20px}
 .hub h2{font-size:1.7rem}
 .hub .sub{color:var(--muted);margin:6px 0 24px}
-.games{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.games{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
 a.game{text-decoration:none;color:inherit}
 .game{display:flex;flex-direction:column;gap:12px;text-align:left;padding:16px;background:var(--surface);border:2px solid var(--line);border-radius:16px}
 .game:hover{border-color:var(--accent)}
@@ -126,9 +126,14 @@ a.brand{color:inherit;text-decoration:none}
 .overall{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;padding:16px;background:var(--surface);border:2px solid var(--line);border-radius:16px}
 .hub .overall h2{font-size:1.1rem}
 .overall .sub{margin:4px 0 14px}
+/* Sem espaço para a lateral + jogos + ranking: o ranking desce para baixo da grade. */
+@media (max-width:1279px){
+  .hub{grid-template-columns:200px minmax(0,1fr)}
+  .overall{grid-column:1/-1;position:static;max-height:none;box-shadow:none}
+}
+/* No celular a lateral vira a faixa de chips do `css/hub-nav.css`. */
 @media (max-width:899px){
   .hub{grid-template-columns:1fr}
-  .overall{position:static;max-height:none;box-shadow:none}   /* em telas estreitas a janela desce para baixo dos jogos */
 }
 
 /* ---------- Jogos desligados e painel do administrador ---------- */

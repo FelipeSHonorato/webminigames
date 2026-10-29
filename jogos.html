@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="css/ranking-list.css">
 <link rel="stylesheet" href="css/coins.css">
 <link rel="stylesheet" href="css/duel.css">
+<link rel="stylesheet" href="css/hub-nav.css">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -32,10 +33,12 @@
     <div id="userbar"></div>
   </div>
   <div class="hub">
+    <nav class="hub-nav" id="hubNav" aria-label="Modos de jogo"></nav>
     <div class="hub-main">
     <h2 id="hub-title" tabindex="-1">Escolha um jogo</h2>
-    <p class="sub" id="hubSub"></p>
+    <p class="sub" id="hubSub" aria-live="polite"></p>
     <div id="duelEntry" hidden></div>
+    <p class="hub-empty" id="hubEmpty" hidden>Nenhum jogo de duelo por enquanto. O primeiro jogo criado para o 1×1 aparece aqui — com sala por código, largada sincronizada e vencedor decidido no servidor.</p>
     <div class="games" id="games"></div>
     </div>
     <aside class="overall" aria-labelledby="overall-title">

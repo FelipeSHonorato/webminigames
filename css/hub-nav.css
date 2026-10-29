@@ -1,0 +1,37 @@
+/* Menu lateral do hub (jogos.html): Todos / Solo / Duelos 1×1.
+   No desktop é uma coluna fixa ao lado dos jogos; abaixo de 900px vira uma faixa de chips
+   roláveis acima da grade, para não espremer os cards no celular. */
+
+.hub-nav{position:sticky;top:12px;display:grid;gap:14px;min-width:0;padding:14px;
+  background:var(--surface);border:2px solid var(--line);border-radius:16px}
+.hub-nav-title{margin:0;font-size:.68rem;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.hub-nav-list{display:grid;gap:4px}
+.hub-nav-item{display:grid;grid-template-columns:18px minmax(0,1fr) auto;align-items:center;gap:9px;width:100%;
+  padding:9px 10px;border:1px solid transparent;border-radius:10px;background:none;color:var(--fg);
+  font:inherit;font-size:.9rem;text-align:left;cursor:pointer}
+.hub-nav-item:hover{background:var(--bg)}
+.hub-nav-item[aria-current="true"]{border-color:var(--accent);background:var(--bg);color:var(--accent);font-weight:700}
+.hub-nav-item svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.hub-nav-count{min-width:24px;padding:1px 7px;border:1px solid var(--line);border-radius:999px;text-align:center;
+  font-size:.7rem;font-weight:800;color:var(--muted);font-variant-numeric:tabular-nums}
+.hub-nav-item[aria-current="true"] .hub-nav-count{border-color:currentColor;color:currentColor}
+.hub-nav-note{margin:0;padding:10px;border-radius:10px;background:var(--bg);color:var(--muted);font-size:.76rem;line-height:1.45}
+.hub-nav-note b{color:var(--fg)}
+
+/* Estado vazio do modo Duelos (nenhum jogo do modo no catálogo ainda). */
+.hub-empty{margin:0;padding:16px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);font-size:.9rem;line-height:1.5}
+
+/* Selo nos cards de duelo quando o modo é "Todos" (no modo Duelos todos já são do modo). */
+.badge-duel{padding:1px 7px;border:1px solid var(--accent);border-radius:999px;color:var(--accent);
+  font-size:.64rem;font-weight:800;letter-spacing:.05em;white-space:nowrap}
+.games[data-hub-mode="duel"] .badge-duel{display:none}
+
+@media (max-width:899px){
+  .hub-nav{position:static;display:block;padding:9px;overflow:hidden}
+  .hub-nav-title,.hub-nav-note{display:none}
+  .hub-nav-list{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+  .hub-nav-list::-webkit-scrollbar{display:none}
+  .hub-nav-item{flex:0 0 auto;width:auto;grid-template-columns:auto auto;gap:5px;padding:7px 11px;
+    border:1px solid var(--line);border-radius:999px;font-size:.82rem;white-space:nowrap}
+  .hub-nav-count{display:none}
+}

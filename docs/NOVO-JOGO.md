@@ -86,8 +86,11 @@ A `ui.js` **precisa dos dois caminhos**. O padrão é `const mode = isCloud ? "d
 ### 2.5 Duelos 1×1 (só para jogos novos do modo)
 
 Duelo **não** é um modo que se liga em jogo existente: a decisão de produto é que só jogos criados para
-duelo declaram `DUEL` no domínio. O hub mostra "Desafiar amigo" quando `Cloud.active` e existe ao menos
-um jogo com `duel: true` no catálogo (`js/games.js`), e a Edge só cria sala quando `duelOf(game)` existe.
+duelo declaram `DUEL` no domínio. O hub (`jogos.html`) tem a lateral **Todos / Solo / Duelos 1×1**
+(`shared/hub-nav.js` + `css/hub-nav.css`): o contador de "Duelos 1×1" vem dos jogos com `duel: true` no
+catálogo (`js/games.js`), o card ganha o selo `1×1` no modo Todos e a entrada "Desafiar amigo" só aparece
+no modo Duelos — com `Cloud.active` e ao menos um jogo do modo. A Edge só cria sala quando `duelOf(game)`
+existe.
 
 Fluxo: o criador abre a sala (`duel_create`) e recebe um código de 6 caracteres; o amigo entra
 (`duel_join`); os dois marcam "pronto" (`duel_ready`) e o servidor fixa `starts_at` (~4 s). O puzzle só é
@@ -401,7 +404,7 @@ on conflict (id) do update set title = excluded.title, sort = excluded.sort;
 | 8 | `tests/supabase.test.js` | `migrationNames` (varreduras de RLS/`search_path`) |
 | 9 | `README.md` | descrição do jogo na lista e na tabela de estrutura |
 | 10 | `docs/CONTINUAR.md` | regras, decisões e sutilezas (é o que a próxima IA lê primeiro) |
-| 11 | `jogos.html` + CSS do hub | o grid é `auto-fit, minmax(220px, 1fr)` (3 colunas em telas largas): um jogo novo muda o número de linhas — conferir no navegador |
+| 11 | `jogos.html` + CSS do hub | o grid é `auto-fit, minmax(200px, 1fr)` (3 colunas em telas largas, ao lado da lateral de modos): um jogo novo muda o número de linhas — conferir no navegador |
 
 `js/hub.js`, `js/perfil.js`, `js/admin.js` e `js/landing.js` **já iteram `GAMES`** e não precisam de código
 novo — mas entram no teste visual (card, painel do admin, lista do perfil, landing).
