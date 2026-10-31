@@ -317,6 +317,22 @@ test("catálogo e domínios concordam sobre quais jogos são de duelo", () => {
   }
 });
 
+test("o roteador da Edge leva TODA ação de duelo (duel_* e chess_*) até o handleDuel", () => {
+  /* Regressão: chess_create/chess_state/chess_move/... não começam com "duel_" e voltavam `unknown_game`. */
+  const entry = read("supabase/functions/play/index.ts");
+  const set = entry.match(/const DUEL_ACTIONS = new Set\(\[([\s\S]*?)\]\)/)?.[1];
+  assert.ok(set, "DUEL_ACTIONS não encontrado");
+  const actions = [...set.matchAll(/"([a-z_]+)"/g)].map(m => m[1]);
+  assert.ok(actions.includes("chess_create") && actions.includes("duel_list"));
+
+  const route = entry.match(/if \(typeof action === "string" && \(([^\n]*?)\)\) \{\s*return await handleDuel/)?.[1];
+  assert.ok(route, "roteamento para handleDuel não encontrado");
+  const prefixes = [...route.matchAll(/action\.startsWith\("([a-z_]+)"\)/g)].map(m => m[1]);
+  for (const a of actions) {
+    assert.ok(prefixes.some(p => a.startsWith(p)), `${a} nunca chegaria ao handleDuel (prefixos roteados: ${prefixes.join(", ")})`);
+  }
+});
+
 test("a Edge expõe as ações de duelo e valida o tabuleiro antes de finalizar", () => {
   const entry = read("supabase/functions/play/index.ts");
   const board = read("supabase/functions/play/_shared/board.js");

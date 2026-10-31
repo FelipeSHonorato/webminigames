@@ -301,7 +301,8 @@ Deno.serve(async (req) => {
       return json({ day, slots, games: GAME_IDS.size, scenarios });
     }
 
-    if (typeof action === "string" && action.startsWith("duel_")) {
+    /* As ações do xadrez começam com `chess_`: sem isto elas caíam na checagem de jogo solo e voltavam `unknown_game`. */
+    if (typeof action === "string" && (action.startsWith("duel_") || action.startsWith("chess_"))) {
       return await handleDuel(svc, uid, action, body);
     }
 

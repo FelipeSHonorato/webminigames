@@ -46,7 +46,15 @@ const ONLINE_MESSAGES = {
   stale: "O tabuleiro mudou. Atualizando…",
   not_started: "A partida ainda não começou.",
 };
-const onlineMessage = e => ONLINE_MESSAGES[e?.code] ?? "Não foi possível continuar agora. Tente de novo.";
+/* Erro conhecido: mensagem própria. Desconhecido: a genérica + o motivo técnico (curto) e o erro completo no console,
+   para dar para descobrir o que o servidor respondeu em vez de um aviso mudo. */
+const onlineMessage = e => {
+  const known = ONLINE_MESSAGES[e?.code];
+  if (known) return known;
+  console.warn("[WebMiniGames] erro online:", { code: e?.code, status: e?.status, error: e });
+  const reason = String(e?.code ?? e?.message ?? "").trim().slice(0, 80);
+  return "Não foi possível continuar agora. Tente de novo." + (reason ? ` (${e?.status ? `${e.status}: ` : ""}${reason})` : "");
+};
 
 const $ = id => document.getElementById(id);
 const els = {
