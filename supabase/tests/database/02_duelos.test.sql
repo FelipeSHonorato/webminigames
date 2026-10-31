@@ -273,5 +273,71 @@ select is((select count(*) from public.duel_players
             where duel_id = (select v from public.duel_tap_ids where k = 'lgpd')), 0::bigint,
   'a vaga do jogador excluído sai junto');
 
+-- ---------- 7. lista de salas abertas (página "Salas Online") ----------
+insert into auth.users (id, email, raw_user_meta_data) values
+  ('d1000000-0000-4000-8000-000000000004', 'duel-dani@teste.com', '{"name":"Dani"}');
+update public.profiles set nickname = 'Dani' where id = 'd1000000-0000-4000-8000-000000000004';
+
+insert into public.duel_tap
+values ('open_create', public.duel_create('d1000000-0000-4000-8000-000000000004', 'zip', 1, 77, 1,
+  '{"cells":[]}'::jsonb, '{"solution":[]}'::jsonb, 'first', 120));
+insert into public.duel_tap_ids select 'open1', id from public.duels where created_by = 'd1000000-0000-4000-8000-000000000004' order by created_at limit 1;
+
+select is((select count(*) from jsonb_array_elements(public.duel_open_rooms('d1000000-0000-4000-8000-000000000001', 30)) r
+            where r->>'id' = (select v::text from public.duel_tap_ids where k = 'open1')), 1::bigint,
+  'a sala esperando desafiante aparece na lista dos outros jogadores');
+select is((select r->'host'->>'nickname' from jsonb_array_elements(public.duel_open_rooms('d1000000-0000-4000-8000-000000000001', 30)) r
+            where r->>'id' = (select v::text from public.duel_tap_ids where k = 'open1')), 'Dani',
+  'a lista mostra quem criou a sala');
+select is((select (r->>'mine')::boolean from jsonb_array_elements(public.duel_open_rooms('d1000000-0000-4000-8000-000000000001', 30)) r
+            where r->>'id' = (select v::text from public.duel_tap_ids where k = 'open1')), false,
+  'para os outros a sala não é "minha"');
+select is((select (r->>'mine')::boolean from jsonb_array_elements(public.duel_open_rooms('d1000000-0000-4000-8000-000000000004', 30)) r
+            where r->>'id' = (select v::text from public.duel_tap_ids where k = 'open1')), true,
+  'para quem criou, a sala é "minha"');
+select ok(position((select code from public.duels where id = (select v from public.duel_tap_ids where k = 'open1'))
+                   in public.duel_open_rooms('d1000000-0000-4000-8000-000000000001', 30)::text) = 0,
+  'a lista não vaza o código do convite');
+select ok(public.duel_open_rooms('d1000000-0000-4000-8000-000000000001', 30)::text !~ '"(code|seed|gen|public_view|full_puzzle)"',
+  'a lista não vaza código, seed nem puzzle');
+
+-- com 2 jogadores a sala deixa de esperar desafiante
+insert into public.duel_tap
+values ('open_join', public.duel_join('d1000000-0000-4000-8000-000000000002', (select code from public.duels where id = (select v from public.duel_tap_ids where k = 'open1'))));
+select is((select count(*) from jsonb_array_elements(public.duel_open_rooms('d1000000-0000-4000-8000-000000000001', 30)) r
+            where r->>'id' = (select v::text from public.duel_tap_ids where k = 'open1')), 0::bigint,
+  'sala com o desafiante dentro sai da lista');
+
+-- expirada sai da lista
+insert into public.duel_tap
+values ('open_create2', public.duel_create('d1000000-0000-4000-8000-000000000004', 'zip', 1, 78, 1,
+  '{"cells":[]}'::jsonb, '{"solution":[]}'::jsonb, 'first', 120));
+insert into public.duel_tap_ids select 'open2', id from public.duels where created_by = 'd1000000-0000-4000-8000-000000000004' and id <> (select v from public.duel_tap_ids where k = 'open1') order by created_at limit 1;
+select is((select count(*) from jsonb_array_elements(public.duel_open_rooms('d1000000-0000-4000-8000-000000000001', 30)) r
+            where r->>'id' = (select v::text from public.duel_tap_ids where k = 'open2')), 1::bigint,
+  'a segunda sala aparece');
+update public.duels set expires_at = now() - interval '1 second' where id = (select v from public.duel_tap_ids where k = 'open2');
+select is((select count(*) from jsonb_array_elements(public.duel_open_rooms('d1000000-0000-4000-8000-000000000001', 30)) r
+            where r->>'id' = (select v::text from public.duel_tap_ids where k = 'open2')), 0::bigint,
+  'sala expirada sai da lista mesmo antes da limpeza');
+
+-- cancelada sai da lista
+insert into public.duel_tap
+values ('open_create3', public.duel_create('d1000000-0000-4000-8000-000000000004', 'zip', 1, 79, 1,
+  '{"cells":[]}'::jsonb, '{"solution":[]}'::jsonb, 'first', 120));
+insert into public.duel_tap_ids select 'open3', id from public.duels where created_by = 'd1000000-0000-4000-8000-000000000004'
+  and id not in (select v from public.duel_tap_ids where k in ('open1', 'open2')) order by created_at limit 1;
+insert into public.duel_tap values ('open_leave', public.duel_leave('d1000000-0000-4000-8000-000000000004', (select v from public.duel_tap_ids where k = 'open3')));
+select is((select count(*) from jsonb_array_elements(public.duel_open_rooms('d1000000-0000-4000-8000-000000000001', 30)) r
+            where r->>'id' = (select v::text from public.duel_tap_ids where k = 'open3')), 0::bigint,
+  'sala cancelada sai da lista');
+
+select throws_ok($$select public.duel_open_rooms(null, 30)$$, '28000', 'not_authenticated',
+  'a lista exige usuário (a Edge injeta o uid)');
+select ok(not has_function_privilege('authenticated', 'public.duel_open_rooms(uuid, int)', 'execute')
+      and not has_function_privilege('anon', 'public.duel_open_rooms(uuid, int)', 'execute')
+      and has_function_privilege('service_role', 'public.duel_open_rooms(uuid, int)', 'execute'),
+  'só a Edge (service_role) executa duel_open_rooms');
+
 select * from finish();
 rollback;

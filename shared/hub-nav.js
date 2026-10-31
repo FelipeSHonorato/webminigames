@@ -46,6 +46,19 @@ export function hashFor(mode) {
   return "";
 }
 
+/** Painéis do ranking lateral: fora dos duelos é sempre o "Ranking Geral - Solo";
+    no modo Duelos há um painel por jogo (o hub.js alterna em carrossel). */
+export function rankingPanels(games = {}, mode = DEFAULT_MODE) {
+  if (mode !== "duel") {
+    return [{ gameId: null, title: "Ranking Geral - Solo", sub: "Soma da pontuação de todos os jogos." }];
+  }
+  return filterGames(games, "duel").map(([id, game]) => ({
+    gameId: id,
+    title: `Ranking Geral ${game.title}`,
+    sub: id === "chess" ? "Sistema Elo · vitórias e derrotas ajustam o rating." : "Ranking do duelo 1×1.",
+  }));
+}
+
 /** Título e subtítulo da seção, trocados ao filtrar. */
 export function modeText(mode) {
   if (mode === "solo") {
@@ -57,7 +70,7 @@ export function modeText(mode) {
   if (mode === "duel") {
     return {
       title: "Duelos 1×1",
-      sub: "Mesmo cenário e mesma largada. Quem terminar primeiro vence — sem dicas e sem pontos.",
+      sub: "Jogos com duelos jogador x jogador. Jogue com um adversário valendo pontuação no ranking ou somente por diversão.",
     };
   }
   return {

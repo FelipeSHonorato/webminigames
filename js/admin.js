@@ -54,8 +54,14 @@ function renderSummary() {
 /** Linha "Nível para testar": o administrador escolhe o nível do jogo sem precisar jogar até ele. */
 function levelRow(id, g) {
   const row = document.createElement("div"), label = document.createElement("span"), group = document.createElement("div");
+  row.className = "lvlrow"; label.className = "lvllabel";
+  if (!g.key) {                                   // jogo só de duelo (xadrez): não tem nível solo
+    label.textContent = "Jogo só de duelo 1×1 — sem nível.";
+    row.append(label);
+    return row;
+  }
   const current = AdminLevel.get(session, g.key);
-  row.className = "lvlrow"; label.className = "lvllabel"; label.textContent = "Nível para testar:";
+  label.textContent = "Nível para testar:";
   group.className = "lvls"; group.setAttribute("role", "group"); group.setAttribute("aria-label", `Nível do ${g.title} para o administrador`);
   AdminLevel.levels.forEach((levelName, i) => {
     const b = document.createElement("button");
@@ -96,7 +102,7 @@ function wireConfig() {
 function renderGrant() {
   const sel = $("grantGame");
   sel.replaceChildren(new Option("Todos os jogos", ""));
-  for (const [id, g] of Object.entries(GAMES)) sel.append(new Option(g.title, id));
+  for (const [id, g] of Object.entries(GAMES)) if (g.key) sel.append(new Option(g.title, id));   // xadrez não usa coins
   $("grantMsg").textContent = "";
 }
 function wireGrant() {

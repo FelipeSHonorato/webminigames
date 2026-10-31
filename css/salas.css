@@ -1,0 +1,36 @@
+/* Salas Online (salas-online.html): lista das salas que esperam um desafiante.
+   A moldura (topbar, lateral de filtro, ranking) é a mesma do hub: site.css + hub-nav.css. */
+
+.rooms-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 12px}
+.hub .sub + .rooms-bar{margin-top:-8px}
+.rooms-status{min-width:0;font-size:.8rem;color:var(--muted)}
+.rooms-refresh{flex:none;height:34px;padding:0 14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);
+  color:var(--fg);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer}
+.rooms-refresh:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.rooms-refresh:disabled{opacity:.55;cursor:default}
+
+.rooms{display:grid;gap:10px;margin:0;padding:0;list-style:none}
+.room{display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:6px 14px;min-width:0;
+  padding:12px 16px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.room.mine{border-color:var(--accent)}
+.room-avatar{display:grid;place-items:center;width:44px;height:44px}
+.room-avatar .avatar{width:44px;height:44px;border-radius:50%}
+.room-body{display:grid;gap:3px;min-width:0}
+.room-title{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;margin:0;font-size:1rem;font-weight:800}
+.room-meta{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.82rem;color:var(--muted)}
+.room-badge{padding:1px 8px;border:1px solid var(--accent);border-radius:999px;color:var(--accent);
+  font-size:.64rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
+.room-state{padding:4px 10px;border-radius:999px;background:var(--bg);color:var(--muted);font-size:.72rem;font-weight:800;white-space:nowrap}
+
+/* Carregando: três linhas fantasma, no mesmo tamanho das salas. */
+.room.skeleton{min-height:68px;background:linear-gradient(90deg,var(--surface),var(--bg),var(--surface));background-size:200% 100%;
+  animation:rooms-shimmer 1.4s linear infinite}
+@keyframes rooms-shimmer{to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.room.skeleton{animation:none}}
+
+.hub-empty a{color:var(--accent);font-weight:700}
+
+@media (max-width:560px){
+  .room{grid-template-columns:44px minmax(0,1fr)}
+  .room-state{grid-column:1/-1;justify-self:start}
+}

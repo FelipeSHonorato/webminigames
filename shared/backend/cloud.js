@@ -344,6 +344,9 @@ export const Cloud = {
   duelTopic: duel => `duel:${duel}`,
   /** Cria a sala (código de convite). Devolve { id, code, rule, maxSeconds, level, gameId }. */
   duelCreate(game, level = 0) { return invoke("duel_create", { game, level }); },
+  /** Salas abertas esperando um desafiante (todos os jogos de duelo), da mais nova para a mais antiga.
+      Devolve `{ rooms: [{ id, gameId, kind, rule, level, maxSeconds, createdAt, expiresAt, mine, host }] }`. */
+  duelRooms() { return invoke("duel_list", {}); },
   /** Entra pelo código do convite. Devolve a sala com os jogadores e o oponente. */
   duelJoin(code) { return invoke("duel_join", { code }); },
   /** Marca "pronto"; quando os dois marcam, o servidor fixa `starts_at` (contagem regressiva). */
@@ -358,6 +361,14 @@ export const Cloud = {
   async duelFinish(duel, state, op = crypto.randomUUID()) {
     return { ok: await invoke("duel_finish", { duel, state, op }) };
   },
+
+  /* ----- xadrez 1×1 (duelo por turnos) -----
+     O cliente manda só o lance; a Edge valida com o domínio e o Postgres confere vez/relógio/versão. */
+  chessCreate(minutes, color) { return invoke("chess_create", { minutes, color }); },
+  chessStart(duel) { return invoke("chess_start", { duel }); },
+  chessState(duel) { return invoke("chess_state", { duel }); },
+  chessMove(duel, move) { return invoke("chess_move", { duel, move }); },
+  chessResign(duel) { return invoke("chess_resign", { duel }); },
   /** Canal Realtime do duelo (só espelho). Devolve `null` quando a nuvem está desligada/degradada.
       `options` repassa a configuração do SDK (o duelo usa `{ config: { private: true } }`). */
   channel(topic, options) {
@@ -415,6 +426,13 @@ export const Cloud = {
     if (!S.client || S.degraded) return { top: [], me: null, total: 0 };
     const { data, error } = await S.client.rpc("ranking", { p_game: gameId ?? null, p_scope: scope, p_limit: limit });
     if (error) { console.warn("[WebMiniGames] ranking indisponível:", error.message); return { top: [], me: null, total: 0 }; }
+    return data;
+  },
+  /** Ranking de UM jogo de duelo 1×1 (Elo no xadrez). A função devolve `points` = rating. */
+  async duelRanking(gameId, scope = "global", limit = 10) {
+    if (!S.client || S.degraded) return { top: [], me: null, total: 0 };
+    const { data, error } = await S.client.rpc("duel_ranking", { p_game: gameId, p_scope: scope, p_limit: limit });
+    if (error) { console.warn("[WebMiniGames] ranking do duelo indisponível:", error.message); return { top: [], me: null, total: 0 }; }
     return data;
   },
 

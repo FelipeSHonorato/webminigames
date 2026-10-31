@@ -210,7 +210,7 @@ test("sessão de duelo: usa 2,5 s de polling por padrão", () => {
 test("hub de duelos: só jogos marcados como duelo aparecem", () => {
   const games = { a: { path: "games/a/" }, b: { path: "games/b/", duel: true } };
   assert.deepEqual(duelGames(games).map(([id]) => id), ["b"]);
-  assert.deepEqual(duelGames(CATALOG), [], "nenhum jogo atual é de duelo: multiplayer só para jogos novos");
+  assert.deepEqual(duelGames(CATALOG).map(([id]) => id), ["chess"], "só o xadrez é jogo de duelo por enquanto");
 });
 
 test("hub de duelos: código do convite é normalizado e validado", () => {

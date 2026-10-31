@@ -18,6 +18,15 @@
 .hub-nav-note{margin:0;padding:10px;border-radius:10px;background:var(--bg);color:var(--muted);font-size:.76rem;line-height:1.45}
 .hub-nav-note b{color:var(--fg)}
 
+/* Botões logo abaixo de "Duelos 1×1": "Criar Sala" (abre o pop-up) e "Salas Online" (página). */
+.hub-nav-sub{display:flex;gap:6px;min-width:0;margin:2px 0 6px}
+.hub-nav-sub-btn{flex:1 1 0;min-width:0;display:inline-flex;align-items:center;justify-content:center;padding:7px 3px;
+  border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit;font-size:.72rem;
+  font-weight:700;line-height:1.2;text-decoration:none;white-space:nowrap;cursor:pointer}
+.hub-nav-sub-btn:hover{border-color:var(--accent);color:var(--accent)}
+.hub-nav-sub-btn.primary{border-color:var(--accent);background:var(--accent);color:var(--accent-fg)}
+.hub-nav-sub-btn.primary:hover{color:var(--accent-fg);filter:brightness(1.08)}
+
 /* Estado vazio do modo Duelos (nenhum jogo do modo no catálogo ainda). */
 .hub-empty{margin:0;padding:16px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);font-size:.9rem;line-height:1.5}
 
@@ -25,6 +34,9 @@
 .badge-duel{padding:1px 7px;border:1px solid var(--accent);border-radius:999px;color:var(--accent);
   font-size:.64rem;font-weight:800;letter-spacing:.05em;white-space:nowrap}
 .games[data-hub-mode="duel"] .badge-duel{display:none}
+/* Selo dos jogos solo, ao lado do "Jogar". */
+.badge-solo{padding:1px 7px;border:1px solid var(--line);border-radius:999px;color:var(--muted);
+  font-size:.64rem;font-weight:800;letter-spacing:.05em;white-space:nowrap}
 
 @media (max-width:899px){
   .hub-nav{position:static;display:block;padding:9px;overflow:hidden}
@@ -34,4 +46,7 @@
   .hub-nav-item{flex:0 0 auto;width:auto;grid-template-columns:auto auto;gap:5px;padding:7px 11px;
     border:1px solid var(--line);border-radius:999px;font-size:.82rem;white-space:nowrap}
   .hub-nav-count{display:none}
+  /* No celular a lateral é uma faixa de chips: os dois botões entram na mesma fileira, logo após "Duelos 1×1". */
+  .hub-nav-sub{display:contents}
+  .hub-nav-sub-btn{flex:0 0 auto;padding:7px 11px;border-radius:999px;font-size:.82rem}
 }

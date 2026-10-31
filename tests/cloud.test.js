@@ -252,6 +252,20 @@ test("ranking vem do servidor (função ranking), com escopo e limite; erro vira
   assert.deepEqual(await Scores.leaderboard("zip"), { top: [], me: null, total: 0 });
 });
 
+test("ranking dos duelos vem do servidor (função duel_ranking) e usa o rating como pontos", async () => {
+  const data = { top: [{ id: UID, name: "Ana", points: 1523, rating: 1523, rank: 1, isMe: true }], me: null, total: 1 };
+  const c = await boot({ rpc: { duel_ranking: () => ({ data, error: null }) } });
+  assert.deepEqual(await Scores.duelLeaderboard("chess", { scope: "global", limit: 5 }), data);
+  assert.deepEqual(c.calls.find(x => x[1] === "duel_ranking")[2], { p_game: "chess", p_scope: "global", p_limit: 5 });
+  await boot({ rpc: { duel_ranking: () => ({ data: null, error: { message: "x" } }) } });
+  assert.deepEqual(await Cloud.duelRanking("chess", "region", 10), { top: [], me: null, total: 0 });
+});
+
+test("sem nuvem não há ranking de duelo (duelo exige conta)", async () => {
+  Cloud._reset();
+  assert.deepEqual(await Scores.duelLeaderboard("chess"), { top: [], me: null, total: 0 });
+});
+
 test("administrador: nível e liga/desliga passam pelo servidor; recusa vira mensagem", async () => {
   const admin = { ...SNAP, profile: { ...SNAP.profile, role: "admin" } };
   const c = await boot({ snapshot: admin, rpc: {
@@ -331,6 +345,25 @@ test("duelos: cada ação chama a Edge com os campos certos", async () => {
     { action: "duel_start", duel: "d1" },
     { action: "duel_state", duel: "d1" },
     { action: "duel_leave", duel: "d1" },
+  ]);
+});
+
+test("xadrez online: cada ação chama a Edge com os campos certos", async () => {
+  const c = await boot({ functions: { invoke: (name, body) => ({ data: { action: body.action }, error: null }) } });
+
+  await Cloud.chessCreate(10, "b");
+  await Cloud.chessStart("d1");
+  await Cloud.chessState("d1");
+  await Cloud.chessMove("d1", "e2e4");
+  await Cloud.chessResign("d1");
+
+  const bodies = c.calls.filter(x => x[0] === "invoke").map(x => x[2]);
+  assert.deepEqual(bodies, [
+    { action: "chess_create", minutes: 10, color: "b" },
+    { action: "chess_start", duel: "d1" },
+    { action: "chess_state", duel: "d1" },
+    { action: "chess_move", duel: "d1", move: "e2e4" },
+    { action: "chess_resign", duel: "d1" },
   ]);
 });
 

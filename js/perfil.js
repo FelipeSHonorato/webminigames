@@ -35,12 +35,14 @@ function renderGames() {
     const li = document.createElement("li"), link = document.createElement("a");
     link.className = "t"; link.href = g.path; link.textContent = g.title + (GameSwitch.isOn(id) ? "" : " (desligado)");   // pontos continuam aqui mesmo com o jogo desligado
     const pts = document.createElement("span");
-    pts.className = "pts"; pts.textContent = `${mine[id]?.points ?? 0} pts`;
+    pts.className = "pts"; pts.textContent = g.key ? `${mine[id]?.points ?? 0} pts` : "1×1";
     const meta = document.createElement("span"), last = activity[id]?.lastPlayedAt;
     meta.className = "meta";
-    meta.textContent = last
-      ? `Último jogo: ${new Date(last).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} · ${mine[id]?.wins ?? 0} vitórias`
-      : "Ainda não jogou";
+    meta.textContent = !g.key
+      ? "Duelo por código, sem pontos nem níveis"
+      : last
+        ? `Último jogo: ${new Date(last).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })} · ${mine[id]?.wins ?? 0} vitórias`
+        : "Ainda não jogou";
     li.append(link, pts, meta);
     list.append(li);
   }

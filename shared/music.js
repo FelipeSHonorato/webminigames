@@ -66,6 +66,11 @@ const MOODS = {
     chords: [[0, 4, 7, 11], [-3, 0, 4, 7], [-7, -3, 0, 4], [-5, -1, 2, 5]],
     melody: 0.18, kick: 0.05, hat: 0.07, swing: 0.08,
   },
+  chess: {
+    bpm: 58, root: 45, scale: [0, 2, 3, 5, 7, 8, 10], pad: "sine", lead: "triangle",
+    chords: [[0, 3, 7, 10], [-2, 2, 5, 9], [-4, 0, 3, 7], [-5, -1, 2, 5]],
+    melody: 0.11, kick: 0.03, hat: 0.035, swing: 0.18,
+  },
 };
 
 let ctx = null, master = null, bus = null, noise = null, timer = null, bar = 0, nextBar = 0;

@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql"];
+const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql"];
 const migration = f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
 const migrations = migrationNames.map(migration);
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
@@ -39,9 +39,21 @@ test("SQL: as regiões aceitas (tabela e gatilho de cadastro) são as de shared/
 });
 
 test("SQL: os jogos cadastrados são os de js/games.js, na mesma ordem e com o mesmo título", () => {
-  const rows = [...sql.matchAll(/\('([a-z]+)', '([^']+)', (\d+)\)/g)].map(m => [m[1], m[2], Number(m[3])]);
+  /* Os jogos novos entram por migrações próprias; por isso a lista é lida de TODOS os inserts em public.games.
+     Migrações antigas repetem o insert com `on conflict` para atualizar título/ordem — a primeira posição manda. */
+  const rows = [];
+  for (const block of sqlAll.matchAll(/insert into public\.games \(id, title, sort\) values([\s\S]*?);/g)) {
+    for (const m of block[1].matchAll(/\('([a-z]+)', '([^']+)', (\d+)\)/g)) {
+      const row = [m[1], m[2], Number(m[3])];
+      const at = rows.findIndex(r => r[0] === row[0]);
+      if (at >= 0) rows[at] = row; else rows.push(row);
+    }
+  }
   assert.deepEqual(rows, Object.entries(GAMES).map(([id, g], i) => [id, g.title, i + 1]));
-  for (const [id, g] of Object.entries(GAMES)) assert.equal(g.key, `${id}.wins`, `${id}: a chave de vitórias vira o id do jogo`);
+  for (const [id, g] of Object.entries(GAMES)) {
+    if (g.key) assert.equal(g.key, `${id}.wins`, `${id}: a chave de vitórias vira o id do jogo`);
+    else assert.equal(g.duel, true, `${id}: jogo sem chave precisa ser só de duelo`);
+  }
 });
 
 test("SQL: RLS ligado em toda tabela do esquema public", () => {
@@ -58,8 +70,8 @@ test("SQL: funções security definer fixam o search_path (sem sequestro por esq
 
 test("SQL: o visitante (anon) só recebe a lista de jogos e o ranking; o papel (role) não é editável pelo cliente", () => {
   const toAnon = [...sqlAll.matchAll(/^grant [^;]* to ([^;]*anon[^;]*);/gm)].map(m => m[0]);
-  assert.equal(toAnon.length, 4, toAnon.join("\n"));   // o grant antigo do daily_leaderboard fica no histórico; a função antiga é dropada
-  assert.ok(toAnon.some(g => /select on public\.games/.test(g)) && toAnon.some(g => /function public\.ranking/.test(g)) && toAnon.some(g => /function public\.daily_leaderboard\(text, int, text, int, date\)/.test(g)));
+  assert.equal(toAnon.length, 5, toAnon.join("\n"));   // o grant antigo do daily_leaderboard fica no histórico; a função antiga é dropada
+  assert.ok(toAnon.some(g => /select on public\.games/.test(g)) && toAnon.some(g => /function public\.ranking/.test(g)) && toAnon.some(g => /function public\.daily_leaderboard\(text, int, text, int, date\)/.test(g)) && toAnon.some(g => /function public\.duel_ranking\(text, text, int\)/.test(g)));
   const upd = sql.match(/grant update \(([^)]*)\) on public\.profiles/)[1];
   assert.ok(!/\brole\b/.test(upd) && !/\bid\b/.test(upd), `colunas editáveis: ${upd}`);
 });
@@ -119,7 +131,8 @@ test("SQL: duelos 1x1 — tabelas, funções, RLS e grants", () => {
     "duel_settle\\(uuid\\)",
     "duel_leave\\(uuid, uuid\\)",
     "duel_cleanup\\(\\)",
-    "duel_gen_code\\(\\)"
+    "duel_gen_code\\(\\)",
+    "duel_open_rooms\\(uuid, int\\)"
   ]) {
     assert.match(sqlAll, new RegExp(`revoke all on function public\\.${f}\\s+from public, anon, authenticated`), `${f} acessivel ao cliente`);
     assert.match(sqlAll, new RegExp(`grant execute on function public\\.${f}\\s+to service_role`), `${f} deveria ser da Edge`);
@@ -135,6 +148,80 @@ test("SQL: duelos 1x1 — tabelas, funções, RLS e grants", () => {
   assert.match(sqlAll, /duel_settle[\s\S]*for update/);
   assert.match(sqlAll, /rule in \('first'\s*,\s*'words'\)/);
   assert.match(sqlAll, /status in \('waiting'\s*,\s*'running'\s*,\s*'finished'\s*,\s*'cancelled'\)/);
+});
+
+test("SQL: lista de salas abertas — só a Edge executa e nada de código, seed ou puzzle no resultado", () => {
+  const roomsSql = migration("20261040000000_duel_open_rooms.sql");
+  const code = roomsSql.replace(/--.*$/gm, "");   // sem os comentários
+  assert.match(code, /create or replace function public\.duel_open_rooms\(p_uid uuid, p_limit int default 30\)/);
+  assert.match(code, /security definer set search_path = public/);
+  assert.match(code, /d\.status = 'waiting'/, "só salas esperando");
+  assert.match(code, /d\.expires_at > now\(\)/, "salas expiradas não entram");
+  assert.match(code, /count\(\*\) from public\.duel_players[^)]*\) < 2/, "sala com 2 jogadores não espera desafiante");
+  for (const secret of [/d\.code\b/, /d\.seed\b/, /d\.gen\b/, /public_view/, /full_puzzle/]) {
+    assert.doesNotMatch(code, secret, `a lista não pode expor ${secret}`);
+  }
+});
+
+test("SQL: xadrez 1x1 — duelo por turnos, chess_games e funções exclusivas da Edge", () => {
+  assert.match(sqlAll, /insert into public\.games \(id, title, sort\) values \('chess', 'Xadrez', 11\)/);
+  assert.match(sqlAll, /add column if not exists kind text not null default 'race'/);
+  assert.match(sqlAll, /duels_kind_check check \(kind in \('race', 'turn'\)\)/);
+  assert.match(sqlAll, /kind = 'turn' or \(public_view is not null and full_puzzle is not null\)/, "turn não exige puzzle");
+  assert.match(sqlAll, /duels_rule_check check \(rule in \('first', 'words', 'turn'\)\)/);
+
+  assert.match(sqlAll, /create table public\.chess_games \(/);
+  for (const col of ["fen", "turn", "version", "keys", "moves", "white_id", "black_id", "white_ms", "black_ms", "white_can_mate", "black_can_mate", "last_at", "result", "reason"])
+    assert.match(sqlAll, new RegExp(`\\b${col}\\b`), `chess_games sem ${col}`);
+  assert.match(sqlAll, /white_id is null or black_id is null or white_id <> black_id/);
+
+  for (const f of [
+    "chess_json\\(uuid, uuid, int, int\\)",
+    "chess_create\\(uuid, int, text, text, text\\)",
+    "chess_start\\(uuid, uuid\\)",
+    "chess_state\\(uuid, uuid\\)",
+    "chess_move\\(uuid, uuid, int, text, text, jsonb, jsonb, jsonb, text, text, boolean, boolean\\)",
+    "chess_resign\\(uuid, uuid\\)",
+  ]) {
+    assert.match(sqlAll, new RegExp(`revoke all on function public\\.${f}\\s+from public, anon, authenticated`), `${f} acessível ao cliente`);
+    assert.match(sqlAll, new RegExp(`grant execute on function public\\.${f}\\s+to service_role`), `${f} deveria ser da Edge`);
+  }
+
+  // O relógio é do Postgres; o estouro e a desistência decidem ali, não no cliente.
+  assert.match(sqlAll, /reason = 'timeout'/);
+  assert.match(sqlAll, /reason = 'resign'/);
+  assert.match(sqlAll, /extract\(epoch from \(now\(\) - v_chess\.last_at\)\) \* 1000/);
+  assert.match(sqlAll, /white_can_mate/, "FIDE 6.9: o estouro precisa saber quem ainda pode dar mate");
+  assert.match(sqlAll, /white_id = case when white_id = p_uid then null else white_id end/, "sair do lobby libera a cor");
+  assert.match(sqlAll, /kind = 'race'/, "a limpeza por max_seconds não pode encerrar xadrez");
+});
+
+test("SQL: ranking dos duelos 1x1 — Elo por jogo, gatilho de fim e leitura pública", () => {
+  const ratingSql = migration("20261039000000_duel_ratings.sql");
+  assert.match(ratingSql, /create table public\.duel_ratings \(/);
+  for (const col of ["game_id", "user_id", "rating", "peak", "wins", "losses", "draws", "games", "updated_at"])
+    assert.match(ratingSql, new RegExp(`\\b${col}\\b`), `duel_ratings sem ${col}`);
+  assert.match(ratingSql, /primary key \(game_id, user_id\)/);
+  assert.match(ratingSql, /alter table public\.duel_ratings\s+enable row level security/);
+  assert.match(ratingSql, /revoke all on public\.duel_ratings from anon, authenticated/);
+
+  // Elo: provisório (K=40) nas 10 primeiras e 32 depois; o cálculo é puro.
+  assert.match(ratingSql, /coalesce\(p_games, 0\) < 10 then 40 else 32/);
+  assert.match(ratingSql, /power\(10\.0, \(p_opponent - p_rating\) \/ 400\.0\)/);
+
+  // O gatilho roda em qualquer forma de encerrar e não pontua duas vezes.
+  assert.match(ratingSql, /create trigger duel_rating_finish[\s\S]*after update of status on public\.duels/);
+  assert.match(ratingSql, /old\.status is not distinct from new\.status/);
+  assert.match(ratingSql, /new\.kind = 'turn'[\s\S]*from public\.chess_games/);
+  assert.match(ratingSql, /when v_winner is null then 0\.5/);
+
+  // Leitura pública no mesmo formato de public.ranking; o rating vira `points`.
+  assert.match(ratingSql, /create or replace function public\.duel_ranking\(/);
+  assert.match(ratingSql, /'points', f\.rating/);
+  assert.match(ratingSql, /grant execute on function public\.duel_ranking\(text, text, int\) to anon, authenticated/);
+
+  // A barra do tabuleiro recebe o rating real (1500 para quem ainda não jogou).
+  assert.match(ratingSql, /'rating', coalesce\(dr\.rating, 1500\)/);
 });
 
 test("SQL: ajustes dos duelos corrigem avatar, LGPD, regra words e Realtime", () => {

@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   MODES, DEFAULT_MODE, isDuel, normalizeMode,
-  navItems, filterGames, modeFromHash, hashFor, modeText,
+  navItems, filterGames, modeFromHash, hashFor, modeText, rankingPanels,
 } from "../shared/hub-nav.js";
 import { GAMES as CATALOG } from "../js/games.js";
 
@@ -68,13 +68,38 @@ test("hub: cada modo tem título e subtítulo próprios", () => {
   assert.equal(modeText("all").title, "Todos os jogos");
   assert.equal(modeText("solo").title, "Jogos solo");
   assert.equal(modeText("duel").title, "Duelos 1×1");
+  assert.equal(modeText("duel").sub, "Jogos com duelos jogador x jogador. Jogue com um adversário valendo pontuação no ranking ou somente por diversão.");
   for (const mode of MODES) assert.ok(modeText(mode).sub.length > 20, `${mode} sem subtítulo`);
 });
 
-test("hub: o catálogo atual não tem duelo — só jogos novos entram no 1×1", () => {
+test("hub: só o xadrez é duelo — os jogos antigos continuam solo", () => {
   const items = navItems(CATALOG);
   assert.equal(items[0].count, Object.keys(CATALOG).length);
-  assert.equal(items[2].count, 0, "nenhum jogo atual declara duel: true");
-  assert.deepEqual(filterGames(CATALOG, "duel"), []);
-  assert.equal(filterGames(CATALOG, "solo").length, Object.keys(CATALOG).length);
+  assert.equal(items[2].count, 1, "só o xadrez declara duel: true");
+  assert.deepEqual(filterGames(CATALOG, "duel").map(([id]) => id), ["chess"]);
+  assert.equal(filterGames(CATALOG, "solo").length, Object.keys(CATALOG).length - 1);
+});
+
+test("hub: painel lateral é Solo fora dos duelos e um por jogo no carrossel", () => {
+  const panels = {
+    chess: { title: "Xadrez", duel: true },
+    dama: { title: "Dama", duel: true },
+    zip: { title: "Zip" },
+  };
+  for (const mode of ["all", "solo"]) {
+    const solo = rankingPanels(panels, mode);
+    assert.equal(solo.length, 1);
+    assert.equal(solo[0].gameId, null);
+    assert.equal(solo[0].title, "Ranking Geral - Solo");
+    assert.match(solo[0].sub, /pontuação/);
+  }
+
+  const duel = rankingPanels(panels, "duel");
+  assert.deepEqual(duel.map(p => p.gameId), ["chess", "dama"]);
+  assert.deepEqual(duel.map(p => p.title), ["Ranking Geral Xadrez", "Ranking Geral Dama"]);
+  assert.match(duel[0].sub, /Elo/, "o xadrez usa Elo");
+  assert.doesNotMatch(duel[1].sub, /Elo/, "cada jogo pode ter o próprio sistema");
+  assert.equal(rankingPanels(panels, "duel")[0].gameId, "chess");
+  assert.deepEqual(rankingPanels({}, "duel"), []);
+  assert.equal(rankingPanels(CATALOG, "duel")[0].title, "Ranking Geral Xadrez");
 });

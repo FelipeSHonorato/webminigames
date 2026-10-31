@@ -77,7 +77,14 @@ import { Progress, WINS_PER_LEVEL, LEVEL_NAMES, winsForLevel, winsKey } from "..
 import { GAMES } from "../js/games.js";
 
 const admin = { id: ADMIN_ID, name: "administrador" };
-const resetLevels = () => { reset(); store.set("wmg.run", "{}"); for (const g of Object.values(GAMES)) for (const u of [ADMIN_ID, "u1"]) store.set(winsKey(g.key, u), "0"); };
+const resetLevels = () => {
+  reset();
+  store.set("wmg.run", "{}");
+  for (const g of Object.values(GAMES)) {
+    if (!g.key) continue;
+    for (const u of [ADMIN_ID, "u1"]) store.set(winsKey(g.key, u), "0");
+  }
+};
 
 test("winsForLevel: início de cada nível (0, 15, 30, 45), com limites e entrada estranha tratados", () => {
   assert.deepEqual([0, 1, 2, 3].map(i => winsForLevel(i)), [0, WINS_PER_LEVEL, 2 * WINS_PER_LEVEL, 3 * WINS_PER_LEVEL]);
@@ -88,10 +95,13 @@ test("winsForLevel: início de cada nível (0, 15, 30, 45), com limites e entrad
 
 test("AdminLevel.set coloca o administrador no início do nível escolhido, em cada jogo", () => {
   resetLevels();
-  for (const [id, g] of Object.entries(GAMES)) for (let lv = 0; lv < LEVEL_NAMES.length; lv++) {
-    AdminLevel.set(admin, id, g.key, lv);
-    assert.equal(AdminLevel.get(admin, g.key), lv, `${id} nível ${lv}`);
-    assert.equal(Progress.wins(g.key, ADMIN_ID), lv * WINS_PER_LEVEL, `${id}: 0/${WINS_PER_LEVEL} no nível`);
+  for (const [id, g] of Object.entries(GAMES)) {
+    if (!g.key) continue;                                  // xadrez é só duelo: não tem nível
+    for (let lv = 0; lv < LEVEL_NAMES.length; lv++) {
+      AdminLevel.set(admin, id, g.key, lv);
+      assert.equal(AdminLevel.get(admin, g.key), lv, `${id} nível ${lv}`);
+      assert.equal(Progress.wins(g.key, ADMIN_ID), lv * WINS_PER_LEVEL, `${id}: 0/${WINS_PER_LEVEL} no nível`);
+    }
   }
 });
 
@@ -136,9 +146,14 @@ test("depois de escolher o nível, vencer fases soma vitórias sem trocar de ní
   assert.equal(AdminLevel.get(admin, GAMES.sopa.key), 2);          // 15 vitórias no nível sobem para o próximo, como para qualquer jogador
 });
 
-test("o catálogo (js/games.js) usa a mesma chave de vitórias e o mesmo nº de níveis de cada jogo", async () => {
+test("o catálogo (js/games.js) usa a mesma chave de vitórias e o mesmo nº de níveis de cada jogo solo", async () => {
   for (const [id, g] of Object.entries(GAMES)) {
     const d = await import(`../games/${id}/domain.js`);
+    if (!g.key) {                                    // jogo só de duelo (xadrez): sem chave, nível nem fase
+      assert.equal(d.STORE_KEY, undefined, `${id}: jogo de duelo não deveria ter chave de vitórias`);
+      assert.equal(d.LEVELS, undefined, `${id}: jogo de duelo não deveria ter níveis`);
+      continue;
+    }
     assert.equal(g.key, d.STORE_KEY, `${id}: chave de vitórias`);
     assert.equal(d.LEVELS.length, LEVEL_NAMES.length, `${id}: níveis`);
   }

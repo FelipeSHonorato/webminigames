@@ -34,25 +34,31 @@ export function fmtTime(seconds) {
   return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-/** Linha do ranking: posição, foto pequena, nome e pontos. */
-export function rankingRow(r) {
+/** Linha do ranking: posição, foto pequena, nome e pontos (ou rating, no duelo). */
+export function rankingRow(r, suffix = "pts") {
   const li = el("li", r.isMe ? "me" : "");
   li.title = regionName(r.region);
-  li.append(el("span", "pos", String(r.rank)), avatarNode(r.avatar), el("span", "nm", r.name + (r.isMe ? " (você)" : "")), el("span", "pts", `${r.points} pts`));
+  const value = suffix ? `${r.points} ${suffix}` : String(r.points);
+  li.append(el("span", "pos", String(r.rank)), avatarNode(r.avatar), el("span", "nm", r.name + (r.isMe ? " (você)" : "")), el("span", "pts", value));
   return li;
 }
 
-/** Preenche a lista e o aviso a partir de { top, me } (resultado de Scores.leaderboard). */
-export function renderLeaderboard({ list, note, data: { top, me }, scope, loginUrl }) {
+/** Preenche a lista e o aviso a partir de { top, me } (resultado de Scores.leaderboard).
+    `suffix` troca "pts" por "Elo"; os textos podem ser próprios de cada jogo de duelo. */
+export function renderLeaderboard({
+  list, note, data: { top, me }, scope, loginUrl,
+  suffix = "pts",
+  emptyText = "Ninguém pontuou ainda. Seja o primeiro!",
+  emptyRegionText = "Ninguém da sua região pontuou ainda.",
+  noteText = "Vença uma partida para entrar no ranking.",
+}) {
   list.replaceChildren(); note.replaceChildren();
-  if (!top.length) list.append(el("li", "empty", scope === "region"
-    ? "Ninguém da sua região pontuou ainda."
-    : "Ninguém pontuou ainda. Seja o primeiro!"));
-  top.forEach(r => list.append(rankingRow(r)));
-  if (me && !top.some(r => r.isMe)) list.append(el("li", "gap", "…"), rankingRow(me));
+  if (!top.length) list.append(el("li", "empty", scope === "region" ? emptyRegionText : emptyText));
+  top.forEach(r => list.append(rankingRow(r, suffix)));
+  if (me && !top.some(r => r.isMe)) list.append(el("li", "gap", "…"), rankingRow(me, suffix));
   if (!Scores.canRank()) {
     note.append("Você joga como anônimo: as vitórias não contam. ");
     const a = el("a", "", "Criar conta"); a.href = loginUrl; note.append(a);
   } else if (scope === "region" && !getSession()?.region) note.append("Sua conta não tem região definida.");
-  else if (!me) note.append("Vença uma partida para entrar no ranking.");
+  else if (!me) note.append(noteText);
 }

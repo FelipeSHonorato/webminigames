@@ -5,15 +5,17 @@
 // Deploy:  supabase functions deploy play
 // Segredo: supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...   (URL e ANON_KEY são injetadas automaticamente)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { publicView, validate, hint, hasHints, snapshot, validateSnapshot, validatePartial, countWords, hintSnapshot, duelOf, GAMES as BOARD_GAMES } from "./_shared/board.js";
+import { publicView, validate, hint, hasHints, snapshot, validateSnapshot, validatePartial, countWords, hintSnapshot, duelOf, GAMES as BOARD_GAMES, SOLO_GAMES } from "./_shared/board.js";
+import { canMate, findMove, fromFen, newGame, playMove, positionKey, squareName, toFen } from "./_shared/chess/domain.js";
 
 const URL = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-/* A lista de jogos sai do próprio board: um jogo novo em `_shared/` passa a ser aceito sem editar aqui.
-   (Uma lista fixa já esqueceu Queens, Tango e Text Twist e a Edge respondia `unknown_game` para eles.) */
-const GAME_IDS = new Set(Object.keys(BOARD_GAMES));
+/* A lista de jogos SOLO sai do próprio board: um jogo novo em `_shared/` passa a ser aceito sem editar aqui.
+   (Uma lista fixa já esqueceu Queens, Tango e Text Twist e a Edge respondia `unknown_game` para eles.)
+   O xadrez fica de fora: ele não tem fase nem desafio diário, só duelo. */
+const GAME_IDS = new Set(Object.keys(SOLO_GAMES));
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
@@ -87,7 +89,9 @@ const duelStatus = (msg: string) =>
   msg === "not_member" ? 403
     : msg === "duel_not_found" ? 404
       : msg === "too_many_open" || msg === "duel_full" || msg === "bad_status"
-        || msg === "expired" || msg === "not_started" ? 409
+        || msg === "expired" || msg === "not_started" || msg === "not_your_turn"
+        || msg === "stale" ? 409
+        : msg === "invalid_move" ? 422
         : 400;
 
 const duelRow = async (svc: any, id: string) => {
@@ -98,18 +102,56 @@ const duelRow = async (svc: any, id: string) => {
   return data;
 };
 
+/** Linha do xadrez (estado + relógios). O relógio e o vencedor continuam no Postgres. */
+const chessRow = async (svc: any, id: string) => {
+  const { data, error } = await svc.from("chess_games")
+    .select("duel_id, fen, turn, version, keys, moves, last_move, white_id, black_id, white_ms, black_ms, last_at, result, reason, white_can_mate, black_can_mate")
+    .eq("duel_id", id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+const duelMeta = async (svc: any, id: string) => {
+  const { data, error } = await svc.from("duels")
+    .select("id, code, game_id, kind, status, starts_at, max_seconds, winner_id")
+    .eq("id", id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+};
+
 const DUEL_ACTIONS = new Set([
-  "duel_create", "duel_join", "duel_ready", "duel_start", "duel_state", "duel_finish", "duel_leave",
+  "duel_create", "duel_join", "duel_ready", "duel_start", "duel_state", "duel_finish", "duel_leave", "duel_list",
+  "chess_create", "chess_start", "chess_state", "chess_move", "chess_resign",
 ]);
 
 async function handleDuel(svc: any, uid: string, action: string, body: any) {
   if (!DUEL_ACTIONS.has(action)) return json({ error: "unknown_action" }, 400);
 
-  /* Criar sala: o jogo precisa declarar DUEL; seed e regra vêm do servidor, não do cliente. */
+  /* Criar sala de xadrez: ritmo e cor vêm do cliente, mas o servidor valida contra o contrato DUEL.
+     O estado inicial (FEN + chave de repetição) vem do MESMO domínio testado no Node. */
+  if (action === "chess_create") {
+    const duel = duelOf("chess");
+    if (!duel || duel.kind !== "turn") return json({ error: "not_duel_game" }, 400);
+    const minutes = Number(body?.minutes);
+    if (!duel.times.includes(minutes)) return json({ error: "bad_minutes" }, 400);
+    const color = body?.color;
+    if (color !== "w" && color !== "b") return json({ error: "bad_color" }, 400);
+
+    const start = newGame();
+    const { data, error } = await svc.rpc("chess_create", {
+      p_uid: uid, p_minutes: minutes, p_color: color,
+      p_fen: toFen(start.state), p_key: start.keys[0],
+    });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    return json(data);
+  }
+
+  /* Criar sala de corrida: o jogo precisa declarar DUEL de corrida; seed e regra vêm do servidor. */
   if (action === "duel_create") {
     const game = body?.game;
     const duel = duelOf(game);
     if (!duel) return json({ error: "not_duel_game" }, 400);
+    if (duel.kind === "turn") return json({ error: "use_chess_create" }, 400);
 
     const levels = Number((BOARD_GAMES as any)[game]?.LEVELS?.length ?? 0);
     const level = Number.isInteger(body?.level) ? body.level : 0;
@@ -136,8 +178,65 @@ async function handleDuel(svc: any, uid: string, action: string, body: any) {
     return json(data);
   }
 
+  /* Salas abertas (esperando desafiante), de todos os jogos de duelo. Só devolve o que a lista precisa:
+     nada de código de convite, seed nem puzzle (a tabela continua fechada ao navegador). */
+  if (action === "duel_list") {
+    const { data, error } = await svc.rpc("duel_open_rooms", { p_uid: uid, p_limit: 30 });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    return json({ rooms: data ?? [] });
+  }
+
   const duelId = body?.duel;
   if (!isUuid(duelId)) return json({ error: "bad_duel" }, 400);
+
+  /* Estado / largada / desistência do xadrez: o Postgres é a autoridade dos relógios e do resultado. */
+  if (action === "chess_state" || action === "chess_start" || action === "chess_resign") {
+    const { data, error } = await svc.rpc(action, { p_uid: uid, p_duel: duelId });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    return json(data);
+  }
+
+  /* Lance: a Edge valida com o domínio puro; o Postgres confere a vez, o relógio e a versão antes de gravar. */
+  if (action === "chess_move") {
+    const meta = await duelMeta(svc, duelId);
+    if (!meta) return json({ error: "duel_not_found" }, 404);
+    if (meta.kind !== "turn" || meta.game_id !== "chess") return json({ error: "not_chess_duel" }, 400);
+    if (meta.status !== "running") return json({ error: "bad_status" }, 409);
+
+    const row = await chessRow(svc, duelId);
+    if (!row) return json({ error: "duel_not_found" }, 404);
+
+    const state = fromFen(row.fen);
+    const move = findMove(state, body?.move);
+    if (!move) return json({ error: "invalid_move" }, 422);
+
+    const game = {
+      state,
+      keys: Array.isArray(row.keys) && row.keys.length ? row.keys : [positionKey(state)],
+      moves: Array.isArray(row.moves) ? row.moves : [],
+      last: row.last_move ?? null,
+      result: { over: false, winner: null, reason: null },
+    };
+    const next = playMove(game, move);
+    const result = next.result.over ? next.result : null;
+    const resultText = result ? (result.winner === "w" ? "white" : result.winner === "b" ? "black" : "draw") : null;
+    const played = next.moves.at(-1);
+    const last = next.last ? {
+      from: squareName(next.last.from), to: squareName(next.last.to),
+      uci: played.uci, san: played.san,
+    } : null;
+
+    const { data, error } = await svc.rpc("chess_move", {
+      p_uid: uid, p_duel: duelId, p_version: row.version,
+      p_fen: toFen(next.state), p_turn: next.state.turn,
+      p_keys: next.keys, p_moves: next.moves, p_last: last,
+      p_result: resultText, p_reason: result?.reason ?? null,
+      p_white_can_mate: canMate(next.state.board, "w"),
+      p_black_can_mate: canMate(next.state.board, "b"),
+    });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    return json(data);
+  }
 
   if (action === "duel_ready" || action === "duel_start" || action === "duel_state" || action === "duel_leave") {
     const { data, error } = await svc.rpc(action, { p_uid: uid, p_duel: duelId });

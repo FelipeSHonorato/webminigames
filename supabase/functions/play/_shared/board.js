@@ -5,6 +5,7 @@
 import { makeRng } from "./rng.js";
 import * as arrows from "./arrows/domain.js";
 import * as canos from "./canos/domain.js";
+import * as chess from "./chess/domain.js";
 import * as cruzadas from "./cruzadas/domain.js";
 import * as patches from "./patches/domain.js";
 import * as queens from "./queens/domain.js";
@@ -14,16 +15,29 @@ import * as tango from "./tango/domain.js";
 import * as texttwist from "./texttwist/domain.js";
 import * as zip from "./zip/domain.js";
 
-export const GAMES = { arrows, canos, cruzadas, patches, queens, sopa, sudoku, tango, texttwist, zip };
+export const GAMES = { arrows, canos, chess, cruzadas, patches, queens, sopa, sudoku, tango, texttwist, zip };
+
+/* Jogos solo (fase + desafio diário): todos os que geram puzzle a partir de uma seed.
+   O xadrez é só duelo e fica de fora — `daily_generate`/`open` nunca devem chamá-lo. */
+export const SOLO_GAMES = Object.fromEntries(
+  Object.entries(GAMES).filter(([, domain]) => typeof domain.generatePuzzle === "function"),
+);
+
 export const hasHints = game => game === "cruzadas" || game === "sopa";
 
 /* Contrato de duelo. Só jogos criados PARA o modo 1×1 declaram, no próprio domínio:
-     export const DUEL = { rule: "first" | "words", maxSeconds: 30..3600, progressOf(state, puzzle) => 0..1 }
-   A Edge lê daqui; nada de lista fixa. Nenhum jogo atual declara DUEL de propósito:
+     corrida: export const DUEL = { rule: "first" | "words", maxSeconds: 30..3600, progressOf(state, puzzle) => 0..1 }
+     turnos:  export const DUEL = { kind: "turn", times: [minutos por jogador] }
+   A Edge lê daqui; nada de lista fixa. Nenhum jogo antigo declara DUEL de propósito:
    converter um jogo existente em multiplayer mudaria as regras dele. */
 export const duelContract = domain => {
   const d = domain?.DUEL;
-  if (!d || (d.rule !== "first" && d.rule !== "words")) return null;
+  if (!d) return null;
+  if (d.kind === "turn") {
+    const times = Array.isArray(d.times) ? d.times.filter(t => Number.isInteger(t) && t >= 1 && t <= 60) : [];
+    return times.length ? { ...d, times } : null;
+  }
+  if (d.rule !== "first" && d.rule !== "words") return null;
   return d;
 };
 export const duelOf = game => duelContract(GAMES[game]);

@@ -7,10 +7,11 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { makeRng } from "../shared/rng.js";
-import { publicView, validate, validateSnapshot, validatePartial, countWords, snapshot, GAMES, duelOf, duelContract, DUELS } from "../supabase/functions/play/_shared/board.js";
+import { publicView, validate, validateSnapshot, validatePartial, countWords, snapshot, GAMES, SOLO_GAMES, duelOf, duelContract, DUELS } from "../supabase/functions/play/_shared/board.js";
 import { GAMES as CATALOG } from "../js/games.js";
 import * as arrows from "../games/arrows/domain.js";
 import * as canos from "../games/canos/domain.js";
+import * as chess from "../games/chess/domain.js";
 import * as cruzadas from "../games/cruzadas/domain.js";
 import * as patches from "../games/patches/domain.js";
 import * as queens from "../games/queens/domain.js";
@@ -26,7 +27,7 @@ const normPoints = s => s.replace(/"(?:\.\.\/)+(?:shared\/)?points\.js"/g, '"POI
 
 /* ---------- paridade entre games/ e a cópia usada pela Edge Function ---------- */
 test("cópias dos domínios na Edge Function batem com games/ (paridade)", () => {
-  for (const g of ["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]) {
+  for (const g of ["arrows", "canos", "chess", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]) {
     assert.equal(normPoints(read(`supabase/functions/play/_shared/${g}/domain.js`)), normPoints(read(`games/${g}/domain.js`)), `domain de ${g} divergiu`);
   }
   for (const g of ["cruzadas", "sopa", "texttwist"]) {
@@ -267,16 +268,18 @@ test("snapshot diário: o puzzle completo valida e a visão pública continua se
   assert.equal(validateSnapshot("texttwist", twistSnap.fullPuzzle, { words: [] }), false);
 });
 
-test("GAMES agrupa os dez domínios", () => {
-  assert.deepEqual(Object.keys(GAMES).sort(), ["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
+test("GAMES agrupa os onze domínios e SOLO_GAMES deixa o xadrez de fora", () => {
+  assert.deepEqual(Object.keys(GAMES).sort(), ["arrows", "canos", "chess", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
+  assert.deepEqual(Object.keys(SOLO_GAMES).sort(), ["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
+  assert.equal(typeof chess.generatePuzzle, "undefined", "xadrez não gera fase: só duelo");
 });
 
-test("a Edge aceita todo jogo do catálogo (lista vem do board, não fixa)", () => {
+test("a Edge aceita todo jogo SOLO do catálogo (lista vem do board, não fixa)", () => {
   /* Regressão: a Edge tinha uma lista fixa de jogos e, depois de Queens/Tango/Text Twist entrarem no
      catálogo, respondia `unknown_game` para eles — o desafio diário nunca abria. */
   const entry = read("supabase/functions/play/index.ts");
-  assert.match(entry, /const GAME_IDS = new Set\(Object\.keys\(BOARD_GAMES\)\)/,
-    "GAME_IDS precisa ser derivado de BOARD_GAMES para acompanhar jogos novos");
+  assert.match(entry, /const GAME_IDS = new Set\(Object\.keys\(SOLO_GAMES\)\)/,
+    "GAME_IDS precisa ser derivado de SOLO_GAMES para acompanhar jogos novos (sem incluir o xadrez)");
   assert.doesNotMatch(entry, /const GAME_IDS = new Set\(\[/,
     "não fixe a lista de jogos na Edge Function: ela desatualiza e recusa jogos novos");
   assert.deepEqual(Object.keys(CATALOG).sort(), Object.keys(GAMES).sort(),
@@ -284,20 +287,26 @@ test("a Edge aceita todo jogo do catálogo (lista vem do board, não fixa)", () 
 });
 
 /* ---------- duelos 1×1: contrato DUEL declarado no domínio ---------- */
-test("contrato DUEL: só regras conhecidas entram, e a lista sai do board", () => {
+test("contrato DUEL: corrida e turnos aceitam só regras conhecidas; a lista sai do board", () => {
   assert.deepEqual(duelContract({ DUEL: { rule: "first", maxSeconds: 120 } }), { rule: "first", maxSeconds: 120 });
   assert.deepEqual(duelContract({ DUEL: { rule: "words", maxSeconds: 90 } }), { rule: "words", maxSeconds: 90 });
+  assert.deepEqual(duelContract({ DUEL: { kind: "turn", times: [3, 10, 30, 60] } }), { kind: "turn", times: [3, 10, 30, 60] });
+  assert.deepEqual(duelContract({ DUEL: { kind: "turn", times: [0, 90, 10.5, 5] } }), { kind: "turn", times: [5] }, "só minutos inteiros de 1 a 60");
+  assert.equal(duelContract({ DUEL: { kind: "turn", times: [] } }), null, "sem ritmo válido não é duelo");
   assert.equal(duelContract({ DUEL: { rule: "elo", maxSeconds: 90 } }), null, "regra desconhecida é recusada");
   assert.equal(duelContract({}), null);
   assert.equal(duelContract(undefined), null);
   assert.equal(duelOf("nao_existe"), null);
 });
 
-test("nenhum jogo atual declara DUEL (multiplayer é só para jogos novos)", () => {
+test("só o xadrez declara DUEL (jogos antigos não viram multiplayer)", () => {
   /* Decisão de produto: os jogos que já estão no site não viram multiplayer.
-     Quando um jogo novo for criado para duelo, ele declara DUEL e passa a aparecer aqui. */
-  for (const g of Object.keys(GAMES)) assert.equal(duelOf(g), null, `${g} não deveria ser jogo de duelo`);
-  assert.deepEqual(DUELS, {});
+     O xadrez foi criado PARA o duelo; por isso é o único com contrato e com `duel` no catálogo. */
+  for (const g of Object.keys(GAMES)) {
+    if (g === "chess") assert.deepEqual(duelOf(g), { kind: "turn", times: [3, 10, 30, 60] });
+    else assert.equal(duelOf(g), null, `${g} não deveria ser jogo de duelo`);
+  }
+  assert.deepEqual(DUELS, { chess: { kind: "turn", times: [3, 10, 30, 60] } });
 });
 
 test("catálogo e domínios concordam sobre quais jogos são de duelo", () => {
@@ -316,7 +325,10 @@ test("a Edge expõe as ações de duelo e valida o tabuleiro antes de finalizar"
     "o contrato de duelo precisa ser lido do domínio, não de uma lista fixa");
   assert.doesNotMatch(entry, /const DUEL_GAMES = new Set\(\[/, "não fixe a lista de jogos de duelo na Edge");
 
-  for (const a of ["duel_create", "duel_join", "duel_ready", "duel_start", "duel_state", "duel_finish", "duel_leave"]) {
+  for (const a of [
+    "duel_create", "duel_join", "duel_ready", "duel_start", "duel_state", "duel_finish", "duel_leave", "duel_list",
+    "chess_create", "chess_start", "chess_state", "chess_move", "chess_resign",
+  ]) {
     assert.match(entry, new RegExp(`action === "${a}"`), `${a} ausente na Edge`);
   }
 
@@ -334,4 +346,12 @@ test("a Edge expõe as ações de duelo e valida o tabuleiro antes de finalizar"
 
   // O puzzle não pode ser entregue antes da largada: quem decide é o Postgres (duel_start).
   assert.doesNotMatch(entry, /p_public: body\?\./, "o cliente nunca manda o puzzle do duelo");
+
+  // Xadrez: a Edge valida o lance com o domínio puro e manda o novo estado; vez/relógio/versão ficam no Postgres.
+  assert.match(entry, /findMove\(state, body\?\.move\)/, "chess_move precisa validar o lance com o domínio");
+  assert.match(entry, /rpc\("chess_move", \{/, "chess_move precisa chamar a função do Postgres");
+  assert.match(entry, /p_version: row\.version/, "o lance leva a versão lida para o Postgres recusar corrida");
+  assert.match(entry, /canMate\(next\.state\.board, "w"\)/, "a Edge grava se as brancas ainda podem dar mate (FIDE 6.9)");
+  assert.match(entry, /if \(duel\.kind === "turn"\) return json\(\{ error: "use_chess_create" \}, 400\)/,
+    "duel_create não pode criar sala de corrida para um jogo de turnos");
 });

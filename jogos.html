@@ -37,16 +37,21 @@
     <div class="hub-main">
     <h2 id="hub-title" tabindex="-1">Escolha um jogo</h2>
     <p class="sub" id="hubSub" aria-live="polite"></p>
-    <div id="duelEntry" hidden></div>
+    <!-- Pop-up "Criar Sala": o #duelEntry é montado aqui dentro por js/hub.js e só aparece ao clicar no botão da lateral. -->
+    <dialog class="duel-modal" id="duelModal" aria-label="Criar sala de duelo">
+      <button class="duel-modal-close" id="duelModalClose" type="button" aria-label="Fechar">&times;</button>
+      <div id="duelEntry" hidden></div>
+    </dialog>
     <p class="hub-empty" id="hubEmpty" hidden>Nenhum jogo de duelo por enquanto. O primeiro jogo criado para o 1×1 aparece aqui — com sala por código, largada sincronizada e vencedor decidido no servidor.</p>
     <div class="games" id="games"></div>
     </div>
     <aside class="overall" aria-labelledby="overall-title">
-      <h2 id="overall-title">Ranking geral</h2>
-      <p class="sub">Soma da pontuação de todos os jogos.</p>
+      <h2 id="overall-title">Ranking Geral - Solo</h2>
+      <p class="sub" id="overallSub">Soma da pontuação de todos os jogos.</p>
       <div class="ranking-scopes" id="overallScopes"></div>
       <ol class="ranking-list" id="overallList"></ol>
       <p class="ranking-note" id="overallNote"></p>
+      <div class="overall-dots" id="overallDots" hidden></div>
     </aside>
   </div>
 </section>

@@ -69,7 +69,8 @@ a.game{text-decoration:none;color:inherit}
 :root[data-theme="dark"] .thumb img.th-l{display:none}
 :root[data-theme="dark"] .thumb img.th-d{display:block}
 /* Sem as miniaturas (jogo novo, arquivo faltando): volta o SVG do catálogo, que não depende de arquivo. */
-.thumb.fallback{aspect-ratio:auto}
+.thumb.fallback{aspect-ratio:1}
+.thumb.fallback svg{width:100%;height:100%;object-fit:cover;border-radius:10px}
 .game p{margin:0;color:var(--muted);line-height:1.4;font-size:.95rem}
 .game.skeleton{pointer-events:none}
 .game.skeleton .sk-preview{width:100%;aspect-ratio:1;border-radius:10px;background:var(--line);opacity:.55}
@@ -79,6 +80,9 @@ a.game{text-decoration:none;color:inherit}
 .lvl .bar{flex:1;height:6px;background:var(--line);border-radius:3px;overflow:hidden}
 .lvl .bar i{display:block;height:100%;background:var(--accent)}
 .play{margin-top:auto;font-weight:700;color:var(--accent)}
+/* Rodapé do card: selo do modo (Solo / 1×1) logo antes do "Jogar". */
+.game-foot{display:flex;align-items:center;gap:8px;margin-top:auto}
+.game-foot .play{margin-top:0}
 
 /* ---------- Jogo ---------- */
 .topbar .btn{width:auto;padding:8px 14px}
@@ -126,6 +130,11 @@ a.brand{color:inherit;text-decoration:none}
 .overall{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;padding:16px;background:var(--surface);border:2px solid var(--line);border-radius:16px}
 .hub .overall h2{font-size:1.1rem}
 .overall .sub{margin:4px 0 14px}
+/* Carrossel dos rankings de duelo: um ponto por jogo, trocando a cada 3 s. */
+.overall-dots{display:flex;justify-content:center;gap:6px;margin-top:14px}
+.overall-dots[hidden]{display:none}
+.overall-dot{width:8px;height:8px;padding:0;border:0;border-radius:999px;background:var(--line);cursor:pointer;transition:background .2s,transform .2s}
+.overall-dot[aria-current="true"]{background:var(--accent,var(--path));transform:scale(1.3)}
 /* Sem espaço para a lateral + jogos + ranking: o ranking desce para baixo da grade. */
 @media (max-width:1279px){
   .hub{grid-template-columns:200px minmax(0,1fr)}

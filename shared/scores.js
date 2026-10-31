@@ -44,6 +44,12 @@ export const Scores = {
     return rank(rows, scope, limit);
   },
 
+  /** Ranking de um jogo de duelo 1×1 (Elo no xadrez). Duelo exige conta, então só existe na nuvem. */
+  async duelLeaderboard(gameId, { scope = "global", limit = 10 } = {}) {
+    if (Cloud.active) return Cloud.duelRanking(gameId, scope, limit);
+    return { top: [], me: null, total: 0 };
+  },
+
   /** Ranking por TEMPO do desafio diário (mesmo dia/jogo/nível). Só existe na nuvem. */
   async dailyLeaderboard(gameId, { level = null, scope = "global", limit = 10, day = null } = {}) {
     if (Cloud.active) return Cloud.dailyLeaderboard(gameId, level, scope, limit, day);

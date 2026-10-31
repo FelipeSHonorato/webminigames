@@ -41,6 +41,8 @@ Depois rode, também no SQL Editor, as demais migrações, **nesta ordem**:
 - `20261035000000_duels.sql`: **duelos 1×1** — tabelas `duels`/`duel_players` e funções `duel_create/join/ready/start/state/finish/settle/leave/cleanup/gen_code/is_duel_member`. Só jogos **novos** que declaram `DUEL` no domínio entram no modo.
 - `20261036000000_duels_ajustes.sql`: correções da revisão — `avatar` (não `avatar_url`), `created_by` anulável na exclusão de conta, regra `words`, ordem da limpeza, grants e campos completos do `duel_state`.
 - `20261037000000_duels_realtime_cron.sql`: canal **privado** `duel:<id>` no Realtime (policies em `realtime.messages` só para os dois jogadores) e job `duel_cleanup` a cada 5 minutos via `pg_cron`.
+- `20261038000000_chess_duel.sql`: suporte a **duelos por turnos** (`kind: "turn"`) com tabela `chess_games` e funções `chess_create/start/state/move/resign`. Cadastro do `chess` em `games` (sort 11, sem pontos/coins solo).
+- `20261039000000_duel_ratings.sql`: **ranking próprio de cada jogo de duelo** em `duel_ratings` (rating/peak/vitórias/derrotas/empates). O xadrez usa **Elo** (K=40 nas 10 primeiras, 32 depois); o gatilho `duel_rating_finish` aplica o resultado quando o duelo vira `finished` e `duel_ranking` expõe a lista pública. `chess_json` passa a devolver o rating de cada jogador.
 
 Para conferir o que já está aplicado:
 
