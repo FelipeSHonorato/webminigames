@@ -67,7 +67,17 @@ export function durationLabel(room) {
   return seconds < 60 ? `${Math.round(seconds)} s` : `${Math.round(seconds / 60)} min`;
 }
 
-/** Link para reabrir uma sala MINHA (a tela do código de convite). Sala de outro jogador ainda não tem destino: "". */
+/** Sala aberta: qualquer jogador entra pela lista. Resposta antiga sem o campo conta como aberta. */
+export const isOpenRoom = room => room?.open !== false;
+
+/** Sala de OUTRO jogador em que dá para clicar e entrar direto (aberta e com página no catálogo). */
+export function joinableRoom(room, games = {}) {
+  const path = games[room?.gameId]?.path;
+  if (!room || room.mine || !isOpenRoom(room)) return false;
+  return Boolean(path) && typeof room.id === "string";
+}
+
+/** Link para reabrir uma sala MINHA (a tela do código de convite). Sala de outro jogador: "". */
 export function roomHref(room, games = {}) {
   const path = games[room?.gameId]?.path;
   if (!room?.mine || !path || typeof room.id !== "string") return "";

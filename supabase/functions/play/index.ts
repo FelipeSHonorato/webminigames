@@ -90,7 +90,7 @@ const duelStatus = (msg: string) =>
     : msg === "duel_not_found" ? 404
       : msg === "too_many_open" || msg === "duel_full" || msg === "bad_status"
         || msg === "expired" || msg === "not_started" || msg === "not_your_turn"
-        || msg === "stale" ? 409
+        || msg === "stale" || msg === "closed_room" ? 409
         : msg === "invalid_move" ? 422
         : 400;
 
@@ -120,7 +120,7 @@ const duelMeta = async (svc: any, id: string) => {
 };
 
 const DUEL_ACTIONS = new Set([
-  "duel_create", "duel_join", "duel_ready", "duel_start", "duel_state", "duel_finish", "duel_leave", "duel_list",
+  "duel_create", "duel_join", "duel_join_open", "duel_ready", "duel_start", "duel_state", "duel_finish", "duel_leave", "duel_list",
   "chess_create", "chess_start", "chess_state", "chess_move", "chess_resign",
 ]);
 
@@ -136,11 +136,12 @@ async function handleDuel(svc: any, uid: string, action: string, body: any) {
     if (!duel.times.includes(minutes)) return json({ error: "bad_minutes" }, 400);
     const color = body?.color;
     if (color !== "w" && color !== "b") return json({ error: "bad_color" }, 400);
+    const open = body?.open !== false;                       // sala aberta por padrão (entra pela lista)
 
     const start = newGame();
     const { data, error } = await svc.rpc("chess_create", {
       p_uid: uid, p_minutes: minutes, p_color: color,
-      p_fen: toFen(start.state), p_key: start.keys[0],
+      p_fen: toFen(start.state), p_key: start.keys[0], p_open: open,
     });
     if (error) return json({ error: error.message }, duelStatus(error.message));
     return json(data);
@@ -159,11 +160,13 @@ async function handleDuel(svc: any, uid: string, action: string, body: any) {
 
     const maxSeconds = Math.min(3600, Math.max(30, Number(duel.maxSeconds) || 300));
     const rule = duel.rule;                                  // 'first' | 'words' — validado no board
+    const open = body?.open !== false;                       // sala aberta por padrão (entra pela lista)
     const seed = crypto.getRandomValues(new Uint32Array(1))[0];
     const built = snapshot(game, seed, level);               // sem await entre gerar e guardar (isolate)
     const { data, error } = await svc.rpc("duel_create", {
       p_uid: uid, p_game: game, p_level: level, p_seed: seed, p_gen: built.gen,
       p_public: built.publicView, p_full: built.fullPuzzle, p_rule: rule, p_max_seconds: maxSeconds,
+      p_open: open,
     });
     if (error) return json({ error: error.message }, duelStatus(error.message));
     return json({ ...data, gameId: game, rule });
@@ -184,6 +187,15 @@ async function handleDuel(svc: any, uid: string, action: string, body: any) {
     const { data, error } = await svc.rpc("duel_open_rooms", { p_uid: uid, p_limit: 30 });
     if (error) return json({ error: error.message }, duelStatus(error.message));
     return json({ rooms: data ?? [] });
+  }
+
+  /* Entrar pelo id da sala aberta: o jogador clicou no card da lista, sem digitar código. */
+  if (action === "duel_join_open") {
+    const room = body?.duel;
+    if (!isUuid(room)) return json({ error: "bad_duel" }, 400);
+    const { data, error } = await svc.rpc("duel_join_open", { p_uid: uid, p_duel: room });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    return json(data);
   }
 
   const duelId = body?.duel;

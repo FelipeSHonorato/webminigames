@@ -359,6 +359,63 @@ select is((select count(*) from jsonb_array_elements(public.duel_open_rooms('d10
             where r->>'id' = (select v::text from public.duel_tap_ids where k = 'open3')), 0::bigint,
   'sala cancelada sai da lista');
 
+-- ---------- 8. sala aberta ou fechada ----------
+insert into public.duel_tap
+values ('closed_create', public.duel_create('d1000000-0000-4000-8000-000000000004', 'zip', 1, 80, 1,
+  '{"cells":[]}'::jsonb, '{"solution":[]}'::jsonb, 'first', 120, false));
+insert into public.duel_tap_ids select 'closed1', id from public.duels
+ where created_by = 'd1000000-0000-4000-8000-000000000004' and is_open = false
+ order by created_at desc limit 1;
+
+select is((select is_open from public.duels where id = (select v from public.duel_tap_ids where k = 'closed1')),
+  false, 'a sala fechada grava is_open = false');
+select is((select v->>'open' from public.duel_tap where k = 'closed_create'), 'false',
+  'a criação devolve open=false');
+select is((select count(*) from jsonb_array_elements(public.duel_open_rooms('d1000000-0000-4000-8000-000000000002', 30)) r
+            where r->>'id' = (select v::text from public.duel_tap_ids where k = 'closed1')), 0::bigint,
+  'a sala fechada não aparece para os outros jogadores');
+select is((select r->>'open' from jsonb_array_elements(public.duel_open_rooms('d1000000-0000-4000-8000-000000000004', 30)) r
+            where r->>'id' = (select v::text from public.duel_tap_ids where k = 'closed1')), 'false',
+  'para o criador a sala fechada aparece com open=false');
+select throws_ok(
+  format('select public.duel_join_open(%L, %L)', 'd1000000-0000-4000-8000-000000000002',
+    (select v from public.duel_tap_ids where k = 'closed1')),
+  '55000', 'closed_room', 'clique na lista não entra em sala fechada');
+insert into public.duel_tap
+values ('closed_join', public.duel_join('d1000000-0000-4000-8000-000000000002',
+  (select code from public.duels where id = (select v from public.duel_tap_ids where k = 'closed1'))));
+select is((select v->'opponent'->>'nickname' from public.duel_tap where k = 'closed_join'), 'Dani',
+  'a sala fechada continua entrando pelo código do convite');
+insert into public.duel_tap
+values ('closed_leave', public.duel_leave('d1000000-0000-4000-8000-000000000004',
+  (select v from public.duel_tap_ids where k = 'closed1')));
+
+-- aberta: aparece para todos e o clique assenta a vaga direto
+insert into public.duel_tap
+values ('open_join_create', public.duel_create('d1000000-0000-4000-8000-000000000004', 'zip', 1, 81, 1,
+  '{"cells":[]}'::jsonb, '{"solution":[]}'::jsonb, 'first', 120, true));
+insert into public.duel_tap_ids select 'open4', id from public.duels
+ where created_by = 'd1000000-0000-4000-8000-000000000004' and is_open
+ order by created_at desc limit 1;
+
+select is((select (r->>'open')::boolean from jsonb_array_elements(public.duel_open_rooms('d1000000-0000-4000-8000-000000000001', 30)) r
+            where r->>'id' = (select v::text from public.duel_tap_ids where k = 'open4')), true,
+  'a sala aberta aparece com open=true');
+insert into public.duel_tap
+values ('open_join_by_id', public.duel_join_open('d1000000-0000-4000-8000-000000000002',
+  (select v from public.duel_tap_ids where k = 'open4')));
+select is((select v->'opponent'->>'nickname' from public.duel_tap where k = 'open_join_by_id'), 'Dani',
+  'entrar pelo id assenta o desafiante na sala aberta');
+select is((select count(*) from public.duel_players
+            where duel_id = (select v from public.duel_tap_ids where k = 'open4')), 2::bigint,
+  'o clique ocupa a segunda vaga');
+select throws_ok(format('select public.duel_join_open(null, %L)',
+    (select v from public.duel_tap_ids where k = 'open4')),
+  '28000', 'not_authenticated', 'entrar pela lista exige usuário');
+select ok(not has_function_privilege('authenticated', 'public.duel_join_open(uuid, uuid)', 'execute')
+      and has_function_privilege('service_role', 'public.duel_join_open(uuid, uuid)', 'execute'),
+  'só a Edge executa duel_join_open');
+
 select throws_ok($$select public.duel_open_rooms(null, 30)$$, '28000', 'not_authenticated',
   'a lista exige usuário (a Edge injeta o uid)');
 select ok(not has_function_privilege('authenticated', 'public.duel_open_rooms(uuid, int)', 'execute')

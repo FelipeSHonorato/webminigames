@@ -45,7 +45,9 @@ export function mountDuelEntry(host, { games = GAMES, cloud = Cloud, navigate = 
 
   const root = node("section", "duel-entry");
   root.append(node("h2", "duel-entry-title", "Duelos 1×1"));
-  root.append(node("p", "sub", "Desafie um amigo: mesmo cenário e mesma largada. Quem terminar primeiro vence."));
+  root.append(node("p", "sub",
+    "Desafie um amigo: mesmo cenário e mesma largada. Quem terminar primeiro vence. " +
+    "Na criação você escolhe sala aberta (entra pela lista) ou fechada (só com o código)."));
 
   /* Desafiar: escolhe o jogo e abre a sala (o servidor gera o código). */
   const challengeRow = node("div", "duel-entry-row");

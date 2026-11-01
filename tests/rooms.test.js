@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { GAMES } from "../js/games.js";
 import {
-  ALL, duelIds, cleanRooms, filterItems, roomsOf, filterFromHash, hashForFilter, filterText, openedAgo, durationLabel, roomHref, ratingLabel,
+  ALL, duelIds, cleanRooms, filterItems, roomsOf, filterFromHash, hashForFilter, filterText, openedAgo, durationLabel,
+  roomHref, ratingLabel, isOpenRoom, joinableRoom,
 } from "../shared/rooms.js";
 
 const room = (id, gameId, createdAt, extra = {}) => ({ id, gameId, createdAt, maxSeconds: 600, mine: false, host: { nickname: "Ana", avatar: null }, ...extra });
@@ -87,12 +88,30 @@ test("openedAgo e durationLabel", () => {
 test("a sala é clicável só para quem a criou, e leva à página do jogo com o id (que reabre a tela do código)", () => {
   const games = { chess: { title: "Xadrez", duel: true, path: "games/chess/" } };
   assert.equal(roomHref({ id: "abc-123", gameId: "chess", mine: true }, games), "games/chess/?duelo=abc-123");
-  assert.equal(roomHref({ id: "abc-123", gameId: "chess", mine: false }, games), "", "sala de outro jogador ainda não tem destino");
+  assert.equal(roomHref({ id: "abc-123", gameId: "chess", mine: false }, games), "", "sala de outro jogador entra pelo servidor, não por link");
   assert.equal(roomHref({ id: "abc-123", gameId: "fantasma", mine: true }, games), "");
   assert.equal(roomHref({ gameId: "chess", mine: true }, games), "", "sem id não há link");
   assert.equal(roomHref(null, games), "");
   assert.equal(roomHref({ id: "a b&c", gameId: "chess", mine: true }, games), "games/chess/?duelo=a%20b%26c", "o id é escapado");
   assert.ok(roomHref({ id: "x", gameId: "chess", mine: true }, GAMES).startsWith(GAMES.chess.path + "?duelo="), "catálogo real");
+});
+
+test("sala aberta de outro jogador pode ser clicada para entrar; fechada e a própria, não", () => {
+  const games = { chess: { title: "Xadrez", duel: true, path: "games/chess/" } };
+  assert.equal(isOpenRoom({ open: true }), true);
+  assert.equal(isOpenRoom({ open: false }), false);
+  assert.equal(isOpenRoom({}), true, "resposta antiga sem o campo conta como aberta");
+  assert.equal(isOpenRoom(null), true);
+
+  const aberta = { id: "abc", gameId: "chess", mine: false, open: true };
+  const fechada = { ...aberta, open: false };
+  const minha = { ...aberta, mine: true };
+  assert.equal(joinableRoom(aberta, games), true, "aberta de outro jogador: entra direto");
+  assert.equal(joinableRoom(fechada, games), false, "fechada: só com código");
+  assert.equal(joinableRoom(minha, games), false, "a própria sala reabre a tela do código");
+  assert.equal(joinableRoom({ ...aberta, gameId: "fantasma" }, games), false, "sem página no catálogo");
+  assert.equal(joinableRoom({ ...aberta, id: undefined }, games), false, "sem id");
+  assert.equal(joinableRoom(null, games), false);
 });
 
 test("ratingLabel mostra a pontuação do criador no formato do ranking de duelos", () => {

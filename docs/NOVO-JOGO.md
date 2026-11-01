@@ -92,8 +92,9 @@ catálogo (`js/games.js`), o card ganha o selo `1×1` no modo Todos e a entrada 
 no modo Duelos — com `Cloud.active` e ao menos um jogo do modo. A Edge só cria sala quando `duelOf(game)`
 existe.
 
-Fluxo: o criador abre a sala (`duel_create`) e recebe um código de 6 caracteres; o amigo entra
-(`duel_join`); os dois marcam "pronto" (`duel_ready`) e o servidor fixa `starts_at` (~4 s). O puzzle só é
+Fluxo: o criador abre a sala (`duel_create`) escolhendo entre **aberta** (entra pela lista de Salas
+Online, `duel_join_open`) ou **fechada** (só com o código, `duel_join`) e recebe um código de 6 caracteres;
+o amigo entra; os dois marcam "pronto" (`duel_ready`) e o servidor fixa `starts_at` (~4 s). O puzzle só é
 entregue por `duel_start` **depois** de `starts_at`. A cada jogada a UI chama `session.progress(0..1)` e
 o oponente vê a barra pelo Realtime (canal privado `duel:<id>`); ao concluir, o jogo manda o tabuleiro em
 `session.finish(state)` e a Edge valida com o `domain.js` antes de o Postgres decidir. O polling de

@@ -44,6 +44,18 @@
       </div>
     </fieldset>
 
+    <fieldset class="pick">
+      <legend>Sala online</legend>
+      <div id="roomOptions" class="room-options" role="radiogroup" aria-label="Visibilidade da sala online">
+        <button type="button" class="visibility-option" data-open="true" aria-pressed="true">
+          <span class="color-text"><b>Aberta</b><small>Qualquer jogador entra pela lista de salas</small></span>
+        </button>
+        <button type="button" class="visibility-option" data-open="false" aria-pressed="false">
+          <span class="color-text"><b>Fechada</b><small>Só entra quem tiver o código do convite</small></span>
+        </button>
+      </div>
+    </fieldset>
+
     <div class="setup-actions">
       <button id="startLocal" class="primary" type="button">Jogar no mesmo dispositivo</button>
       <button id="createRoom" class="secondary" type="button">Criar sala online</button>

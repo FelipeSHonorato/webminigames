@@ -41,9 +41,9 @@ function fakeCloud({ uid = WHITE_UID, responses = {} } = {}) {
     uid,
     duelTopic: id => `duel:${id}`,
     channel(topic, options) { calls.push(["channel", topic, options]); channel.topic = topic; return channel; },
-    async chessCreate(minutes, color) {
-      calls.push(["create", minutes, color]);
-      return responses.create ?? payload({ status: "waiting", startsAt: null, winner: null });
+    async chessCreate(minutes, color, open) {
+      calls.push(["create", minutes, color, open]);
+      return responses.create ?? payload({ status: "waiting", startsAt: null, winner: null, open });
     },
     async duelJoin(code) {
       calls.push(["join", code]);
@@ -111,10 +111,21 @@ test("sessão: criar sala guarda código/cor, abre o canal privado e fica no lob
   assert.equal(s.code, "ABC123");
   assert.equal(s.status, "waiting");
   assert.equal(s.myColor, "w");
-  assert.deepEqual(calls.find(c => c[0] === "create"), ["create", 10, "w"]);
+  assert.equal(s.open, true, "sala aberta por padrão");
+  assert.deepEqual(calls.find(c => c[0] === "create"), ["create", 10, "w", true]);
   assert.deepEqual(calls.find(c => c[0] === "channel"), ["channel", "duel:d1", { config: { private: true } }]);
   assert.deepEqual(calls.find(c => c[0] === "track"), ["track", { uid: WHITE_UID }]);
   assert.deepEqual(s.clocks(), { w: 600000, b: 600000 }, "no lobby o relógio não corre");
+  s.destroy();
+});
+
+test("sessão: sala fechada é criada com `open: false` e o lobby sabe disso", async () => {
+  const { cloud, calls } = fakeCloud();
+  const s = createChessSession({ cloud, pollMs: 0, now: () => NOW });
+
+  await s.create(10, "w", false);
+  assert.equal(s.open, false);
+  assert.deepEqual(calls.find(c => c[0] === "create"), ["create", 10, "w", false]);
   s.destroy();
 });
 

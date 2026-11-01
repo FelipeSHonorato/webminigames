@@ -8,7 +8,8 @@ import { requireSession } from "../shared/session.js";
 import { GAMES } from "./games.js";
 import { rankingPanels } from "../shared/hub-nav.js";
 import {
-  ALL, cleanRooms, filterItems, roomsOf, filterFromHash, hashForFilter, filterText, openedAgo, durationLabel, roomHref, ratingLabel,
+  ALL, cleanRooms, filterItems, roomsOf, filterFromHash, hashForFilter, filterText, openedAgo, durationLabel,
+  roomHref, ratingLabel, isOpenRoom, joinableRoom,
 } from "../shared/rooms.js";
 
 const $ = id => document.getElementById(id);
@@ -62,7 +63,11 @@ function roomNode(room) {
 
   const title = el("p", "room-title");
   title.append(el("span", "room-game", game.title));
-  if (room.mine) title.append(el("span", "room-badge", "Sua sala"));
+  if (room.mine) {
+    title.append(el("span", "room-badge", "Sua sala"));
+    title.append(el("span", "room-badge" + (isOpenRoom(room) ? "" : " room-badge-closed"),
+      isOpenRoom(room) ? "Aberta" : "Fechada"));
+  }
 
   /* Linha do criador: "Nome [1520 Elo] · Tempo: 10 min · aberta há 2 min". Textos sempre por textContent (el). */
   const meta = el("p", "room-meta");
@@ -80,7 +85,9 @@ function roomNode(room) {
   const body = el("div", "room-body");
   body.append(title, meta);
   const href = roomHref(room, GAMES);
-  li.append(avatar, body, el("span", "room-state", href ? "Ver código da sala" : "Aguardando desafiante"));
+  const joinable = joinableRoom(room, GAMES);
+  li.append(avatar, body, el("span", "room-state",
+    href ? "Ver código da sala" : joinable ? "Entrar na sala" : "Aguardando desafiante"));
   if (href) {
     /* Sua sala: o card inteiro leva de volta à tela do código (a página do jogo reabre a sala pelo id). */
     const open = el("a", "room-open");
@@ -88,8 +95,61 @@ function roomNode(room) {
     open.setAttribute("aria-label", `Abrir sua sala de ${game.title} e ver o código de convite`);
     li.classList.add("clickable");
     li.append(open);
+  } else if (joinable) {
+    /* Sala aberta de outro jogador: o card inteiro entra direto (o servidor assenta a vaga). */
+    const join = el("button", "room-open");
+    join.type = "button";
+    join.setAttribute("aria-label",
+      `Entrar na sala de ${game.title} de ${room.host?.nickname || "outro jogador"}`);
+    join.addEventListener("click", () => enterRoom(room, join));
+    li.classList.add("clickable");
+    li.append(join);
   }
   return li;
+}
+
+/* ---------- Entrar numa sala aberta (sem código) ---------- */
+
+const JOIN_MESSAGES = {
+  closed_room: "Essa sala é fechada: só entra com o código do convite.",
+  duel_full: "Essa sala já está cheia. Atualize a lista.",
+  expired: "Essa sala expirou. Atualize a lista.",
+  bad_status: "Esse duelo já começou ou terminou.",
+  duel_not_found: "Essa sala não existe mais. Atualize a lista.",
+  not_authenticated: "Entre na sua conta para jogar online.",
+  unknown_game: "Esse jogo não está mais disponível.",
+};
+
+let joining = false;
+let noticeTimer = null;
+
+function flashNotice(message = "", error = false) {
+  const box = $("roomsNotice");
+  clearTimeout(noticeTimer);
+  box.hidden = !message;
+  box.textContent = message;
+  box.classList.toggle("error", error);
+  if (message) noticeTimer = setTimeout(() => { box.hidden = true; }, 6000);
+}
+
+async function enterRoom(room, button) {
+  if (joining) return;
+  joining = true;
+  button.disabled = true;
+  flashNotice(`Entrando na sala de ${room.host?.nickname || "outro jogador"}…`);
+  try {
+    const data = await Cloud.duelJoinRoom(room.id);
+    const game = GAMES[data?.gameId ?? room.gameId];
+    if (!game?.path || !data?.code) throw Object.assign(new Error("unknown_game"), { code: "unknown_game" });
+    /* O código reabre a sala em qualquer jogo de duelo (e o servidor já nos assentou na vaga). */
+    location.href = `${game.path}?duelo=${encodeURIComponent(data.code)}`;
+  } catch (e) {
+    console.warn("[WebMiniGames] não foi possível entrar na sala:", e?.message ?? e);
+    flashNotice(JOIN_MESSAGES[e?.code] ?? "Não foi possível entrar agora. Tente de novo.", true);
+    button.disabled = false;
+    joining = false;
+    load();                       // a sala pode ter enchido/expirado: atualiza a lista
+  }
 }
 
 function emptyMessage(visible) {
@@ -118,7 +178,7 @@ function paintRooms() {
   const list = $("rooms");
   const visible = roomsOf(rooms, filter);
   /* Só redesenha quando algo visível mudou (evita piscar o avatar a cada atualização). */
-  const sig = JSON.stringify([state, filter, visible.map(r => [r.id, r.mine, openedAgo(r.createdAt)])]);
+  const sig = JSON.stringify([state, filter, visible.map(r => [r.id, r.mine, r.open, openedAgo(r.createdAt)])]);
   if (sig === paintedSig) return;
   paintedSig = sig;
 

@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql"];
+const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql"];
 const migration = f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
 const migrations = migrationNames.map(migration);
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
@@ -123,7 +123,9 @@ test("SQL: duelos 1x1 — tabelas, funções, RLS e grants", () => {
   }
   for (const f of [
     "duel_create\\(uuid, text, int, bigint, int, jsonb, jsonb, text, int\\)",
+    "duel_create\\(uuid, text, int, bigint, int, jsonb, jsonb, text, int, boolean\\)",
     "duel_join\\(uuid, text\\)",
+    "duel_join_open\\(uuid, uuid\\)",
     "duel_ready\\(uuid, uuid\\)",
     "duel_start\\(uuid, uuid\\)",
     "duel_state\\(uuid, uuid\\)",
@@ -186,6 +188,29 @@ test("SQL: a lista de salas traz o rating do criador NAQUELE jogo (1500 para que
   assert.match(code, /d\.expires_at > now\(\)/);
   for (const secret of [/d\.code\b/, /d\.seed\b/, /public_view/, /full_puzzle/]) assert.doesNotMatch(code, secret);
   assert.match(code, /grant execute on function public\.duel_open_rooms\(uuid, int\) to service_role/);
+  assert.doesNotMatch(code, /to (anon|authenticated)/, "só a Edge executa");
+});
+
+test("SQL: sala aberta ou fechada — coluna is_open, criação com p_open e lista sem as fechadas", () => {
+  const code = migration("20261043000000_duel_open_visibility.sql").replace(/--.*$/gm, "");
+  assert.match(code, /alter table public\.duels add column if not exists is_open boolean not null default true/,
+    "salas antigas continuam abertas");
+  assert.match(code, /drop function if exists public\.duel_create\(uuid, text, int, bigint, int, jsonb, jsonb, text, int\)/,
+    "a assinatura antiga de duel_create sai");
+  assert.match(code, /p_rule text, p_max_seconds int, p_open boolean default true/, "duel_create recebe a visibilidade");
+  assert.match(code, /drop function if exists public\.chess_create\(uuid, int, text, text, text\)/,
+    "a assinatura antiga de chess_create sai");
+  assert.match(code, /p_fen text, p_key text, p_open boolean default true/, "chess_create recebe a visibilidade");
+  assert.match(code, /coalesce\(p_open, true\)/, "sem escolha explícita, a sala nasce aberta");
+  assert.match(code, /d\.is_open or d\.created_by = p_uid/, "fechada só aparece para o criador");
+  assert.match(code, /'open', d\.is_open/, "a lista informa a visibilidade");
+  assert.match(code, /create or replace function public\.duel_join_open\(p_uid uuid, p_duel uuid\)/);
+  assert.match(code, /if not v_duel\.is_open then raise exception 'closed_room'/, "entrar por id exige sala aberta");
+  assert.match(code, /create or replace function public\.duel_seat\(p_uid uuid, p_duel public\.duels\)/,
+    "código e clique usam o mesmo assento");
+  assert.match(code, /grant execute on function public\.duel_create\(uuid, text, int, bigint, int, jsonb, jsonb, text, int, boolean\) to service_role/);
+  assert.match(code, /grant execute on function public\.chess_create\(uuid, int, text, text, text, boolean\) to service_role/);
+  assert.match(code, /grant execute on function public\.duel_join_open\(uuid, uuid\) to service_role/);
   assert.doesNotMatch(code, /to (anon|authenticated)/, "só a Edge executa");
 });
 

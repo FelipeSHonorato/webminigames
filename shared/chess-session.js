@@ -42,7 +42,7 @@ export function chessOutcome(state, uid) {
  */
 export function createChessSession({ cloud = Cloud, pollMs = CHESS_POLL_MS, now = () => Date.now() } = {}) {
   const listeners = new Map();
-  let id = null, code = null, status = "idle", startsAt = null, serverOffset = 0;
+  let id = null, code = null, status = "idle", startsAt = null, serverOffset = 0, isOpen = true;
   let players = [], winner = null, chess = null;
   let colors = { white: null, black: null }, myColor = null;
   let clockAt = 0, finished = false, destroyed = false;
@@ -65,6 +65,7 @@ export function createChessSession({ cloud = Cloud, pollMs = CHESS_POLL_MS, now 
     if (data.code) code = data.code;
     if (data.status) status = data.status;
     if (data.startsAt !== undefined) startsAt = data.startsAt;
+    if ("open" in data) isOpen = data.open !== false;
     if (Array.isArray(data.players)) players = data.players;
     if ("winner" in data) winner = data.winner;
     if (data.serverNow) {
@@ -119,8 +120,8 @@ export function createChessSession({ cloud = Cloud, pollMs = CHESS_POLL_MS, now 
     ch.subscribe?.(s => { if (s === "SUBSCRIBED") ch.track?.({ uid: myUid() }); });
   }
 
-  async function create(minutes, color) {
-    const data = await cloud.chessCreate(minutes, color);
+  async function create(minutes, color, open = true) {
+    const data = await cloud.chessCreate(minutes, color, open);
     apply(data);
     openChannel();
     emit("lobby", data);
@@ -207,6 +208,8 @@ export function createChessSession({ cloud = Cloud, pollMs = CHESS_POLL_MS, now 
     get id() { return id; },
     get code() { return code; },
     get status() { return status; },
+    /** Sala aberta (entra pela lista) ou fechada (só pelo código). */
+    get open() { return isOpen; },
     get startsAt() { return startsAt; },
     get serverOffset() { return serverOffset; },
     get clockAt() { return clockAt; },

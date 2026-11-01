@@ -25,17 +25,19 @@ export const msUntil = (iso, now = Date.now(), serverOffset = 0) =>
  * @param {object} opts
  * @param {string|null} opts.game    jogo que declara DUEL (obrigatório para criar)
  * @param {number} opts.level        nível do cenário (o servidor valida)
+ * @param {boolean} opts.open        sala aberta na lista (padrão) ou fechada (só com código)
  * @param {object} opts.cloud        Cloud (injetável nos testes)
  * @param {number} opts.pollMs        intervalo do polling de `duel_state` (0 desliga)
  * @param {boolean} opts.autoStart    começar sozinho quando a contagem chega a zero
  * @param {() => number} opts.now     relógio do cliente (injetável nos testes)
  */
 export function createDuelSession({
-  game = null, level = 0, cloud = Cloud,
+  game = null, level = 0, open = true, cloud = Cloud,
   pollMs = DEFAULT_POLL_MS, autoStart = true, now = () => Date.now(),
 } = {}) {
   const listeners = new Map();
   let id = null, code = null, gameId = game, status = "idle", rule = null, maxSeconds = null;
+  let isOpen = open;
   let players = [], winner = null, state = null, puzzle = null;
   let startsAt = null, serverOffset = 0;
   let myProgress = 0, opponentProgress = 0;
@@ -61,6 +63,7 @@ export function createDuelSession({
     if (data.level != null) level = data.level;
     if (data.rule) rule = data.rule;
     if (data.maxSeconds != null) maxSeconds = data.maxSeconds;
+    if ("open" in data) isOpen = data.open !== false;
     if (data.status) status = data.status;
     if (data.startsAt !== undefined) startsAt = data.startsAt;
     if (Array.isArray(data.players)) players = data.players;
@@ -132,7 +135,7 @@ export function createDuelSession({
   }
 
   async function create() {
-    const data = await cloud.duelCreate(gameId, level);
+    const data = await cloud.duelCreate(gameId, level, isOpen);
     apply(data);
     openChannel();
     emit("lobby", { id, code, rule, maxSeconds, level, gameId });
@@ -231,6 +234,8 @@ export function createDuelSession({
     get gameId() { return gameId; },
     get level() { return level; },
     get status() { return status; },
+    /** Sala aberta (entra pela lista) ou fechada (só pelo código). */
+    get open() { return isOpen; },
     get rule() { return rule; },
     get maxSeconds() { return maxSeconds; },
     get startsAt() { return startsAt; },

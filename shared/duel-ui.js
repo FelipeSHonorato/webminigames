@@ -158,6 +158,9 @@ export function mountDuelUi(host, session, { title = "Duelo 1×1", onStart, onFi
       idle: "", waiting: "Aguardando o amigo", running: "Em andamento", finished: "Encerrado", cancelled: "Cancelado",
     }[session.status] ?? "";
     btnReady.disabled = Boolean(session.me()?.ready) || session.status !== "waiting";
+    lobbyHint.textContent = session.open === false
+      ? "Mande o código (ou o link) para o seu amigo. O duelo começa quando os dois marcarem pronto."
+      : "Sala aberta: qualquer jogador entra pela lista de Salas Online (ou pelo código/link). O duelo começa quando os dois marcarem pronto.";
 
     const opp = session.opponent();
     rivalAvatar.replaceChildren(avatarNode(opp?.avatar));

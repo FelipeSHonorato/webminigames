@@ -25,9 +25,9 @@ function fakeCloud({ uid = UID, responses = {} } = {}) {
     uid,
     duelTopic: id => `duel:${id}`,
     channel(topic, options) { calls.push(["channel", topic, options]); channel.topic = topic; channel.options = options; return channel; },
-    async duelCreate(game, level) {
-      calls.push(["create", game, level]);
-      return responses.create ?? { id: "d1", code: "ABC123", gameId: game, level, rule: "first", maxSeconds: 120 };
+    async duelCreate(game, level, open) {
+      calls.push(["create", game, level, open]);
+      return responses.create ?? { id: "d1", code: "ABC123", gameId: game, level, rule: "first", maxSeconds: 120, open };
     },
     async duelJoin(code) {
       calls.push(["join", code]);
@@ -85,7 +85,8 @@ test("sessão de duelo: criar e entrar guardam a sala e abrem o canal do tópico
   assert.equal(s.level, 2);
   assert.equal(s.rule, "first");
   assert.equal(s.maxSeconds, 120);
-  assert.deepEqual(calls.find(c => c[0] === "create"), ["create", "duelgame", 2]);
+  assert.equal(s.open, true, "sala aberta por padrão");
+  assert.deepEqual(calls.find(c => c[0] === "create"), ["create", "duelgame", 2, true]);
   assert.deepEqual(calls.find(c => c[0] === "channel"), ["channel", "duel:d1", { config: { private: true } }], "o canal é privado (policy do Realtime)");
 
   const outro = fakeCloud();
@@ -93,6 +94,14 @@ test("sessão de duelo: criar e entrar guardam a sala e abrem o canal do tópico
   await s2.join("abc123");
   assert.equal(s2.gameId, "duelgame");
   assert.deepEqual(outro.calls.find(c => c[0] === "join"), ["join", "abc123"]);
+});
+
+test("sessão de duelo: sala fechada é criada com `open: false` (só entra com código)", async () => {
+  const { cloud, calls } = fakeCloud();
+  const s = createDuelSession({ game: "duelgame", cloud, pollMs: 0, open: false });
+  await s.create();
+  assert.equal(s.open, false);
+  assert.deepEqual(calls.find(c => c[0] === "create"), ["create", "duelgame", 0, false]);
 });
 
 test("sessão de duelo: pronto agenda a contagem no relógio do servidor", async () => {

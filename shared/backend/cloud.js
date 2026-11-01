@@ -342,13 +342,17 @@ export const Cloud = {
      O Realtime é apenas espelho visual (progresso do oponente e presença). */
   /** Tópico do canal Realtime: um por duelo. A policy do banco libera só para os dois jogadores. */
   duelTopic: duel => `duel:${duel}`,
-  /** Cria a sala (código de convite). Devolve { id, code, rule, maxSeconds, level, gameId }. */
-  duelCreate(game, level = 0) { return invoke("duel_create", { game, level }); },
-  /** Salas abertas esperando um desafiante (todos os jogos de duelo), da mais nova para a mais antiga.
-      Devolve `{ rooms: [{ id, gameId, kind, rule, level, maxSeconds, createdAt, expiresAt, mine, host }] }`. */
+  /** Cria a sala (código de convite). `open` = sala aberta na lista (padrão) ou fechada (só por código).
+      Devolve { id, code, rule, maxSeconds, level, gameId, open }. */
+  duelCreate(game, level = 0, open = true) { return invoke("duel_create", { game, level, open }); },
+  /** Salas esperando um desafiante (todos os jogos de duelo), da mais nova para a mais antiga.
+      As fechadas só aparecem para o criador. Devolve
+      `{ rooms: [{ id, gameId, kind, rule, level, maxSeconds, createdAt, expiresAt, open, mine, host }] }`. */
   duelRooms() { return invoke("duel_list", {}); },
-  /** Entra pelo código do convite. Devolve a sala com os jogadores e o oponente. */
+  /** Entra pelo código do convite (sala aberta ou fechada). Devolve a sala com os jogadores e o oponente. */
   duelJoin(code) { return invoke("duel_join", { code }); },
+  /** Entra pelo id de uma sala ABERTA (clique no card da lista). Devolve a sala com os jogadores. */
+  duelJoinRoom(duel) { return invoke("duel_join_open", { duel }); },
   /** Marca "pronto"; quando os dois marcam, o servidor fixa `starts_at` (contagem regressiva). */
   duelReady(duel) { return invoke("duel_ready", { duel }); },
   /** Só depois de `starts_at` o servidor entrega o puzzle — não dá para resolver durante a contagem. */
@@ -364,7 +368,7 @@ export const Cloud = {
 
   /* ----- xadrez 1×1 (duelo por turnos) -----
      O cliente manda só o lance; a Edge valida com o domínio e o Postgres confere vez/relógio/versão. */
-  chessCreate(minutes, color) { return invoke("chess_create", { minutes, color }); },
+  chessCreate(minutes, color, open = true) { return invoke("chess_create", { minutes, color, open }); },
   chessStart(duel) { return invoke("chess_start", { duel }); },
   chessState(duel) { return invoke("chess_state", { duel }); },
   chessMove(duel, move) { return invoke("chess_move", { duel, move }); },

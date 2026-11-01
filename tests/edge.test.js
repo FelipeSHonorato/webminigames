@@ -342,11 +342,16 @@ test("a Edge expõe as ações de duelo e valida o tabuleiro antes de finalizar"
   assert.doesNotMatch(entry, /const DUEL_GAMES = new Set\(\[/, "não fixe a lista de jogos de duelo na Edge");
 
   for (const a of [
-    "duel_create", "duel_join", "duel_ready", "duel_start", "duel_state", "duel_finish", "duel_leave", "duel_list",
+    "duel_create", "duel_join", "duel_join_open", "duel_ready", "duel_start", "duel_state", "duel_finish", "duel_leave", "duel_list",
     "chess_create", "chess_start", "chess_state", "chess_move", "chess_resign",
   ]) {
     assert.match(entry, new RegExp(`action === "${a}"`), `${a} ausente na Edge`);
   }
+
+  // Sala aberta/fechada: a visibilidade é escolha do cliente e chega às funções de criação.
+  assert.match(entry, /const open = body\?\.open !== false/, "open é booleano, aberto por padrão");
+  assert.match(entry, /p_open: open/, "a Edge manda p_open para o Postgres");
+  assert.match(entry, /rpc\("duel_join_open", \{ p_uid: uid, p_duel: room \}\)/, "entrar pela lista usa o id da sala");
 
   // Só jogo com DUEL pode criar sala.
   assert.match(entry, /const duel = duelOf\(game\);\s*if \(!duel\) return json\(\{ error: "not_duel_game" \}, 400\)/,

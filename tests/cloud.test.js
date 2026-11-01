@@ -330,8 +330,9 @@ test("desafio diário: o primeiro movimento começa o relógio no servidor (Text
 test("duelos: cada ação chama a Edge com os campos certos", async () => {
   const c = await boot({ functions: { invoke: (name, body) => ({ data: { action: body.action }, error: null }) } });
 
-  await Cloud.duelCreate("duelgame", 2);
+  await Cloud.duelCreate("duelgame", 2, false);
   await Cloud.duelJoin("abc123");
+  await Cloud.duelJoinRoom("d1");
   await Cloud.duelReady("d1");
   await Cloud.duelStart("d1");
   await Cloud.duelState("d1");
@@ -339,8 +340,9 @@ test("duelos: cada ação chama a Edge com os campos certos", async () => {
 
   const bodies = c.calls.filter(x => x[0] === "invoke").map(x => x[2]);
   assert.deepEqual(bodies, [
-    { action: "duel_create", game: "duelgame", level: 2 },
+    { action: "duel_create", game: "duelgame", level: 2, open: false },
     { action: "duel_join", code: "abc123" },
+    { action: "duel_join_open", duel: "d1" },
     { action: "duel_ready", duel: "d1" },
     { action: "duel_start", duel: "d1" },
     { action: "duel_state", duel: "d1" },
@@ -351,7 +353,7 @@ test("duelos: cada ação chama a Edge com os campos certos", async () => {
 test("xadrez online: cada ação chama a Edge com os campos certos", async () => {
   const c = await boot({ functions: { invoke: (name, body) => ({ data: { action: body.action }, error: null }) } });
 
-  await Cloud.chessCreate(10, "b");
+  await Cloud.chessCreate(10, "b", false);
   await Cloud.chessStart("d1");
   await Cloud.chessState("d1");
   await Cloud.chessMove("d1", "e2e4");
@@ -359,7 +361,7 @@ test("xadrez online: cada ação chama a Edge com os campos certos", async () =>
 
   const bodies = c.calls.filter(x => x[0] === "invoke").map(x => x[2]);
   assert.deepEqual(bodies, [
-    { action: "chess_create", minutes: 10, color: "b" },
+    { action: "chess_create", minutes: 10, color: "b", open: false },
     { action: "chess_start", duel: "d1" },
     { action: "chess_state", duel: "d1" },
     { action: "chess_move", duel: "d1", move: "e2e4" },

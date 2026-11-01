@@ -59,7 +59,7 @@ const onlineMessage = e => {
 const $ = id => document.getElementById(id);
 const els = {
   setup: $("setup"), game: $("game"), lobby: $("lobby"), board: $("board"), promo: $("promo"), status: $("status"),
-  timeOptions: $("timeOptions"), colorOptions: $("colorOptions"), startLocal: $("startLocal"),
+  timeOptions: $("timeOptions"), colorOptions: $("colorOptions"), roomOptions: $("roomOptions"), startLocal: $("startLocal"),
   createRoom: $("createRoom"), duelNotice: $("duelNotice"),
   lobbyCode: $("lobbyCode"), lobbyPlayers: $("lobbyPlayers"), lobbyStatus: $("lobbyStatus"),
   copyCode: $("copyCode"), copyLink: $("copyLink"), ready: $("ready"), leaveLobby: $("leaveLobby"),
@@ -84,7 +84,7 @@ Music.play(GAME_ID);
 let mode = "local";                              // "local" (hot-seat) | "online"
 let online = null;                               // sessão de xadrez online (shared/chess-session.js)
 let sending = false;                             // lance online em trânsito: bloqueia o tabuleiro
-let settings = { minutes: 10, color: "w" };      // ritmo e cor de quem está no dispositivo
+let settings = { minutes: 10, color: "w", open: true };  // ritmo, cor e visibilidade da sala online
 let game = newGame();
 let clocks = { w: 0, b: 0 };
 let activeClock = null;
@@ -129,6 +129,19 @@ els.colorOptions.addEventListener("click", event => {
   if (!button) return;
   settings.color = button.dataset.color === "b" ? "b" : "w";
   renderColorOptions();
+});
+
+function renderRoomOptions() {
+  for (const button of els.roomOptions.querySelectorAll(".visibility-option")) {
+    button.setAttribute("aria-pressed", String((button.dataset.open === "true") === settings.open));
+  }
+}
+
+els.roomOptions.addEventListener("click", event => {
+  const button = event.target.closest(".visibility-option");
+  if (!button) return;
+  settings.open = button.dataset.open === "true";
+  renderRoomOptions();
 });
 
 /* ===================== endereço: ?duelo=novo | ?duelo=<código> | ?duelo=<id> ===================== */
@@ -190,13 +203,13 @@ function handleOnline() {
   enterOnlineGame();
 }
 
-async function createOnlineRoom(minutes = settings.minutes, color = settings.color) {
+async function createOnlineRoom(minutes = settings.minutes, color = settings.color, open = settings.open) {
   if (!session) { noticeSetup("Entre na sua conta para jogar online."); return; }
   if (!canOnline()) { noticeSetup("O duelo online não está disponível nesta sessão."); return; }
   els.createRoom.disabled = true;
   try {
     startOnline();
-    await online.create(minutes, color);
+    await online.create(minutes, color, open);
     handleOnline();
   } catch (e) {
     teardownOnline();
@@ -264,10 +277,10 @@ async function leaveGame() {
 }
 
 async function rematchOnline() {
-  const { minutes, color } = settings;
+  const { minutes, color, open } = settings;
   els.result.hidden = true;
   teardownOnline();
-  await createOnlineRoom(minutes, color);
+  await createOnlineRoom(minutes, color, open);
 }
 
 /* ===================== lobby ===================== */
@@ -315,7 +328,9 @@ function renderLobby() {
   const opp = online.opponent();
   els.ready.disabled = Boolean(me?.ready);
   els.lobbyStatus.textContent = !opp
-    ? "Aguardando o amigo entrar com o código…"
+    ? (online.open === false
+      ? "Aguardando o amigo entrar com o código…"
+      : "Aguardando alguém entrar pela lista de salas (ou pelo código)…")
     : opp.ready && me?.ready
       ? "Os dois prontos! Preparando o tabuleiro…"
       : `${opp.nickname || "O amigo"} entrou. Marque pronto para começar.`;
@@ -1067,6 +1082,7 @@ els.resign.addEventListener("click", async () => {
 
 renderTimeOptions();
 renderColorOptions();
+renderRoomOptions();
 els.createRoom.disabled = !canOnline();
 
 if (inviteKind === "new") {
