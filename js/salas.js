@@ -8,7 +8,7 @@ import { requireSession } from "../shared/session.js";
 import { GAMES } from "./games.js";
 import { rankingPanels } from "../shared/hub-nav.js";
 import {
-  ALL, cleanRooms, filterItems, roomsOf, filterFromHash, hashForFilter, filterText, openedAgo, durationLabel,
+  ALL, cleanRooms, filterItems, roomsOf, filterFromHash, hashForFilter, filterText, openedAgo, durationLabel, roomHref,
 } from "../shared/rooms.js";
 
 const $ = id => document.getElementById(id);
@@ -55,7 +55,7 @@ function paintNav() {
 function roomNode(room) {
   const game = GAMES[room.gameId];
   const li = el("li", "room" + (room.mine ? " mine" : ""));
-  li.dataset.roomId = room.id;                       // o clique na sala vem depois; o id já fica aqui
+  li.dataset.roomId = room.id;
 
   const avatar = el("span", "room-avatar");
   avatar.append(avatarNode(room.host?.avatar));
@@ -73,7 +73,16 @@ function roomNode(room) {
 
   const body = el("div", "room-body");
   body.append(title, meta);
-  li.append(avatar, body, el("span", "room-state", "Aguardando desafiante"));
+  const href = roomHref(room, GAMES);
+  li.append(avatar, body, el("span", "room-state", href ? "Ver código da sala" : "Aguardando desafiante"));
+  if (href) {
+    /* Sua sala: o card inteiro leva de volta à tela do código (a página do jogo reabre a sala pelo id). */
+    const open = el("a", "room-open");
+    open.href = href;
+    open.setAttribute("aria-label", `Abrir sua sala de ${game.title} e ver o código de convite`);
+    li.classList.add("clickable");
+    li.append(open);
+  }
   return li;
 }
 
@@ -115,7 +124,10 @@ function paintRooms() {
   }
   const empty = emptyMessage(visible);
   $("roomsEmpty").hidden = !empty;
+  /* O link da sua sala é focável: se o teclado estava nele, devolve o foco depois de redesenhar. */
+  const focusedId = document.activeElement?.closest?.("[data-room-id]")?.dataset.roomId;
   list.replaceChildren(...(state === "offline" ? [] : visible.map(roomNode)));
+  if (focusedId) [...list.querySelectorAll("[data-room-id]")].find(li => li.dataset.roomId === focusedId)?.querySelector(".room-open")?.focus({ preventScroll: true });
 }
 
 function paintStatus() {

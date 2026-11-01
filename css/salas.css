@@ -10,9 +10,15 @@
 .rooms-refresh:disabled{opacity:.55;cursor:default}
 
 .rooms{display:grid;gap:10px;margin:0;padding:0;list-style:none}
-.room{display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:6px 14px;min-width:0;
+.room{position:relative;display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:6px 14px;min-width:0;
   padding:12px 16px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
 .room.mine{border-color:var(--accent)}
+/* Sua sala é clicável: um link do tamanho do card leva de volta à tela do código. */
+.room.clickable{cursor:pointer}
+.room.clickable:hover{background:var(--bg)}
+.room.clickable .room-state{background:var(--accent);color:var(--accent-fg)}
+.room-open{position:absolute;inset:0;border-radius:inherit}
+.room-open:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 .room-avatar{display:grid;place-items:center;width:44px;height:44px}
 .room-avatar .avatar{width:44px;height:44px;border-radius:50%}
 .room-body{display:grid;gap:3px;min-width:0}

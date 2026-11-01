@@ -36,7 +36,7 @@ const ONLINE_MESSAGES = {
   duel_full: "Essa sala já está cheia.",
   bad_status: "Esse duelo já começou ou terminou.",
   expired: "Esse convite expirou. Peça um novo.",
-  too_many_open: "Você já tem 3 salas abertas. Feche uma antes de criar outra.",
+  too_many_open: "Você já tem uma sala aberta. Abra-a em Salas Online (aparece como “Sua sala”) ou saia dela antes de criar outra.",
   not_authenticated: "Entre na sua conta para jogar online.",
   bad_minutes: "Ritmo de jogo inválido.",
   bad_color: "Cor inválida.",

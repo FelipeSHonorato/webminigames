@@ -187,6 +187,12 @@ select is((public.duel_leave('d1000000-0000-4000-8000-000000000002',
 select is((select count(*) from public.duel_players
             where duel_id = (select v from public.duel_tap_ids where k = 'd5')), 1::bigint,
   'a vaga liberada some da sala');
+-- só uma sala aberta por vez: Ana cancela a d5 antes de abrir a d6
+select throws_ok(
+  $$select public.duel_create('d1000000-0000-4000-8000-000000000001', 'zip', 0, 14, 1,
+      '{}'::jsonb, '{}'::jsonb, 'first', 120)$$,
+  '55000', 'too_many_open', 'com a d5 ainda aberta, Ana não abre outra sala');
+select public.duel_leave('d1000000-0000-4000-8000-000000000001', (select v from public.duel_tap_ids where k = 'd5'));
 
 insert into public.duel_tap
 values ('forfeit', public.duel_create(
@@ -251,16 +257,20 @@ select public.duel_tap_super();
 select lives_ok(
   $$select public.duel_create('d1000000-0000-4000-8000-000000000003', 'zip', 0, 21, 1,
       '{}'::jsonb, '{}'::jsonb, 'first', 120)$$, 'Carol abre a primeira sala');
-select lives_ok(
+select throws_ok(
   $$select public.duel_create('d1000000-0000-4000-8000-000000000003', 'zip', 0, 22, 1,
-      '{}'::jsonb, '{}'::jsonb, 'first', 120)$$, 'Carol abre a segunda sala');
+      '{}'::jsonb, '{}'::jsonb, 'first', 120)$$,
+  '55000', 'too_many_open', 'só uma sala aberta por vez: a segunda é recusada');
+-- sala vencida (a limpeza ainda não passou) não bloqueia o criador
+update public.duels set expires_at = now() - interval '1 second'
+ where created_by = 'd1000000-0000-4000-8000-000000000003' and status = 'waiting';
 select lives_ok(
   $$select public.duel_create('d1000000-0000-4000-8000-000000000003', 'zip', 0, 23, 1,
-      '{}'::jsonb, '{}'::jsonb, 'first', 120)$$, 'Carol abre a terceira sala');
+      '{}'::jsonb, '{}'::jsonb, 'first', 120)$$, 'sala expirada não conta: Carol abre outra');
 select throws_ok(
   $$select public.duel_create('d1000000-0000-4000-8000-000000000003', 'zip', 0, 24, 1,
       '{}'::jsonb, '{}'::jsonb, 'first', 120)$$,
-  '55000', 'too_many_open', 'a quarta sala aberta é recusada');
+  '55000', 'too_many_open', 'a sala nova volta a ocupar o limite');
 
 insert into public.duel_tap_ids
 select 'lgpd', id from public.duels
@@ -307,6 +317,12 @@ values ('open_join', public.duel_join('d1000000-0000-4000-8000-000000000002', (s
 select is((select count(*) from jsonb_array_elements(public.duel_open_rooms('d1000000-0000-4000-8000-000000000001', 30)) r
             where r->>'id' = (select v::text from public.duel_tap_ids where k = 'open1')), 0::bigint,
   'sala com o desafiante dentro sai da lista');
+-- a sala com desafiante ainda é "aberta" para quem a criou: só uma por vez
+select throws_ok(
+  $$select public.duel_create('d1000000-0000-4000-8000-000000000004', 'zip', 1, 78, 1,
+      '{}'::jsonb, '{}'::jsonb, 'first', 120)$$,
+  '55000', 'too_many_open', 'Dani não abre uma segunda sala com a primeira ainda aberta');
+insert into public.duel_tap values ('open_leave1', public.duel_leave('d1000000-0000-4000-8000-000000000004', (select v from public.duel_tap_ids where k = 'open1')));
 
 -- expirada sai da lista
 insert into public.duel_tap

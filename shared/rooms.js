@@ -66,3 +66,10 @@ export function durationLabel(room) {
   if (!Number.isFinite(seconds) || seconds <= 0) return "";
   return seconds < 60 ? `${Math.round(seconds)} s` : `${Math.round(seconds / 60)} min`;
 }
+
+/** Link para reabrir uma sala MINHA (a tela do código de convite). Sala de outro jogador ainda não tem destino: "". */
+export function roomHref(room, games = {}) {
+  const path = games[room?.gameId]?.path;
+  if (!room?.mine || !path || typeof room.id !== "string") return "";
+  return `${path}?duelo=${encodeURIComponent(room.id)}`;
+}

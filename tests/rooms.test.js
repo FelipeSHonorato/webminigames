@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { GAMES } from "../js/games.js";
 import {
-  ALL, duelIds, cleanRooms, filterItems, roomsOf, filterFromHash, hashForFilter, filterText, openedAgo, durationLabel,
+  ALL, duelIds, cleanRooms, filterItems, roomsOf, filterFromHash, hashForFilter, filterText, openedAgo, durationLabel, roomHref,
 } from "../shared/rooms.js";
 
 const room = (id, gameId, createdAt, extra = {}) => ({ id, gameId, createdAt, maxSeconds: 600, mine: false, host: { nickname: "Ana", avatar: null }, ...extra });
@@ -82,4 +82,15 @@ test("openedAgo e durationLabel", () => {
   assert.equal(durationLabel({ maxSeconds: 45 }), "45 s");
   assert.equal(durationLabel({}), "");
   assert.equal(durationLabel(null), "");
+});
+
+test("a sala é clicável só para quem a criou, e leva à página do jogo com o id (que reabre a tela do código)", () => {
+  const games = { chess: { title: "Xadrez", duel: true, path: "games/chess/" } };
+  assert.equal(roomHref({ id: "abc-123", gameId: "chess", mine: true }, games), "games/chess/?duelo=abc-123");
+  assert.equal(roomHref({ id: "abc-123", gameId: "chess", mine: false }, games), "", "sala de outro jogador ainda não tem destino");
+  assert.equal(roomHref({ id: "abc-123", gameId: "fantasma", mine: true }, games), "");
+  assert.equal(roomHref({ gameId: "chess", mine: true }, games), "", "sem id não há link");
+  assert.equal(roomHref(null, games), "");
+  assert.equal(roomHref({ id: "a b&c", gameId: "chess", mine: true }, games), "games/chess/?duelo=a%20b%26c", "o id é escapado");
+  assert.ok(roomHref({ id: "x", gameId: "chess", mine: true }, GAMES).startsWith(GAMES.chess.path + "?duelo="), "catálogo real");
 });
