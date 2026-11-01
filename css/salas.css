@@ -24,6 +24,8 @@
 .room-body{display:grid;gap:3px;min-width:0}
 .room-title{display:flex;align-items:center;flex-wrap:wrap;gap:4px 8px;margin:0;font-size:1rem;font-weight:800}
 .room-meta{margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.82rem;color:var(--muted)}
+.room-host{font-weight:700;color:var(--fg)}
+.room-rating{margin:0 2px 0 8px;padding:1px 8px;border-radius:999px;background:var(--bg);color:var(--accent);font-size:.72rem;font-weight:800;white-space:nowrap}
 .room-badge{padding:1px 8px;border:1px solid var(--accent);border-radius:999px;color:var(--accent);
   font-size:.64rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap}
 .room-state{padding:4px 10px;border-radius:999px;background:var(--bg);color:var(--muted);font-size:.72rem;font-weight:800;white-space:nowrap}

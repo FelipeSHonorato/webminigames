@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql"];
+const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql"];
 const migration = f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
 const migrations = migrationNames.map(migration);
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
@@ -175,6 +175,18 @@ test("SQL: uma sala aberta por vez (duel_create e chess_create), sem contar sala
   assert.doesNotMatch(code, /v_cap int := 3|>= 3 then/, "nenhum limite de 3 sobrou");
   assert.match(code, /grant execute on function public\.duel_create\(uuid, text, int, bigint, int, jsonb, jsonb, text, int\) to service_role/);
   assert.match(code, /grant execute on function public\.chess_create\(uuid, int, text, text, text\) to service_role/);
+});
+
+test("SQL: a lista de salas traz o rating do criador NAQUELE jogo (1500 para quem nunca jogou) e continua sem segredos", () => {
+  const code = migration("20261042000000_duel_open_rooms_rating.sql").replace(/--.*$/gm, "");
+  assert.match(code, /create or replace function public\.duel_open_rooms\(p_uid uuid, p_limit int default 30\)/);
+  assert.match(code, /left join public\.duel_ratings dr on dr\.game_id = d\.game_id and dr\.user_id = d\.created_by/, "rating do jogo da sala, do criador");
+  assert.match(code, /'rating', coalesce\(dr\.rating, 1500\)/, "sem linha em duel_ratings = 1500 (igual ao chess_json)");
+  assert.match(code, /d\.status = 'waiting'/);
+  assert.match(code, /d\.expires_at > now\(\)/);
+  for (const secret of [/d\.code\b/, /d\.seed\b/, /public_view/, /full_puzzle/]) assert.doesNotMatch(code, secret);
+  assert.match(code, /grant execute on function public\.duel_open_rooms\(uuid, int\) to service_role/);
+  assert.doesNotMatch(code, /to (anon|authenticated)/, "só a Edge executa");
 });
 
 test("SQL: xadrez 1x1 — duelo por turnos, chess_games e funções exclusivas da Edge", () => {

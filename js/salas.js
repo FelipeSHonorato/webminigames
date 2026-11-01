@@ -8,7 +8,7 @@ import { requireSession } from "../shared/session.js";
 import { GAMES } from "./games.js";
 import { rankingPanels } from "../shared/hub-nav.js";
 import {
-  ALL, cleanRooms, filterItems, roomsOf, filterFromHash, hashForFilter, filterText, openedAgo, durationLabel, roomHref,
+  ALL, cleanRooms, filterItems, roomsOf, filterFromHash, hashForFilter, filterText, openedAgo, durationLabel, roomHref, ratingLabel,
 } from "../shared/rooms.js";
 
 const $ = id => document.getElementById(id);
@@ -64,12 +64,18 @@ function roomNode(room) {
   title.append(el("span", "room-game", game.title));
   if (room.mine) title.append(el("span", "room-badge", "Sua sala"));
 
+  /* Linha do criador: "Nome [1520 Elo] · Tempo: 10 min · aberta há 2 min". Textos sempre por textContent (el). */
+  const meta = el("p", "room-meta");
+  meta.append(el("span", "room-host", room.host?.nickname || "Jogador"));
+  const rating = ratingLabel(room);
+  if (rating) {
+    const chip = el("span", "room-rating", rating);
+    chip.title = `Pontuação de ${room.host?.nickname || "Jogador"} no ranking de ${game.title}`;
+    meta.append(chip);
+  }
   const time = durationLabel(room);
-  const meta = el("p", "room-meta", [
-    room.host?.nickname || "Jogador",                // nome sempre por textContent (el), nunca innerHTML
-    time && `Tempo: ${time}`,
-    openedAgo(room.createdAt) && `aberta ${openedAgo(room.createdAt)}`,
-  ].filter(Boolean).join(" · "));
+  const rest = [time && `Tempo: ${time}`, openedAgo(room.createdAt) && `aberta ${openedAgo(room.createdAt)}`].filter(Boolean);
+  if (rest.length) meta.append(` · ${rest.join(" · ")}`);
 
   const body = el("div", "room-body");
   body.append(title, meta);

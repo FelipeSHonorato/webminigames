@@ -73,3 +73,9 @@ export function roomHref(room, games = {}) {
   if (!room?.mine || !path || typeof room.id !== "string") return "";
   return `${path}?duelo=${encodeURIComponent(room.id)}`;
 }
+
+/** Pontuação do criador no ranking daquele jogo, como no ranking de duelos ("1520 Elo"). Sem valor válido: "". */
+export function ratingLabel(room) {
+  const rating = Number(room?.host?.rating);
+  return Number.isFinite(rating) && rating > 0 ? `${Math.round(rating)} Elo` : "";
+}

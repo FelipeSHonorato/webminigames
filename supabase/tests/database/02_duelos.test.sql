@@ -299,6 +299,17 @@ select is((select count(*) from jsonb_array_elements(public.duel_open_rooms('d10
 select is((select r->'host'->>'nickname' from jsonb_array_elements(public.duel_open_rooms('d1000000-0000-4000-8000-000000000001', 30)) r
             where r->>'id' = (select v::text from public.duel_tap_ids where k = 'open1')), 'Dani',
   'a lista mostra quem criou a sala');
+select is((select (r->'host'->>'rating')::int from jsonb_array_elements(public.duel_open_rooms('d1000000-0000-4000-8000-000000000001', 30)) r
+            where r->>'id' = (select v::text from public.duel_tap_ids where k = 'open1')), 1500,
+  'quem nunca jogou aparece com 1500 (valor inicial)');
+insert into public.duel_ratings (game_id, user_id, rating, peak) values ('zip', 'd1000000-0000-4000-8000-000000000004', 1620, 1620);
+select is((select (r->'host'->>'rating')::int from jsonb_array_elements(public.duel_open_rooms('d1000000-0000-4000-8000-000000000001', 30)) r
+            where r->>'id' = (select v::text from public.duel_tap_ids where k = 'open1')), 1620,
+  'a lista mostra o rating do criador no jogo da sala');
+insert into public.duel_ratings (game_id, user_id, rating, peak) values ('queens', 'd1000000-0000-4000-8000-000000000004', 1100, 1100);
+select is((select (r->'host'->>'rating')::int from jsonb_array_elements(public.duel_open_rooms('d1000000-0000-4000-8000-000000000001', 30)) r
+            where r->>'id' = (select v::text from public.duel_tap_ids where k = 'open1')), 1620,
+  'o rating de OUTRO jogo não interfere');
 select is((select (r->>'mine')::boolean from jsonb_array_elements(public.duel_open_rooms('d1000000-0000-4000-8000-000000000001', 30)) r
             where r->>'id' = (select v::text from public.duel_tap_ids where k = 'open1')), false,
   'para os outros a sala não é "minha"');
