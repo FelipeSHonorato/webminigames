@@ -11,7 +11,7 @@ import { durationLabel } from "./rooms.js";
 
 export const INVITE_POLL_MS = 4000;           // aba visível
 export const INVITE_POLL_HIDDEN_MS = 30000;   // aba em segundo plano: o navegador já desacelera, e a Edge agradece
-export const NOTICE_MS = 7000;
+export const NOTICE_MS = 4000;
 
 /** Evento disparado no `window` quando o criador clica em "Entrar na sala". A página do jogo que já está com
     a sala aberta chama `preventDefault()` e aceita ali mesmo; sem ouvinte, o site navega até o jogo. */
@@ -19,7 +19,6 @@ export const ACCEPT_EVENT = "wmg:duel-accept";
 
 export const MESSAGES = {
   declined: "Você desistiu do duelo. Ninguém ganha nem perde pontos.",
-  gone: "Esse convite não está mais ativo.",
   declineFailed: "Não foi possível desistir agora. Tente de novo.",
 };
 
@@ -73,6 +72,7 @@ export function createInviteController({
   isHidden = () => typeof document !== "undefined" && document.hidden,
 } = {}) {
   let invite = null, notice = "", busy = false, inflight = false, stopped = false, timer = null;
+  let epoch = 0;                    // muda a cada aceitar/desistir: respostas de consultas antigas são descartadas
   let catalog = games;
 
   const view = () => ({ invite, notice, busy, games: catalog ?? {} });
@@ -83,14 +83,13 @@ export function createInviteController({
   async function check() {
     if (!enabled() || busy || inflight) return invite;
     inflight = true;
+    const ticket = epoch;
     try {
       const data = await cloud.duelInvites();
       const raw = Array.isArray(data?.invites) ? data.invites : [];
       if (raw.length && !catalog) catalog = (await loadGames?.()) ?? {};
-      const next = cleanInvites(raw, catalog ?? {})[0] ?? null;
-      if (next) notice = "";
-      else if (invite) notice = MESSAGES.gone;          // o aviso sumiu sem o criador agir: o desafiante saiu ou expirou
-      invite = next;
+      if (ticket !== epoch) { inflight = false; return invite; }   // o criador já decidiu: resposta velha não reabre o aviso
+      invite = cleanInvites(raw, catalog ?? {})[0] ?? null;        // sumiu (desafiante saiu, expirou): o aviso só fecha, sem recado
     } catch { /* rede ou erro passageiro: mantém o que está na tela e tenta no próximo ciclo */ }
     inflight = false;
     emit();
@@ -103,6 +102,7 @@ export function createInviteController({
     const target = invite;
     const url = acceptUrl(target, catalog ?? {}, base);
     if (!url) return false;
+    epoch += 1;
     invite = null; notice = "";
     if (handleInPage(target)) { emit(); return true; }
     busy = true;                                        // a página vai ser trocada: não deixa o polling reabrir o aviso
@@ -115,6 +115,7 @@ export function createInviteController({
   async function decline() {
     if (!invite || busy) return false;
     const target = invite;
+    epoch += 1;
     busy = true; notice = "";
     emit();
     try {
@@ -122,7 +123,7 @@ export function createInviteController({
       invite = null;
       notice = MESSAGES.declined;
     } catch (e) {
-      if (["bad_status", "duel_not_found", "not_creator"].includes(e?.code)) { invite = null; notice = MESSAGES.gone; }
+      if (["bad_status", "duel_not_found", "not_creator"].includes(e?.code)) invite = null;   // a sala já mudou: só fecha o aviso
       else notice = MESSAGES.declineFailed;
     }
     busy = false;
@@ -200,7 +201,7 @@ export function startDuelInvites({ base = "", cloud = Cloud } = {}) {
   host.append(card, note);
   document.body.append(host);
 
-  let shownId = null, noteTimer = null;
+  let shownId = null, noteTimer = null, shownNotice = "";
   const render = ({ invite, notice, busy, games }) => {
     if (invite) {
       if (shownId !== invite.id) {                       // refaz o conteúdo só quando o convite muda (o avatar é uma imagem)
@@ -217,8 +218,11 @@ export function startDuelInvites({ base = "", cloud = Cloud } = {}) {
     btnEnter.disabled = btnGiveUp.disabled = busy;
     note.hidden = !notice;
     note.textContent = notice;
-    clearTimeout(noteTimer);
-    if (notice) noteTimer = setTimeout(() => controller.dismissNotice(), NOTICE_MS);
+    if (notice !== shownNotice) {                        // o relógio do recado só reinicia quando o texto muda (a cada consulta o render roda de novo)
+      shownNotice = notice;
+      clearTimeout(noteTimer);
+      if (notice) noteTimer = setTimeout(() => controller.dismissNotice(), NOTICE_MS);
+    }
   };
 
   const controller = createInviteController({
