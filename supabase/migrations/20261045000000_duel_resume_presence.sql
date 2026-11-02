@@ -159,10 +159,20 @@ begin
      returning * into v_duel;
   end if;
 
+  select jsonb_agg(jsonb_build_object(
+    'user_id', user_id,
+    'nickname', nickname,
+    'ready', ready,
+    'is_me', user_id = p_uid
+  )) into v_players
+  from public.duel_players
+  where duel_id = p_duel;
+
   return jsonb_build_object(
     'status', v_duel.status,
     'startsAt', v_duel.starts_at,
-    'serverNow', now()
+    'serverNow', now(),
+    'players', v_players
   );
 end $$;
 

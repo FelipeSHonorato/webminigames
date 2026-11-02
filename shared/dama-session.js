@@ -71,7 +71,12 @@ export function createDamaSession({ cloud = Cloud, pollMs = DAMA_POLL_MS, now = 
     if ("open" in data) isOpen = data.open !== false;
     if (data.createdBy !== undefined) createdBy = data.createdBy;
     if (data.cancelReason !== undefined) cancelReason = data.cancelReason;
-    if (Array.isArray(data.players)) players = data.players;
+    // Handle players: may be a JavaScript array (from jsonb_agg) or need parsing
+    if (data.players) {
+      if (Array.isArray(data.players)) players = data.players;
+      else if (typeof data.players === "string") players = JSON.parse(data.players);
+      else if (typeof data.players === "object") players = [data.players]; // fallback
+    }
     if ("winner" in data) winner = data.winner;
     if (data.serverNow) {
       serverOffset = Date.parse(data.serverNow) - now();
