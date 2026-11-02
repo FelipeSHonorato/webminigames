@@ -431,7 +431,7 @@ async function enterOnlineGame() {
     els.newGame.textContent = "Sair";
     startOnlineTicker();
   }
-  renderAll();
+  if (!sending && !animatingMove) renderAll();   // redesenhar no meio da animação apagaria a peça que está voando
   if (game.result.over) finishOnline();
   else els.result.hidden = true;
 }
@@ -439,6 +439,7 @@ async function enterOnlineGame() {
 async function applyOnlineState() {
   const c = online?.chess;
   if (!c) return;
+  if (sending) return;                   // lance nosso em trânsito: ele mesmo aplica o estado do servidor no fim
   const last = c.last ? {
     ...c.last,
     from: typeof c.last.from === "string" ? parseSquare(c.last.from) : c.last.from,
@@ -529,34 +530,41 @@ async function commitOnlineMove(move) {
   selected = null;
   legalForSelected = [];
 
-  // Anima localmente a nossa peça de forma fluida antes ou durante o envio
   const piece = game.state.board[move.from];
   const isCastling = typeOf(piece) === "K" && Math.abs(move.to - move.from) === 2;
-  animatingMove = {
-    from: move.from,
-    to: move.to,
-    rookFrom: isCastling ? (move.to > move.from ? move.from + 3 : move.from - 4) : null,
-    rookTo: isCastling ? (move.to > move.from ? move.from + 1 : move.from - 1) : null,
-  };
-
-  renderBoard();
-  renderStatus();
-
-  const anims = [animatePieceMove(move.from, move.to, piece, MOVE_DURATION)];
-  if (isCastling && animatingMove.rookFrom !== null) {
-    const rookPiece = colorOf(piece) === "w" ? "R" : "r";
-    anims.push(animatePieceMove(animatingMove.rookFrom, animatingMove.rookTo, rookPiece, MOVE_DURATION));
-  }
-  await Promise.all(anims);
-  animatingMove = null;
-
   try {
-    await online.move(toUci(move));
-  } catch (e) {
-    if (["stale", "not_your_turn", "bad_status"].includes(e?.code)) await online.refresh().catch(() => {});
-    flash(onlineMessage(e));
+    /* Lance otimista, como no modo local: a tela já mostra a posição NOVA (a peça de destino fica escondida enquanto a
+       cópia voa até lá) e o pedido ao servidor segue em paralelo com a animação. Antes a posição só mudava quando o
+       servidor respondia: a peça piscava de volta para a origem no fim da animação e depois pulava para o destino. */
+    game = playMove(game, move);
+    animatingMove = {
+      from: move.from,
+      to: move.to,
+      rookFrom: isCastling ? (move.to > move.from ? move.from + 3 : move.from - 4) : null,
+      rookTo: isCastling ? (move.to > move.from ? move.from + 1 : move.from - 1) : null,
+    };
+    renderAll();
+
+    const anims = [animatePieceMove(move.from, move.to, piece, MOVE_DURATION)];
+    if (isCastling && animatingMove.rookFrom !== null) {
+      const rookPiece = colorOf(piece) === "w" ? "R" : "r";
+      anims.push(animatePieceMove(animatingMove.rookFrom, animatingMove.rookTo, rookPiece, MOVE_DURATION));
+    }
+
+    let failure = null;
+    const request = online.move(toUci(move)).catch(e => { failure = e; });
+    await Promise.all([...anims, request]);
+    animatingMove = null;
+
+    if (failure) {
+      if (["stale", "not_your_turn", "bad_status"].includes(failure?.code)) await online.refresh().catch(() => {});
+      flash(onlineMessage(failure));
+    }
+  } catch {
+    animatingMove = null;                // lance ilegal na cópia local: nada foi enviado
   } finally {
     sending = false;
+    /* A posição do servidor manda: confirma o lance (igual ao que já está na tela) ou desfaz se ele foi recusado. */
     if (online && !els.game.hidden) { await applyOnlineState(); renderAll(); }
   }
   return true;
