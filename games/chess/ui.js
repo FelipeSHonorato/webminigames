@@ -381,7 +381,8 @@ function renderLobby() {
   const me = online.me();
   const opp = online.opponent();
   const name = opp?.nickname || "O amigo";
-  els.ready.disabled = Boolean(me?.ready);
+  /* O criador só marca pronto depois que o desafiante marcou: é o "Estou pronto" dele que chama o criador. */
+  els.ready.disabled = Boolean(me?.ready) || (online.isCreator() && !opp?.ready);
   els.leaveLobby.textContent = online.isCreator() && opp ? "Desistir" : "Sair da sala";   // com desafiante na sala, sair = desistir
   els.lobbyStatus.textContent = !opp
     ? (online.open === false
@@ -390,7 +391,7 @@ function renderLobby() {
     : opp.ready && me?.ready
       ? "Os dois prontos! Preparando o tabuleiro…"
       : online.isCreator()
-        ? `${name} entrou${opp.ready ? " e está pronto" : ""}. Marque pronto para começar.`
+        ? (opp.ready ? `${name} entrou e está pronto. Marque pronto para começar.` : `${name} entrou. Aguardando ele marcar pronto…`)
         : me?.ready
           ? `Aguardando ${name} aceitar o desafio…`
           : `Você entrou na sala de ${name}. Marque pronto para começar.`;

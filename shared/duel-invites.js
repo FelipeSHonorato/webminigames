@@ -9,7 +9,7 @@ import { Cloud } from "./backend/cloud.js";
 import { avatarNode } from "./avatar.js";
 import { durationLabel } from "./rooms.js";
 
-export const INVITE_POLL_MS = 6000;           // aba visível
+export const INVITE_POLL_MS = 4000;           // aba visível
 export const INVITE_POLL_HIDDEN_MS = 30000;   // aba em segundo plano: o navegador já desacelera, e a Edge agradece
 export const NOTICE_MS = 7000;
 

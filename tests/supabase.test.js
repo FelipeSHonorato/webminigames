@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql", "20261044000000_duel_invite_flow.sql", "20261045000000_duel_resume_presence.sql"];
+const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql", "20261044000000_duel_invite_flow.sql", "20261045000000_duel_resume_presence.sql", "20261046000000_duel_invite_when_ready.sql"];
 const migration = f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
 const migrations = migrationNames.map(migration);
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
@@ -469,4 +469,16 @@ test("SQL: retomar a sala e presença do desafiante (migração 45)", () => {
     assert.match(code, new RegExp(`grant execute on function public\\.${f} to service_role`), f);
   }
   assert.doesNotMatch(code, /to (anon|authenticated)/, "só a Edge executa");
+});
+
+test("SQL: o criador só é avisado depois que o desafiante clica em \"Estou pronto\" (migração 46)", () => {
+  const code = migration("20261046000000_duel_invite_when_ready.sql").replace(/--.*$/gm, "");
+  const seat = code.match(/function public\.duel_seat[\s\S]*?end \$\$;/)[0];
+  assert.match(seat, /insert into public\.duel_players \(duel_id, user_id, ready\)\s*values \(p_duel\.id, p_uid, false\)/, "o desafiante entra NÃO pronto");
+  const invites = code.match(/function public\.duel_invites[\s\S]*?end \$\$;/)[0];
+  assert.match(invites, /dp\.user_id <> p_uid and dp\.ready\)/, "só avisa com o desafiante pronto");
+  assert.match(invites, /d\.created_by = p_uid/);
+  assert.match(invites, /'away',\s+coalesce\(dp\.last_seen_at, dp\.joined_at\)/, "mantém a informação de ausência");
+  assert.match(code, /grant execute on function public\.duel_invites\(uuid\) to service_role/);
+  assert.doesNotMatch(code, /to (anon|authenticated)/);
 });
