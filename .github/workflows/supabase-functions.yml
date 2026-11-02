@@ -47,4 +47,7 @@ jobs:
           version: latest
 
       - name: Publicar a função play
-        run: supabase functions deploy play --project-ref "${{ inputs.project_ref }}"
+        # --yes: o CLI novo pede confirmação e, no Actions, não há terminal para responder.
+        env:
+          PROJECT_REF: ${{ inputs.project_ref }}
+        run: supabase functions deploy play --project-ref "$PROJECT_REF" --yes
