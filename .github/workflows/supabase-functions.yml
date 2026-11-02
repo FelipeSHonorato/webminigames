@@ -33,8 +33,13 @@ jobs:
           if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
             echo "::error::Falta o segredo SUPABASE_ACCESS_TOKEN (Settings > Secrets and variables > Actions)."; exit 1
           fi
-          test -f supabase/functions/play/_shared/chess/domain.js || { echo "::error::A branch main não tem supabase/functions/play/_shared/chess/domain.js"; exit 1; }
-          grep -q 'startsWith("chess_")' supabase/functions/play/index.ts || { echo "::error::O index.ts da main ainda é a versão sem a correção do xadrez (falta startsWith(\"chess_\"))."; exit 1; }
+          # Os jogos de duelo por turnos precisam estar na main antes de publicar: sem o domínio e o
+          # roteamento `<jogo>_`, as ações caem na checagem de jogo solo e voltam `unknown_game`.
+          for game in chess dama; do
+            test -f "supabase/functions/play/_shared/$game/domain.js" || { echo "::error::A branch main não tem supabase/functions/play/_shared/$game/domain.js"; exit 1; }
+            grep -q "startsWith(\"${game}_\")" supabase/functions/play/index.ts || { echo "::error::O index.ts da main não roteia as ações do jogo '$game' (falta startsWith(\"${game}_\"))."; exit 1; }
+            grep -q "\"${game}_move\"" supabase/functions/play/index.ts || { echo "::error::O index.ts da main não tem a ação ${game}_move."; exit 1; }
+          done
           echo "Arquivos conferidos:"; find supabase/functions/play -type f | sort
 
       - uses: supabase/setup-cli@v1
