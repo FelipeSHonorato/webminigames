@@ -43,6 +43,7 @@ export function chessOutcome(state, uid) {
 export function createChessSession({ cloud = Cloud, pollMs = CHESS_POLL_MS, now = () => Date.now() } = {}) {
   const listeners = new Map();
   let id = null, code = null, status = "idle", startsAt = null, serverOffset = 0, isOpen = true;
+  let createdBy = null, cancelReason = null;
   let players = [], winner = null, chess = null;
   let colors = { white: null, black: null }, myColor = null;
   let clockAt = 0, finished = false, destroyed = false;
@@ -58,6 +59,8 @@ export function createChessSession({ cloud = Cloud, pollMs = CHESS_POLL_MS, now 
   const me = () => players.find(p => p.is_me) ?? null;
   const opponent = () => players.find(p => !p.is_me) ?? null;
   const myUid = () => cloud.uid ?? null;
+  /** Fui eu quem abriu a sala? (só o criador aceita o desafiante ou desiste da sala) */
+  const isCreator = () => Boolean(createdBy) && createdBy === myUid();
 
   function apply(data) {
     if (!data || typeof data !== "object") return;
@@ -66,6 +69,8 @@ export function createChessSession({ cloud = Cloud, pollMs = CHESS_POLL_MS, now 
     if (data.status) status = data.status;
     if (data.startsAt !== undefined) startsAt = data.startsAt;
     if ("open" in data) isOpen = data.open !== false;
+    if (data.createdBy !== undefined) createdBy = data.createdBy;
+    if (data.cancelReason !== undefined) cancelReason = data.cancelReason;
     if (Array.isArray(data.players)) players = data.players;
     if ("winner" in data) winner = data.winner;
     if (data.serverNow) {
@@ -144,7 +149,7 @@ export function createChessSession({ cloud = Cloud, pollMs = CHESS_POLL_MS, now 
     openChannel();
     await refresh();
     schedulePoll();
-    return state;
+    return state();
   }
 
   async function ready() {
@@ -183,9 +188,12 @@ export function createChessSession({ cloud = Cloud, pollMs = CHESS_POLL_MS, now 
     return data;
   }
 
+  /** Sai da sala. O criador que sai com um desafiante já sentado DESISTE (o desafiante é avisado do motivo);
+      nos demais casos é o `duel_leave` de sempre (libera a vaga, cancela a sala vazia ou conta a derrota em jogo). */
   async function leave() {
     if (!id) return null;
-    const data = await cloud.duelLeave(id);
+    const giveUp = isCreator() && status === "waiting" && Boolean(opponent());
+    const data = giveUp ? await cloud.duelDecline(id) : await cloud.duelLeave(id);
     emit("left", data);
     destroy();
     return data;
@@ -200,14 +208,17 @@ export function createChessSession({ cloud = Cloud, pollMs = CHESS_POLL_MS, now 
   }
 
   const state = () => ({
-    id, code, status, startsAt, serverOffset, players, winner, chess, colors, myColor,
+    id, code, status, startsAt, serverOffset, players, winner, chess, colors, myColor, createdBy, cancelReason,
   });
 
   return {
-    on, create, join, attach, ready, refresh, move, resign, leave, destroy, me, opponent,
+    on, create, join, attach, ready, refresh, move, resign, leave, destroy, me, opponent, isCreator,
     get id() { return id; },
     get code() { return code; },
     get status() { return status; },
+    /** Quem abriu a sala (uuid) e, se foi cancelada, o motivo: "declined" (o criador desistiu), "expired" ou null. */
+    get createdBy() { return createdBy; },
+    get cancelReason() { return cancelReason; },
     /** Sala aberta (entra pela lista) ou fechada (só pelo código). */
     get open() { return isOpen; },
     get startsAt() { return startsAt; },

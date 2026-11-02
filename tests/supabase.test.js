@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql"];
+const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql", "20261044000000_duel_invite_flow.sql", "20261045000000_duel_resume_presence.sql"];
 const migration = f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
 const migrations = migrationNames.map(migration);
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
@@ -401,4 +401,72 @@ test("a biblioteca do Supabase vem do repositório (vendor/), com versão fixa e
   const src = readFileSync(file, "utf8");
   assert.match(src.slice(0, 200), /@supabase\/supabase-js \d+\.\d+\.\d+/);
   assert.match(src, /export const createClient = supabase\.createClient;\s*$/);
+});
+
+test("SQL: aviso de desafiante — entra pronto, só o criador aceita ou desiste, cancelar não mexe em rating", () => {
+  const code = migration("20261044000000_duel_invite_flow.sql").replace(/--.*$/gm, "");
+  assert.match(code, /alter table public\.duels add column if not exists cancel_reason text/);
+
+  // Quem entra na sala já está pronto; o criador é quem aceita.
+  const seat = code.match(/function public\.duel_seat[\s\S]*?end \$\$;/)[0];
+  assert.match(seat, /insert into public\.duel_players \(duel_id, user_id, ready\)\s*values \(p_duel\.id, p_uid, true\)/);
+
+  // O aviso só mostra MINHAS salas esperando, já com os dois jogadores.
+  const invites = code.match(/function public\.duel_invites[\s\S]*?end \$\$;/)[0];
+  assert.match(invites, /d\.created_by = p_uid/);
+  assert.match(invites, /d\.status = 'waiting'/);
+  assert.match(invites, /d\.expires_at > now\(\)/);
+  assert.match(invites, /count\(\*\) from public\.duel_players dp where dp\.duel_id = d\.id\) = 2/);
+
+  // Desistir: só o criador, só em waiting, cancela sem vencedor.
+  const decline = code.match(/function public\.duel_decline[\s\S]*?end \$\$;/)[0];
+  assert.match(decline, /v_duel\.created_by <> p_uid then\s*raise exception 'not_creator'/);
+  assert.match(decline, /v_duel\.status <> 'waiting' then raise exception 'bad_status'/);
+  assert.match(decline, /set status = 'cancelled', cancel_reason = 'declined'/);
+  assert.doesNotMatch(decline, /winner_id|'finished'|duel_ratings|duel_rating_record/, "desistir não decide vencedor nem mexe em rating");
+
+  // O rating só muda quando a partida TERMINA; cancelada nunca conta.
+  const ratings = migration("20261039000000_duel_ratings.sql");
+  assert.match(ratings, /if new\.status <> 'finished' or old\.status is not distinct from new\.status then\s*return new;/);
+
+  // O desafiante descobre o motivo.
+  assert.match(code, /'cancelReason', v_duel\.cancel_reason/);
+  assert.match(code, /'cancelReason', d\.cancel_reason/);
+  assert.match(code, /'createdBy', d\.created_by/);
+
+  for (const f of ["duel_invites\\(uuid\\)", "duel_decline\\(uuid, uuid\\)"]) {
+    assert.match(code, new RegExp(`grant execute on function public\\.${f} to service_role`), f);
+  }
+  assert.doesNotMatch(code, /to (anon|authenticated)/, "só a Edge executa");
+});
+
+test("SQL: retomar a sala e presença do desafiante (migração 45)", () => {
+  const code = migration("20261045000000_duel_resume_presence.sql").replace(/--.*$/gm, "");
+  assert.match(code, /alter table public\.duel_players add column if not exists last_seen_at timestamptz/);
+
+  // duel_mine: só duelos DO usuário naquele jogo, esperando (não expirado) ou em andamento.
+  const mine = code.match(/function public\.duel_mine[\s\S]*?end \$\$;/)[0];
+  assert.match(mine, /dp\.user_id = p_uid/);
+  assert.match(mine, /d\.game_id = p_game/);
+  assert.match(mine, /d\.status = 'running' or \(d\.status = 'waiting' and d\.expires_at > now\(\)\)/);
+  assert.match(mine, /jsonb_build_object\('duel', v_duel\)/, "sem duelo ativo: { duel: null }");
+
+  // Presença: só carimba quem é jogador da sala e só enquanto ela espera.
+  const touch = code.match(/function public\.duel_touch[\s\S]*?end \$\$;/)[0];
+  assert.match(touch, /dp\.user_id = p_uid/);
+  assert.match(touch, /d\.status = 'waiting'/);
+
+  // Guarda: iniciar contra desafiante pronto que sumiu há mais de 90 s é recusado.
+  const ready = code.match(/function public\.duel_ready[\s\S]*?end \$\$;/)[0];
+  assert.match(ready, /o\.user_id <> p_uid and o\.ready/);
+  assert.match(ready, /coalesce\(o\.last_seen_at, o\.joined_at\) < now\(\) - interval '90 seconds'/);
+  assert.match(ready, /raise exception 'opponent_away'/);
+  assert.match(ready, /v_ready = 2 then[\s\S]*?status = 'running', starts_at = now\(\) \+ interval '4 seconds'/, "a largada continua com os dois prontos");
+  assert.match(code, /'away',\s+coalesce\(dp\.last_seen_at, dp\.joined_at\) < now\(\) - interval '90 seconds'/, "o aviso informa o desafiante ausente");
+
+  for (const f of ["duel_touch\\(uuid, uuid\\)", "duel_mine\\(uuid, text\\)", "duel_invites\\(uuid\\)", "duel_ready\\(uuid, uuid\\)"]) {
+    assert.match(code, new RegExp(`revoke all on function public\\.${f} from public, anon, authenticated`), f);
+    assert.match(code, new RegExp(`grant execute on function public\\.${f} to service_role`), f);
+  }
+  assert.doesNotMatch(code, /to (anon|authenticated)/, "só a Edge executa");
 });

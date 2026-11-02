@@ -350,6 +350,21 @@ test("duelos: cada ação chama a Edge com os campos certos", async () => {
   ]);
 });
 
+test("duelos: aviso de desafiante, desistência e retomada da sala chamam a Edge com os campos certos", async () => {
+  const c = await boot({ functions: { invoke: (name, body) => ({ data: { action: body.action }, error: null }) } });
+
+  await Cloud.duelInvites();
+  await Cloud.duelDecline("d1");
+  await Cloud.duelMine("chess");
+
+  const bodies = c.calls.filter(x => x[0] === "invoke").map(x => x[2]);
+  assert.deepEqual(bodies, [
+    { action: "duel_invites" },
+    { action: "duel_decline", duel: "d1" },
+    { action: "duel_mine", game: "chess" },
+  ]);
+});
+
 test("xadrez online: cada ação chama a Edge com os campos certos", async () => {
   const c = await boot({ functions: { invoke: (name, body) => ({ data: { action: body.action }, error: null }) } });
 

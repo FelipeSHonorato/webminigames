@@ -86,11 +86,11 @@ const isDuelCode = (v: unknown) => typeof v === "string" && CODE_RE.test(v.trim(
 
 /** Erros de duelo viram 4xx com significado (o cliente mostra a mensagem certa). */
 const duelStatus = (msg: string) =>
-  msg === "not_member" ? 403
+  msg === "not_member" || msg === "not_creator" ? 403
     : msg === "duel_not_found" ? 404
       : msg === "too_many_open" || msg === "duel_full" || msg === "bad_status"
         || msg === "expired" || msg === "not_started" || msg === "not_your_turn"
-        || msg === "stale" || msg === "closed_room" ? 409
+        || msg === "stale" || msg === "closed_room" || msg === "opponent_away" ? 409
         : msg === "invalid_move" ? 422
         : 400;
 
@@ -119,8 +119,15 @@ const duelMeta = async (svc: any, id: string) => {
   return data;
 };
 
+/** Presença na sala de espera: o Postgres carimba `last_seen_at` do jogador (só com a sala `waiting`).
+    O criador usa isso para não aceitar um desafiante que já fechou a página. Falhar aqui nunca derruba a consulta. */
+const touchPresence = async (svc: any, uid: string, duelId: string) => {
+  try { await svc.rpc("duel_touch", { p_uid: uid, p_duel: duelId }); } catch { /* presença é só um aviso */ }
+};
+
 const DUEL_ACTIONS = new Set([
   "duel_create", "duel_join", "duel_join_open", "duel_ready", "duel_start", "duel_state", "duel_finish", "duel_leave", "duel_list",
+  "duel_invites", "duel_decline", "duel_mine",
   "chess_create", "chess_start", "chess_state", "chess_move", "chess_resign",
 ]);
 
@@ -198,6 +205,24 @@ async function handleDuel(svc: any, uid: string, action: string, body: any) {
     return json(data);
   }
 
+  /* Salas MINHAS com desafiante esperando: o site inteiro usa isto para avisar o criador.
+     Só o criador consulta, então pode vir com o código do convite. */
+  if (action === "duel_invites") {
+    const { data, error } = await svc.rpc("duel_invites", { p_uid: uid });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    return json({ invites: data ?? [] });
+  }
+
+  /* Duelo ativo do usuário num jogo (sala esperando ou partida em andamento): a página do jogo retoma
+     a sala em vez de oferecer "criar sala" de novo. */
+  if (action === "duel_mine") {
+    const game = typeof body?.game === "string" ? body.game : "";
+    if (!/^[a-z0-9_-]{1,32}$/.test(game)) return json({ error: "bad_game" }, 400);
+    const { data, error } = await svc.rpc("duel_mine", { p_uid: uid, p_game: game });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    return json(data ?? { duel: null });
+  }
+
   const duelId = body?.duel;
   if (!isUuid(duelId)) return json({ error: "bad_duel" }, 400);
 
@@ -205,6 +230,7 @@ async function handleDuel(svc: any, uid: string, action: string, body: any) {
   if (action === "chess_state" || action === "chess_start" || action === "chess_resign") {
     const { data, error } = await svc.rpc(action, { p_uid: uid, p_duel: duelId });
     if (error) return json({ error: error.message }, duelStatus(error.message));
+    if (action === "chess_state" && data?.status === "waiting") await touchPresence(svc, uid, duelId);
     return json(data);
   }
 
@@ -250,9 +276,11 @@ async function handleDuel(svc: any, uid: string, action: string, body: any) {
     return json(data);
   }
 
-  if (action === "duel_ready" || action === "duel_start" || action === "duel_state" || action === "duel_leave") {
+  if (action === "duel_ready" || action === "duel_start" || action === "duel_state" || action === "duel_leave"
+      || action === "duel_decline") {
     const { data, error } = await svc.rpc(action, { p_uid: uid, p_duel: duelId });
     if (error) return json({ error: error.message }, duelStatus(error.message));
+    if (action === "duel_state" && data?.status === "waiting") await touchPresence(svc, uid, duelId);
     return json(data);
   }
 

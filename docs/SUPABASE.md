@@ -47,6 +47,8 @@ Depois rode, também no SQL Editor, as demais migrações, **nesta ordem**:
 - `20261041000000_one_open_room.sql`: **uma sala aberta por vez** em `duel_create`/`chess_create`, contando só salas vivas e com lock por usuário.
 - `20261042000000_duel_open_rooms_rating.sql`: a lista mostra o **rating do criador no jogo da sala** (`host.rating`, 1500 para quem nunca jogou).
 - `20261043000000_duel_open_visibility.sql`: **sala aberta ou fechada** (`duels.is_open`). A criação recebe `p_open` (padrão aberta); `duel_open_rooms` esconde as fechadas dos outros jogadores e `duel_join_open` assenta quem clicou numa sala aberta — o caminho por código (`duel_join`) continua valendo para as duas.
+- `20261044000000_duel_invite_flow.sql`: **aviso de desafiante**. Quem entra na sala já entra pronto (`duel_seat`); `duel_invites` lista as salas do criador com 2 jogadores esperando; `duel_decline` (só o criador, só em `waiting`) cancela com `cancel_reason = 'declined'` — ninguém ganha nem perde rating, pois o gatilho só age quando o status vira `finished`. `duel_state`/`chess_json` devolvem `createdBy` e `cancelReason`.
+- `20261045000000_duel_resume_presence.sql`: **retomar a sala e presença**. `duel_mine(uid, jogo)` devolve o duelo ativo do usuário (a página do jogo abre a sala em vez de oferecer "criar sala"); `duel_players.last_seen_at` é carimbado por `duel_touch` (a Edge chama a cada consulta de estado com a sala em `waiting`); `duel_ready` recusa com `opponent_away` quando o criador aceita um desafiante que sumiu há mais de 90 s; `duel_invites` informa `opponent.away`. Rode a 44 e depois a 45, e faça o deploy da Edge Function `play`.
 
 Para conferir o que já está aplicado:
 

@@ -209,3 +209,76 @@ test("sessão: sair cancela a sala e destrói o canal", async () => {
   assert.equal(await s.refresh(), null, "depois de sair a sessão não consulta mais");
   assert.equal(CHESS_POLL_MS, 1500);
 });
+
+/* ---------- aviso de desafiante: criador, desistência e motivo do cancelamento ---------- */
+
+const waitingRoom = (over = {}) => payload({
+  status: "waiting", startsAt: null, createdBy: WHITE_UID,
+  players: [
+    { user_id: WHITE_UID, nickname: "Ana", ready: false, is_me: true },
+    { user_id: BLACK_UID, nickname: "Bia", ready: true, is_me: false },
+  ],
+  ...over,
+});
+
+test("sessão: sabe quem criou a sala e o motivo do cancelamento", async () => {
+  const { cloud } = fakeCloud({ uid: WHITE_UID, responses: { state: waitingRoom() } });
+  const s = createChessSession({ cloud, pollMs: 0, now: () => NOW });
+  await s.attach("d1");
+  assert.equal(s.createdBy, WHITE_UID);
+  assert.equal(s.isCreator(), true, "criador");
+  assert.equal(s.cancelReason, null);
+
+  const joiner = createChessSession({ cloud: fakeCloud({ uid: BLACK_UID, responses: { state: waitingRoom() } }).cloud, pollMs: 0, now: () => NOW });
+  await joiner.attach("d1");
+  assert.equal(joiner.isCreator(), false, "quem entrou na sala não é o criador");
+
+  const declined = fakeCloud({ uid: BLACK_UID, responses: { state: waitingRoom({ status: "cancelled", cancelReason: "declined" }) } });
+  const j2 = createChessSession({ cloud: declined.cloud, pollMs: 0, now: () => NOW });
+  const done = [];
+  j2.on("finished", d => done.push(d.outcome));
+  await j2.attach("d1");
+  assert.equal(j2.status, "cancelled");
+  assert.equal(j2.cancelReason, "declined", "o desafiante descobre que o criador desistiu");
+  assert.equal(j2.outcome, "cancelled", "cancelar nunca vira vitória nem derrota");
+  assert.deepEqual(done, ["cancelled"]);
+});
+
+test("sessão: o criador que sai com um desafiante na sala DESISTE (duel_decline), sem derrota para ninguém", async () => {
+  const f = fakeCloud({ uid: WHITE_UID, responses: { state: waitingRoom() } });
+  f.cloud.duelDecline = async id => { f.calls.push(["decline", id]); return { status: "cancelled", cancelReason: "declined" }; };
+  const s = createChessSession({ cloud: f.cloud, pollMs: 0, now: () => NOW });
+  await s.attach("d1");
+
+  await s.leave();
+  assert.deepEqual(f.calls.filter(c => c[0] === "decline"), [["decline", "d1"]]);
+  assert.equal(f.calls.some(c => c[0] === "leave"), false, "não usa o duel_leave, que não registra o motivo");
+});
+
+test("sessão: sair sem desafiante, ou como desafiante, continua sendo o duel_leave de sempre", async () => {
+  const alone = fakeCloud({
+    uid: WHITE_UID,
+    responses: { state: waitingRoom({ players: [{ user_id: WHITE_UID, nickname: "Ana", ready: false, is_me: true }] }) },
+  });
+  alone.cloud.duelDecline = async () => { throw new Error("não devia desistir"); };
+  const a = createChessSession({ cloud: alone.cloud, pollMs: 0, now: () => NOW });
+  await a.attach("d1");
+  await a.leave();
+  assert.deepEqual(alone.calls.find(c => c[0] === "leave"), ["leave", "d1"]);
+
+  const guest = fakeCloud({ uid: BLACK_UID, responses: { state: waitingRoom() } });
+  guest.cloud.duelDecline = async () => { throw new Error("só o criador desiste"); };
+  const b = createChessSession({ cloud: guest.cloud, pollMs: 0, now: () => NOW });
+  await b.attach("d1");
+  await b.leave();
+  assert.deepEqual(guest.calls.find(c => c[0] === "leave"), ["leave", "d1"], "o desafiante só libera a vaga");
+});
+
+test("sessão: attach devolve o estado da sala (e não a função que o monta)", async () => {
+  const { cloud } = fakeCloud({ uid: WHITE_UID, responses: { state: waitingRoom() } });
+  const s = createChessSession({ cloud, pollMs: 0, now: () => NOW });
+  const st = await s.attach("d1");
+  assert.equal(typeof st, "object");
+  assert.equal(st.id, "d1");
+  assert.equal(st.createdBy, WHITE_UID);
+});

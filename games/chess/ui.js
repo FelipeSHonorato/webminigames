@@ -10,6 +10,7 @@ import { Cloud } from "../../shared/backend/cloud.js";
 import { createChessSession } from "../../shared/chess-session.js";
 import { duelLink } from "../../shared/duel-ui.js";
 import { isDuelCode, normalizeCode } from "../../shared/duel-hub.js";
+import { ACCEPT_EVENT } from "../../shared/duel-invites.js";
 import { avatarNode } from "../../shared/avatar.js";
 import { Profile } from "../../shared/profile.js";
 import {
@@ -45,6 +46,8 @@ const ONLINE_MESSAGES = {
   not_your_turn: "Não é a sua vez.",
   stale: "O tabuleiro mudou. Atualizando…",
   not_started: "A partida ainda não começou.",
+  opponent_away: "O desafiante saiu da página. Espere ele voltar ou saia da sala.",
+  not_creator: "Só quem criou a sala pode fazer isso.",
 };
 /* Erro conhecido: mensagem própria. Desconhecido: a genérica + o motivo técnico (curto) e o erro completo no console,
    para dar para descobrir o que o servidor respondeu em vez de um aviso mudo. */
@@ -149,9 +152,15 @@ els.roomOptions.addEventListener("click", event => {
 const params = new URLSearchParams(location.search);
 const invite = params.get("duelo");
 const inviteKind = !invite ? null : invite === "novo" ? "new" : UUID_RE.test(invite) ? "id" : "code";
+const acceptRequested = params.get("aceitar") === "1";   // vem do aviso global: o criador clicou em "Entrar na sala"
 
 function clearInvite() {
   try { history.replaceState(null, "", location.pathname); } catch { /* sem History API */ }
+}
+
+/** Mantém a sala no endereço (recarregar volta para ela) e tira o `aceitar`, para o aceite não se repetir. */
+function keepRoomInUrl(id) {
+  try { history.replaceState(null, "", `${location.pathname}?duelo=${encodeURIComponent(id)}`); } catch { /* sem History API */ }
 }
 
 function noticeSetup(message = "") {
@@ -194,13 +203,26 @@ function handleOnline() {
     return;
   }
   if (online.status === "cancelled") {
+    const message = cancelMessage();
     teardownOnline();
-    showSetup("A sala foi cancelada.");
+    showSetup(message);
     clearInvite();
     return;
   }
   if (!online.chess) { online.refresh().catch(() => {}); return; }
   enterOnlineGame();
+}
+
+/** Por que a sala acabou, do ponto de vista de quem está vendo. Desistir não mexe em pontos nem em rating. */
+function cancelMessage() {
+  if (!online) return "A sala foi cancelada.";
+  if (online.cancelReason === "declined") {
+    if (online.isCreator()) return "Você desistiu do duelo. Ninguém ganha nem perde pontos.";
+    const host = online.players.find(p => p.user_id === online.createdBy)?.nickname || "O criador da sala";
+    return `${host} desistiu do duelo. Ninguém ganha nem perde pontos.`;
+  }
+  if (online.cancelReason === "expired") return "O convite expirou. Crie uma nova sala.";
+  return "A sala foi cancelada.";
 }
 
 async function createOnlineRoom(minutes = settings.minutes, color = settings.color, open = settings.open) {
@@ -234,17 +256,49 @@ async function joinOnlineRoom(code) {
   }
 }
 
-async function attachOnlineRoom(id) {
+async function attachOnlineRoom(id, { accept = false } = {}) {
   if (!session) { noticeSetup("Entre na sua conta para abrir a sala."); return; }
   if (!canOnline()) { noticeSetup("O duelo online não está disponível nesta sessão."); return; }
   try {
     startOnline();
     await online.attach(id);
     handleOnline();
+    if (accept) await acceptOnlineInvite();
   } catch (e) {
     teardownOnline();
     noticeSetup(onlineMessage(e));
   }
+}
+
+/** O criador aceita o desafiante: marca pronto. Como o desafiante já entrou pronto, os dois estão na sala e o servidor
+    fixa a largada (contagem de 4 s); o relógio só começa a correr depois dela. */
+async function acceptOnlineInvite() {
+  if (!online || online.status !== "waiting" || !online.isCreator()) return;
+  keepRoomInUrl(online.id);
+  if (!online.opponent()) { flash("O desafiante saiu da sala. Aguardando outro jogador…", els.lobbyStatus); return; }
+  if (online.me()?.ready) return;
+  els.ready.disabled = true;
+  try { await online.ready(); } catch (e) { flash(onlineMessage(e), els.lobbyStatus); els.ready.disabled = false; }
+}
+
+/* "Entrar na sala" do aviso global: quando esta página já está com a sala aberta, aceita aqui mesmo (sem recarregar). */
+window.addEventListener(ACCEPT_EVENT, event => {
+  if (!online || online.id !== event.detail?.id) return;
+  event.preventDefault();
+  acceptOnlineInvite();
+});
+
+/** Sem `?duelo=` (ou com `?duelo=novo`): se já existe uma sala minha neste jogo — esperando, com ou sem desafiante, ou
+    em andamento — abre ELA em vez de oferecer "Criar sala". Criar outra enquanto a atual vive é o que fazia o criador
+    "perder" a sala assim que alguém entrava (ela some da lista de Salas Online). */
+async function resumeActiveRoom() {
+  if (!canOnline()) return;
+  els.createRoom.disabled = true;                       // não deixa criar uma 2ª sala enquanto procuramos a atual
+  try {
+    const { duel } = await Cloud.duelMine(GAME_ID);
+    if (duel?.id && els.game.hidden) { await attachOnlineRoom(duel.id); return; }
+  } catch { /* sem a consulta, segue para a tela de criar: o servidor ainda barra sala duplicada (too_many_open) */ }
+  finally { els.createRoom.disabled = !canOnline(); }
 }
 
 function teardownOnline() {
@@ -326,14 +380,20 @@ function renderLobby() {
 
   const me = online.me();
   const opp = online.opponent();
+  const name = opp?.nickname || "O amigo";
   els.ready.disabled = Boolean(me?.ready);
+  els.leaveLobby.textContent = online.isCreator() && opp ? "Desistir" : "Sair da sala";   // com desafiante na sala, sair = desistir
   els.lobbyStatus.textContent = !opp
     ? (online.open === false
       ? "Aguardando o amigo entrar com o código…"
       : "Aguardando alguém entrar pela lista de salas (ou pelo código)…")
     : opp.ready && me?.ready
       ? "Os dois prontos! Preparando o tabuleiro…"
-      : `${opp.nickname || "O amigo"} entrou. Marque pronto para começar.`;
+      : online.isCreator()
+        ? `${name} entrou${opp.ready ? " e está pronto" : ""}. Marque pronto para começar.`
+        : me?.ready
+          ? `Aguardando ${name} aceitar o desafio…`
+          : `Você entrou na sala de ${name}. Marque pronto para começar.`;
 }
 
 async function copyText(text, okMessage) {
@@ -1085,10 +1145,13 @@ renderColorOptions();
 renderRoomOptions();
 els.createRoom.disabled = !canOnline();
 
-if (inviteKind === "new") {
-  noticeSetup("Escolha o ritmo e a cor e clique em “Criar sala online”. O código aparece na sala para você convidar o amigo.");
-} else if (inviteKind === "code") {
+if (inviteKind === "code") {
   joinOnlineRoom(invite);
 } else if (inviteKind === "id") {
-  attachOnlineRoom(invite);
+  attachOnlineRoom(invite, { accept: acceptRequested });
+} else {
+  if (inviteKind === "new") {
+    noticeSetup("Escolha o ritmo e a cor e clique em “Criar sala online”. O código aparece na sala para você convidar o amigo.");
+  }
+  resumeActiveRoom();
 }

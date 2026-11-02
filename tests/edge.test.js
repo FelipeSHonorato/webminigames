@@ -333,6 +333,32 @@ test("o roteador da Edge leva TODA ação de duelo (duel_* e chess_*) até o han
   }
 });
 
+test("a Edge atende o aviso de desafiante: convites, desistir, retomar a sala e presença", () => {
+  const entry = read("supabase/functions/play/index.ts");
+  const set = entry.match(/const DUEL_ACTIONS = new Set\(\[([\s\S]*?)\]\)/)?.[1] ?? "";
+  for (const a of ["duel_invites", "duel_decline", "duel_mine"]) {
+    assert.ok(set.includes(`"${a}"`), `${a} fora do DUEL_ACTIONS`);
+  }
+
+  // Convites e retomada vêm do uid autenticado: o cliente não escolhe de quem consulta.
+  assert.match(entry, /rpc\("duel_invites", \{ p_uid: uid \}\)/);
+  assert.match(entry, /rpc\("duel_mine", \{ p_uid: uid, p_game: game \}\)/);
+  assert.match(entry, /\/\^\[a-z0-9_-\]\{1,32\}\$\/\.test\(game\)/, "o jogo da consulta é validado");
+  assert.match(entry, /return json\(data \?\? \{ duel: null \}\)/, "sem duelo ativo a resposta é { duel: null }");
+
+  // Desistir passa pelo mesmo caminho dos demais RPCs de sala (uid + duelo).
+  assert.match(entry, /action === "duel_decline"/);
+
+  // Presença: só a consulta de estado de uma sala em espera carimba, e falhar nunca derruba a resposta.
+  assert.match(entry, /action === "chess_state" && data\?\.status === "waiting"\) await touchPresence/);
+  assert.match(entry, /action === "duel_state" && data\?\.status === "waiting"\) await touchPresence/);
+  assert.match(entry, /rpc\("duel_touch", \{ p_uid: uid, p_duel: duelId \}\)/);
+  assert.match(entry, /try \{ await svc\.rpc\("duel_touch"[\s\S]*?\} catch \{/, "presença é só um aviso");
+
+  // O erro da guarda do desafiante ausente é 409 (o cliente mostra a mensagem própria).
+  assert.match(entry, /msg === "opponent_away" \? 409/);
+});
+
 test("a Edge expõe as ações de duelo e valida o tabuleiro antes de finalizar", () => {
   const entry = read("supabase/functions/play/index.ts");
   const board = read("supabase/functions/play/_shared/board.js");

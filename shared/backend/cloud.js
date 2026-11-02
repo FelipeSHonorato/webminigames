@@ -349,6 +349,14 @@ export const Cloud = {
       As fechadas só aparecem para o criador. Devolve
       `{ rooms: [{ id, gameId, kind, rule, level, maxSeconds, createdAt, expiresAt, open, mine, host }] }`. */
   duelRooms() { return invoke("duel_list", {}); },
+  /** Minhas salas com um desafiante esperando: o aviso global usa isto para chamar o criador.
+      Devolve `{ invites: [{ id, code, gameId, kind, level, maxSeconds, createdAt, expiresAt, opponent }] }`. */
+  duelInvites() { return invoke("duel_invites", {}); },
+  /** O criador desiste da sala antes da partida: cancela sem vencedor (ninguém ganha/perde rating). */
+  duelDecline(duel) { return invoke("duel_decline", { duel }); },
+  /** Meu duelo ativo num jogo (sala esperando, com ou sem desafiante, ou partida em andamento).
+      A página do jogo usa isto para RETOMAR a sala em vez de oferecer "criar sala". Devolve `{ duel: { id, code, gameId, status, createdBy } | null }`. */
+  duelMine(game) { return invoke("duel_mine", { game }); },
   /** Entra pelo código do convite (sala aberta ou fechada). Devolve a sala com os jogadores e o oponente. */
   duelJoin(code) { return invoke("duel_join", { code }); },
   /** Entra pelo id de uma sala ABERTA (clique no card da lista). Devolve a sala com os jogadores. */

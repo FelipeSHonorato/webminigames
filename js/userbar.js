@@ -5,11 +5,19 @@ import { themeSwitch } from "../shared/theme.js";
 import { musicSwitch } from "../shared/music.js";
 import { avatarNode } from "../shared/avatar.js";
 import { isAdmin } from "../shared/roles.js";
+import { Cloud } from "../shared/backend/cloud.js";
 
 const GEAR = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" stroke="currentColor" stroke-width="1" stroke-linejoin="round" d="M9.78 4.73 L10.37 1.73 L13.63 1.73 L14.22 4.73 L15.57 5.29 L18.11 3.59 L20.41 5.89 L18.71 8.43 L19.27 9.78 L22.27 10.37 L22.27 13.63 L19.27 14.22 L18.71 15.57 L20.41 18.11 L18.11 20.41 L15.57 18.71 L14.22 19.27 L13.63 22.27 L10.37 22.27 L9.78 19.27 L8.43 18.71 L5.89 20.41 L3.59 18.11 L5.29 15.57 L4.73 14.22 L1.73 13.63 L1.73 10.37 L4.73 9.78 L5.29 8.43 L3.59 5.89 L5.89 3.59 L8.43 5.29 Z M12 8.6a3.4 3.4 0 1 0 0 6.8a3.4 3.4 0 1 0 0-6.8Z"/></svg>`;
 const MENU = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16"/></svg>`;
 
 let teardown = null;   // remove os listeners do menu anterior quando a barra é remontada (perfil/painel)
+
+/** Aviso global de desafiante: o criador de uma sala de duelo é chamado em qualquer página (shared/duel-invites.js).
+    Só conta real com a nuvem ligada; o módulo é carregado sob demanda e se liga uma vez só. */
+function watchDuelInvites(base) {
+  if (!Cloud.active || !Cloud.uid) return;
+  import("../shared/duel-invites.js").then(m => m.startDuelInvites({ base })).catch(() => { /* o aviso é um extra: nunca derruba a barra */ });
+}
 
 /** Barra do usuário: avatar + nome (link para o perfil), engrenagem (configurações), switch do modo escuro e Deslogar.
     Em telas estreitas as ações se recolhem num menu sanduíche (`js/userbar.js` + `css/userbar.css`); o "← Jogos" e o
@@ -101,4 +109,5 @@ export function mountUserBar(host, { base = "" } = {}) {
 
   host.append(toggle, menu);
   placeControls();
+  if (account) watchDuelInvites(base);
 }
