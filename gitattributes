@@ -1,0 +1,12 @@
+# Fins de linha: o repositório e a pasta de trabalho usam LF (igual ao .editorconfig),
+# em qualquer sistema. Evita diffs inteiros causados só por CRLF no Windows.
+* text=auto eol=lf
+
+# Binários: nunca converter.
+*.png  binary
+*.webp binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.woff2 binary

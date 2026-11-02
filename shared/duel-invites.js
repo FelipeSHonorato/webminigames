@@ -19,6 +19,7 @@ export const ACCEPT_EVENT = "wmg:duel-accept";
 
 export const MESSAGES = {
   declined: "Você desistiu do duelo. Ninguém ganha nem perde pontos.",
+  gone: "Esse convite não está mais ativo.",
   declineFailed: "Não foi possível desistir agora. Tente de novo.",
 };
 
@@ -89,7 +90,10 @@ export function createInviteController({
       const raw = Array.isArray(data?.invites) ? data.invites : [];
       if (raw.length && !catalog) catalog = (await loadGames?.()) ?? {};
       if (ticket !== epoch) { inflight = false; return invite; }   // o criador já decidiu: resposta velha não reabre o aviso
-      invite = cleanInvites(raw, catalog ?? {})[0] ?? null;        // sumiu (desafiante saiu, expirou): o aviso só fecha, sem recado
+      const next = cleanInvites(raw, catalog ?? {})[0] ?? null;
+      if (next) notice = "";                                       // convite novo/renovado limpa o recado anterior
+      else if (invite) notice = MESSAGES.gone;                     // sumiu sem o criador agir: o desafiante saiu ou expirou
+      invite = next;
     } catch { /* rede ou erro passageiro: mantém o que está na tela e tenta no próximo ciclo */ }
     inflight = false;
     emit();
@@ -123,7 +127,7 @@ export function createInviteController({
       invite = null;
       notice = MESSAGES.declined;
     } catch (e) {
-      if (["bad_status", "duel_not_found", "not_creator"].includes(e?.code)) invite = null;   // a sala já mudou: só fecha o aviso
+      if (["bad_status", "duel_not_found", "not_creator"].includes(e?.code)) { invite = null; notice = MESSAGES.gone; }   // a sala já mudou: só fecha o aviso
       else notice = MESSAGES.declineFailed;
     }
     busy = false;

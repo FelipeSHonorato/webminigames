@@ -381,6 +381,14 @@ export const Cloud = {
   chessState(duel) { return invoke("chess_state", { duel }); },
   chessMove(duel, move) { return invoke("chess_move", { duel, move }); },
   chessResign(duel) { return invoke("chess_resign", { duel }); },
+
+  /* ----- dama 1×1 (duelo por turnos, ranking próprio) -----
+     Mesmo fluxo do xadrez, com a posição serializada no lugar do FEN. */
+  damaCreate(minutes, color, open = true) { return invoke("dama_create", { minutes, color, open }); },
+  damaStart(duel) { return invoke("dama_start", { duel }); },
+  damaState(duel) { return invoke("dama_state", { duel }); },
+  damaMove(duel, move) { return invoke("dama_move", { duel, move }); },
+  damaResign(duel) { return invoke("dama_resign", { duel }); },
   /** Canal Realtime do duelo (só espelho). Devolve `null` quando a nuvem está desligada/degradada.
       `options` repassa a configuração do SDK (o duelo usa `{ config: { private: true } }`). */
   channel(topic, options) {

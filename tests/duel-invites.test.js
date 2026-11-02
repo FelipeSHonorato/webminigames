@@ -154,6 +154,28 @@ test("Entrar na sala: navega até o jogo já com ?duelo=<id>&aceitar=1 e não de
   assert.equal(t.calls.some(c => c[0] === "decline"), false, "aceitar nunca desiste");
 });
 
+test("Entrar na sala: resposta atrasada de uma consulta anterior não mostra 'convite não está mais ativo'", async () => {
+  let release;
+  let calls = 0;
+  const f = fakeCloud({ invites: [invite()] });
+  f.cloud.duelInvites = async () => {
+    calls += 1;
+    if (calls === 1) return { invites: [invite()] };
+    await new Promise(r => { release = r; });
+    return { invites: [] };
+  };
+  const controller = createInviteController({
+    cloud: f.cloud, games: GAMES, pollMs: 0, handleInPage: () => true, onChange: () => {},
+  });
+  await controller.check();
+  const stale = controller.check();               // pergunta feita antes do aceite, resposta ainda pendente
+  assert.equal(controller.accept(), true);
+  release();
+  await stale;
+  assert.equal(controller.invite, null, "a resposta velha não reabre o aviso");
+  assert.equal(controller.notice, "", "e não inventa um recado depois do aceite");
+});
+
 test("Entrar na sala numa página que já está com a sala aberta: aceita ali, sem recarregar", async () => {
   const seen = [];
   const t = setup({ invites: [invite()] }, { handleInPage: i => { seen.push(i.id); return true; } });

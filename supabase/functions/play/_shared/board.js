@@ -7,6 +7,7 @@ import * as arrows from "./arrows/domain.js";
 import * as canos from "./canos/domain.js";
 import * as chess from "./chess/domain.js";
 import * as cruzadas from "./cruzadas/domain.js";
+import * as dama from "./dama/domain.js";
 import * as patches from "./patches/domain.js";
 import * as queens from "./queens/domain.js";
 import * as sopa from "./sopa/domain.js";
@@ -15,10 +16,10 @@ import * as tango from "./tango/domain.js";
 import * as texttwist from "./texttwist/domain.js";
 import * as zip from "./zip/domain.js";
 
-export const GAMES = { arrows, canos, chess, cruzadas, patches, queens, sopa, sudoku, tango, texttwist, zip };
+export const GAMES = { arrows, canos, chess, cruzadas, dama, patches, queens, sopa, sudoku, tango, texttwist, zip };
 
 /* Jogos solo (fase + desafio diário): todos os que geram puzzle a partir de uma seed.
-   O xadrez é só duelo e fica de fora — `daily_generate`/`open` nunca devem chamá-lo. */
+   Xadrez e Dama são só duelo e ficam de fora — `daily_generate`/`open` nunca devem chamá-los. */
 export const SOLO_GAMES = Object.fromEntries(
   Object.entries(GAMES).filter(([, domain]) => typeof domain.generatePuzzle === "function"),
 );

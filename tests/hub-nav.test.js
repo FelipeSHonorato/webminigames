@@ -72,12 +72,12 @@ test("hub: cada modo tem título e subtítulo próprios", () => {
   for (const mode of MODES) assert.ok(modeText(mode).sub.length > 20, `${mode} sem subtítulo`);
 });
 
-test("hub: só o xadrez é duelo — os jogos antigos continuam solo", () => {
+test("hub: só o xadrez e a dama são duelos — os jogos antigos continuam solo", () => {
   const items = navItems(CATALOG);
   assert.equal(items[0].count, Object.keys(CATALOG).length);
-  assert.equal(items[2].count, 1, "só o xadrez declara duel: true");
-  assert.deepEqual(filterGames(CATALOG, "duel").map(([id]) => id), ["chess"]);
-  assert.equal(filterGames(CATALOG, "solo").length, Object.keys(CATALOG).length - 1);
+  assert.equal(items[2].count, 2, "só xadrez e dama declaram duel: true");
+  assert.deepEqual(filterGames(CATALOG, "duel").map(([id]) => id), ["chess", "dama"]);
+  assert.equal(filterGames(CATALOG, "solo").length, Object.keys(CATALOG).length - 2);
 });
 
 test("hub: painel lateral é Solo fora dos duelos e um por jogo no carrossel", () => {
@@ -98,7 +98,7 @@ test("hub: painel lateral é Solo fora dos duelos e um por jogo no carrossel", (
   assert.deepEqual(duel.map(p => p.gameId), ["chess", "dama"]);
   assert.deepEqual(duel.map(p => p.title), ["Ranking Geral Xadrez", "Ranking Geral Dama"]);
   assert.match(duel[0].sub, /Elo/, "o xadrez usa Elo");
-  assert.doesNotMatch(duel[1].sub, /Elo/, "cada jogo pode ter o próprio sistema");
+  assert.match(duel[1].sub, /Elo/, "a dama usa o mesmo Elo, com ranking próprio");
   assert.equal(rankingPanels(panels, "duel")[0].gameId, "chess");
   assert.deepEqual(rankingPanels({}, "duel"), []);
   assert.equal(rankingPanels(CATALOG, "duel")[0].title, "Ranking Geral Xadrez");

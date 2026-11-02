@@ -92,17 +92,28 @@ catálogo (`js/games.js`), o card ganha o selo `1×1` no modo Todos e a entrada 
 no modo Duelos — com `Cloud.active` e ao menos um jogo do modo. A Edge só cria sala quando `duelOf(game)`
 existe.
 
-Fluxo: o criador abre a sala (`duel_create`) escolhendo entre **aberta** (entra pela lista de Salas
-Online, `duel_join_open`) ou **fechada** (só com o código, `duel_join`) e recebe um código de 6 caracteres;
-o amigo entra; os dois marcam "pronto" (`duel_ready`) e o servidor fixa `starts_at` (~4 s). O puzzle só é
-entregue por `duel_start` **depois** de `starts_at`. A cada jogada a UI chama `session.progress(0..1)` e
-o oponente vê a barra pelo Realtime (canal privado `duel:<id>`); ao concluir, o jogo manda o tabuleiro em
-`session.finish(state)` e a Edge valida com o `domain.js` antes de o Postgres decidir. O polling de
-`duel_state` cobre reconexão e a decisão final.
+Há **dois arquétipos** de duelo, e um jogo novo escolhe um deles antes de codar:
 
-Regras: `first` = quem termina primeiro vence; `words` = mais palavras vence, empate no menor tempo. O
-duelo **não** dá pontos, coins nem progressão. Sem dicas. Salas `waiting` expiram em 15 min; o cron
-`duel_cleanup` (a cada 5 min) é a rede de segurança para salas abandonadas.
+| Arquétipo | `DUEL` | Como o vencedor é decidido | Referência |
+|---|---|---|---|
+| **Corrida** (`race`) | `{ rule: "first" \| "words", maxSeconds, progressOf }` | os dois recebem o **mesmo puzzle** e jogam em paralelo; vence quem termina primeiro (`first`) ou quem faz mais palavras, com desempate por tempo (`words`) | este documento, seções 3.1 e 8 |
+| **Turnos** (`turn`) | `{ kind: "turn", times: [minutos por jogador] }` | os jogadores **alternam jogadas** no mesmo estado; cada um tem o próprio relógio; vence quem encerra a partida pelas regras do jogo (mate, tempo, desistência etc.) | **Xadrez** (`games/chess/`, seção 3.2) |
+
+O padrão completo de um duelo **por turnos** — catálogo, domínio, sessão, sala, largada, lances, ranking e
+testes — está na **seção 3.2**. O fluxo de corrida continua resumido aqui:
+
+Fluxo de corrida: o criador abre a sala (`duel_create`) escolhendo entre **aberta** (entra pela lista de
+Salas Online, `duel_join_open`) ou **fechada** (só com o código, `duel_join`) e recebe um código de 6
+caracteres; o amigo entra; os dois marcam "pronto" (`duel_ready`) e o servidor fixa `starts_at` (~4 s). O
+puzzle só é entregue por `duel_start` **depois** de `starts_at`. A cada jogada a UI chama
+`session.progress(0..1)` e o oponente vê a barra pelo Realtime (canal privado `duel:<id>`); ao concluir, o
+jogo manda o tabuleiro em `session.finish(state)` e a Edge valida com o `domain.js` antes de o Postgres
+decidir. O polling de `duel_state` cobre reconexão e a decisão final.
+
+Regras de corrida: `first` = quem termina primeiro vence; `words` = mais palavras vence, empate no menor
+tempo. O duelo **não** dá pontos, coins nem progressão solo. Sem dicas. Salas `waiting` expiram em 15 min;
+o cron `duel_cleanup` (a cada 5 min) é a rede de segurança para salas abandonadas. O ranking é **por jogo**
+(`duel_ratings`, seção 3.2.7), mesmo nos duelos de corrida.
 
 ---
 
@@ -158,6 +169,320 @@ export const DUEL = {
 - O catálogo (`js/games.js`) precisa do mesmo `duel: true`; `tests/edge.test.js` falha se o catálogo e o
   domínio divergirem.
 - Não há dicas no duelo: `hasHints` não é consultado e a UI não mostra o botão.
+
+### 3.2 Jogos de duelo por turnos — o padrão do Xadrez
+
+O **Xadrez** (`games/chess/`, `shared/chess-session.js`, migração `20261038000000_chess_duel.sql`) é a
+referência de duelo por **turnos**: os dois jogadores não correm no mesmo tabuleiro; eles alternam lances e
+cada um tem o próprio relógio. Use esta seção quando o jogo novo for desse tipo. Para duelo de **corrida**
+(mesmo puzzle para os dois), valem as seções 2.5, 3.1 e 8.1.
+
+> **Não existe um "modo duelo" genérico para ligar em jogo existente.** Um jogo de turnos novo precisa de
+> domínio, sessão, RPCs e tabela de estado próprios, como o Xadrez. O que é reutilizado é a infraestrutura
+> de sala (`duels`, `duel_players`, `duel_ready`, `duel_leave`, `duel_ratings`, Realtime e Edge `play`).
+
+#### 3.2.1 Catálogo, hub e Salas Online
+
+O jogo entra no modo Duelos pelo catálogo, sem lista fixa em nenhum outro lugar:
+
+```js
+// js/games.js
+chess: {
+  title: "Xadrez", duel: true, path: "games/chess/",
+  desc: "O clássico com regras de torneio: cada jogador tem o próprio relógio, que corre só no seu turno.",
+  preview: `<svg …>`,
+},
+```
+
+- `duel: true` é o **mesmo contrato** que a Edge confere no `DUEL` do domínio. `tests/edge.test.js` falha se
+  o catálogo e o domínio divergirem.
+- Jogo **só de duelo** não tem `key` (`chess.wins`): não há vitórias solo, níveis, coins nem desafio diário.
+  Se o jogo também tiver modo solo, ele é um jogo solo normal **e** declara `DUEL`; a UI decide qual fluxo
+  abrir pelo endereço/`Cloud`.
+- Cadastre o jogo em `public.games` na **migração nova** (o Xadrez faz isso em
+  `20261038000000_chess_duel.sql`; o teste lê todos os `insert into public.games`). Não é preciso duplicar
+  a linha em `init.sql`.
+- `shared/hub-nav.js`, `shared/rooms.js`, `shared/duel-hub.js` e `js/salas.js` já iteram `duel: true`; não
+  precisam de código novo. O card do hub ganha o selo `1×1` e o link "Desafiar amigo" só aparece no modo
+  Duelos.
+- `tests/duel.test.js` e `tests/hub-nav.test.js` enumeram os jogos de duelo: atualize o esperado.
+
+#### 3.2.2 Contrato do domínio de turnos
+
+Além do contrato geral da seção 3, o domínio de turnos precisa expor as funções que a Edge usa para
+**revalidar cada jogada**:
+
+```js
+// games/<id>/domain.js — nomes reais do Xadrez; use o equivalente no jogo novo
+export const DUEL = { kind: "turn", times: [3, 10, 30, 60] };  // minutos POR JOGADOR
+
+export function newGame() { /* { state, keys, moves, last, result } */ }
+export function findMove(state, input) { /* lance legal ou null */ }
+export function applyMove(state, move) { /* novo estado imutável */ }
+export function playMove(game, input) { /* estado + histórico + resultado */ }
+export function legalMoves(state) { /* lances legais */ }
+export function outcome(state, keys) { /* { over, winner, reason } */ }
+export function positionKey(state) { /* chave p/ repetição tripla, se o jogo tiver */ }
+export function canMate(board, side) { /* adjudicação de tempo (FIDE 6.9) */ }
+export function toFen(state) { /* persistência: JSON pequeno p/ o banco */ }
+export function fromFen(fen) { /* reconstrói o estado a partir do banco */ }
+```
+
+`serialize`/`revive` são os nomes genéricos desse par de persistência; no Xadrez ele é `toFen`/`fromFen`.
+Se o estado tiver `Map`/`Set`, converta para array em `serialize` e reconstrua em `revive`.
+
+Regras de ouro:
+
+1. **Puro e determinístico**: sem DOM, `fetch`, `Date.now()` ou `Math.random()`. O relógio é do Postgres.
+2. **Estado imutável**: cada lance devolve um estado novo; a UI pode guardar a versão anterior para animar
+   e desfazer o lance otimista.
+3. **Estado pequeno e serializável**: o Xadrez guarda `{ fen, turn, version, keys, moves, last }`; um jogo
+   novo guarda o equivalente (`board`, `order`, `placed`, …). `Map`/`Set` precisam de `serialize`/`revive`.
+4. **Resultado calculado no domínio, aplicado no banco**: o domínio diz `over/winner/reason`; a Edge manda;
+   o Postgres decide se a partida realmente acabou (vez, relógio, versão).
+5. **Sem dicas**: `hasHints` não é consultado no duelo.
+
+#### 3.2.3 Criação de sala (Edge + Postgres)
+
+O criador escolhe o **ritmo** (validado contra `DUEL.times`), o **lado/cor** e a **visibilidade**. A Edge
+não recebe o tabuleiro pronto do cliente: ela monta o estado inicial com o domínio.
+
+```js
+// supabase/functions/play/index.ts — ação <id>_create (modelo: chess_create)
+const duel = duelOf(game);
+if (!duel || duel.kind !== "turn") return json({ error: "not_duel_game" }, 400);
+const minutes = Number(body?.minutes);
+if (!duel.times.includes(minutes)) return json({ error: "bad_minutes" }, 400);
+const side = body?.side;                       // "w"/"b" ou o equivalente do jogo
+if (!validSide(side)) return json({ error: "bad_side" }, 400);
+const start = newGame();                       // domínio puro
+await svc.rpc("<id>_create", {
+  p_uid: uid, p_minutes: minutes, p_side: side,
+  p_state: toFen(start.state), p_key: start.keys[0],   // no Xadrez: p_fen/p_key
+  p_open: body?.open !== false,
+});
+```
+
+Troque `p_state`/`toFen` pelos nomes do domínio novo (`p_fen` no Xadrez); o importante é que o **servidor**
+monte o estado inicial, não o cliente. No Postgres, a criação repete o padrão do `chess_create`:
+
+| Passo | Regra |
+|---|---|
+| Catálogo | `games.id` precisa existir |
+| Ritmo | minutos inteiros da lista `DUEL.times`; `max_seconds = minutos * 60` |
+| Sala | `duels.kind = 'turn'`, `duels.rule = 'turn'`, `public_view` e `full_puzzle` **nulos** |
+| Salas abertas | **1 por usuário** (`pg_advisory_xact_lock` + `count … waiting and expires_at > now()`); sem o lock, duas abas furam o limite |
+| Criador | `duel_players` com `ready = false` |
+| Estado | tabela própria do jogo (`chess_games` no Xadrez), uma linha por `duel_id` |
+| Código | `duel_gen_code()` (6 chars, sem 0/O/1/I) |
+| Expiração | `waiting` expira em 15 min; `duel_cleanup` é a rede de segurança |
+| Visibilidade | `is_open` (aberta na lista) ou fechada (só com código/link) |
+
+Tabela de estado mínima (modelo `chess_games`):
+
+```sql
+create table public.<id>_games (
+  duel_id    uuid primary key references public.duels (id) on delete cascade,
+  state      jsonb not null,                 -- estado serializado do domínio
+  version    int not null default 0,         -- concorrência otimista
+  side_a     uuid references public.profiles (id) on delete cascade,
+  side_b     uuid references public.profiles (id) on delete cascade,
+  clock_a_ms int not null check (clock_a_ms >= 0),
+  clock_b_ms int not null check (clock_b_ms >= 0),
+  last_at    timestamptz,                    -- quando o relógio do lado da vez começou
+  result     text,                           -- 'a' | 'b' | 'draw'
+  reason     text,
+  updated_at timestamptz not null default now(),
+  check (side_a is null or side_b is null or side_a <> side_b)
+);
+alter table public.<id>_games enable row level security;
+revoke all on public.<id>_games from anon, authenticated;   -- só a Edge (service_role) acessa
+```
+
+**Atenção ao segundo jogo de turnos:** o `duel_seat`/`duel_join` atuais atribuem a cor do Xadrez com um
+`update public.chess_games`. Para um jogo novo, generalise o assento (dispatch por `game_id` ou uma tabela
+genérica de assentos) — copiar o `chess_games` sem ajustar deixa o convidado sem lado. O `chess_json`
+também é específico do Xadrez; crie o payload do jogo novo (ou um `duel_json` genérico).
+
+#### 3.2.4 Entrada, pronto e largada
+
+O caminho é o mesmo dos duelos de corrida, com duas diferenças: o assento define o **lado** e o início é
+por **turnos**.
+
+1. O amigo entra por `duel_join` (código/link) ou `duel_join_open` (card de Salas Online). Os dois terminam
+   em `duel_seat`, que:
+   - recusa sala cheia, expirada ou já iniciada (`duel_full`, `expired`, `bad_status`);
+   - insere o jogador com `ready = false`;
+   - atribui o lado vazio (no Xadrez, a cor que o criador não escolheu);
+   - devolve `players`, `opponent`, `createdBy`, `open` e os campos do lobby.
+2. O convidado clica em **"Estou pronto"** (`duel_ready`). Só então o criador é avisado em qualquer página
+   por `duel_invites` e pelo pop-up de `shared/duel-invites.js`.
+3. O criador clica em **"Entrar na sala"**: a página abre com `?duelo=<id>&aceitar=1`, chama `duel_mine` se
+   não houver sala no endereço e marca `duel_ready`. Com os dois prontos, o servidor grava
+   `status = 'running'` e `starts_at = now() + 4 s`.
+4. Enquanto `now() < starts_at`, `<id>_start`/`<id>_state` **não** entregam jogada nem mexem no relógio: só
+   contagem. O cliente usa `serverNow` para corrigir o relógio local.
+5. Presença: `last_seen_at` é carimbado por `duel_touch` a cada consulta de estado enquanto a sala está
+   `waiting`; `duel_ready` recusa com `opponent_away` se o desafiante está pronto mas sumiu há > 90 s.
+6. O criador pode **desistir** (`duel_decline`): cancela com `cancel_reason = 'declined'`, o desafiante vê
+   o motivo e **ninguém ganha nem perde rating**. Em `waiting`, sair sem desafiante é `duel_leave`; sair
+   como desafiante libera a vaga/lado.
+
+Endereços que a página precisa entender: `?duelo=novo` (criar), `?duelo=<código>` (entrar por código),
+`?duelo=<uuid>` (retomar/abrir sala) e `?aceitar=1` (aceite vindo do aviso global). Sem `?duelo=`, chame
+`Cloud.duelMine(GAME_ID)` e retome a sala ativa em vez de oferecer outra.
+
+#### 3.2.5 Relógio e lance
+
+O relógio é **do Postgres**, nunca do cliente:
+
+- `last_at` marca quando o relógio do lado da vez começou a correr.
+- `clocksAt` do cliente é só exibição: desconta o tempo desde o último `serverNow` recebido; quando a
+  resposta chega, o valor do servidor manda.
+- Na largada, `last_at` recebe `starts_at` (a contagem de 4 s não consome tempo).
+- No lance, o relógio do jogador que jogou é debitado até `now()`; o do oponente fica parado.
+
+Fluxo de um lance:
+
+```text
+UI (otimista) → Edge <id>_move
+  ├─ valida tipo de duelo, status 'running' e que é o jogo certo
+  ├─ carrega o estado + version do banco
+  ├─ findMove/playMove do domínio (lance legal? resultado?)
+  ├─ canStillWin dos dois lados (no Xadrez, canMate; adjudicação de tempo)
+  └─ RPC <id>_move(uid, duelo, version, estado_novo, resultado, …)
+        ├─ confere membro, lado/vez, version e relógio (for update)
+        ├─ se o tempo estourou antes do lance: ignora o lance e finaliza por timeout
+        ├─ grava estado, version + 1, relógio debitado, last_at = now()
+        └─ se o domínio encerrou: duels.status = 'finished', winner_id, finished_at
+```
+
+Erros que a UI precisa distinguir: `invalid_move` (lance ilegal), `not_your_turn` (não é a vez),
+`stale` (outra aba/polling já mudou o tabuleiro → `refresh`), `not_started`, `bad_status` e `expired`.
+A posição do servidor é a verdade: depois de cada lance (mesmo recusado) a UI reaplica o estado recebido.
+
+#### 3.2.6 Fim de jogo, desistência e limpeza
+
+| Evento | Quem decide | Efeito |
+|---|---|---|
+| Mate/afogamento/regra do jogo | domínio → Edge → RPC | `duels.status = 'finished'`, `winner_id` (ou nulo em empate), `result/reason` no estado |
+| Tempo esgotado | RPC (`now()` vs `last_at`) | vence o adversário, **salvo** se ele não puder mais vencer (`canStillWin`); senão empate |
+| Desistir em `running` (`<id>_resign` ou `duel_leave`) | RPC | adversário vence; `reason = 'resign'` |
+| Sair em `waiting` | `duel_leave` | criador cancela a sala; convidado libera vaga/lado |
+| Criador desiste com desafiante | `duel_decline` | `cancelled`, `cancel_reason = 'declined'`, **sem rating** |
+| Sala abandonada | `duel_cleanup` (pg_cron a cada 5 min) | cancela `waiting` expirada; em `turn`, **não** usa `max_seconds` para encerrar — quem encerra é o relógio por jogador |
+
+O `duel_rating_finish` só reage à transição para `finished`; `cancelled` **nunca** altera rating.
+
+#### 3.2.7 Ranking por jogo (Elo)
+
+O ranking não é o ranking de pontos do modo solo. Cada jogo de duelo tem o próprio **rating**:
+
+| Peça | Onde | Regra |
+|---|---|---|
+| Tabela | `public.duel_ratings` (PK `game_id, user_id`) | rating/peak 1500, wins/losses/draws/games; leitura só pela função |
+| Cálculo | `duel_elo_delta` (SQL puro) | Elo; K = 40 nas 10 primeiras partidas, 32 depois; rating entre 100 e 4000 |
+| Aplicação | trigger `duel_rating_finish` em `duels` | quando `status` vira `finished` e há 2 jogadores: vitória 1, empate 0.5, derrota 0; usa `chess_games.result` no Xadrez e `winner_id` nos demais |
+| Leitura | `duel_ranking(game, scope, limit)` | devolve `{ top, me, total }`, `points = rating`; exclui admin e quem tem `games = 0`; filtra região |
+| Jogador | payload da sala (`players[].rating`) e `host.rating` nas salas | mostra o rating real; sem linha ainda, 1500 |
+| Hub/Salas | `Scores.duelLeaderboard` + `renderLeaderboard` | sufixo **"Elo"**, um painel por jogo no modo Duelos; em Salas Online, carrossel de 3 s |
+
+Regras de ouro do ranking:
+
+1. **Nunca no cliente**: rating é escrito só pelo trigger/RPC com `service_role`; a UI apenas lê.
+2. **Cancelar não pontua**: declínio, sala expirada e saída em `waiting` não passam por `finished`.
+3. **Empate existe**: `winner_id = null` + `status = 'finished'` = 0.5 para os dois.
+4. **Jogo novo não precisa de código de ranking** se usar `duel_ratings` e o trigger; só precisa devolver o
+   `rating` no payload da sala e registrar o jogo em `games`.
+5. Se a fórmula for diferente do Elo, mude **o SQL** (`duel_elo_delta`/trigger), não a UI.
+
+#### 3.2.8 Cliente: sessão e UI
+
+Para turnos, **não** use `shared/duel-session.js` sozinho: ele é a máquina de estados de **corrida**
+(puzzle + barra de progresso + `finish`). O Xadrez tem `shared/chess-session.js`, que é o modelo para um
+jogo de turnos novo (`shared/<id>-session.js`):
+
+- sem DOM; `Cloud` injetável para os testes;
+- `create/join/attach/ready/refresh/move/resign/leave`;
+- eventos `lobby`, `ready`, `state`, `move`, `resign`, `finished`, `left`;
+- polling (`CHESS_POLL_MS = 1500`) e canal privado `duel:<id>` como **espelho** (avisa o oponente para
+  atualizar; não decide nada);
+- getters de relógio (`clocks()`, `msToStart()`, `isMyTurn()`), `myColor`, `outcome`;
+- `serverOffset = Date.parse(serverNow) − Date.now()` para a contagem e os relógios não adiantarem.
+
+Na `ui.js`:
+
+- um **único tabuleiro** serve ao modo local (hot-seat, relógio no navegador) e ao online (servidor);
+- o modo online bloqueia cliques fora da vez, durante o lance em trânsito e antes da largada;
+- o lance é otimista na tela e confirmado/desfeito pelo estado do servidor;
+- a UI trata `?duelo=novo|código|uuid`, `?aceitar=1`, `duel_mine`, o evento `wmg:duel-accept`
+  (`ACCEPT_EVENT` de `shared/duel-invites.js`) e a mensagem de cancelamento (`declined`/`expired`);
+- mostra nomes, avatares, rating, relógios, lances e o resultado, mas **nunca** calcula vencedor.
+
+Para corrida, o par é `shared/duel-session.js` + `shared/duel-ui.js` (lobby, contagem, barras, resultado);
+o jogo só monta o tabuleiro quando `onStart` entrega o puzzle.
+
+#### 3.2.9 Checklist de arquivos — jogo de duelo por turnos
+
+| # | Arquivo | Conteúdo |
+|---|---|---|
+| 1 | `games/<id>/domain.js` | contrato de turnos: `DUEL`, estado, lances, resultado, serialização |
+| 2 | `games/<id>/ui.js` | modo local + online, lobby, relógios, lances, URL do duelo |
+| 3 | `games/<id>/index.html` | IDs do contrato da seção 5 + `style.css` com tokens |
+| 4 | `games/<id>/style.css` | tabuleiro, relógios, lobby, responsivo |
+| 5 | `shared/<id>-session.js` | sessão sem DOM (modelo `shared/chess-session.js`) |
+| 6 | `supabase/functions/play/_shared/<id>/domain.js` | **cópia idêntica** do item 1 |
+| 7 | `supabase/migrations/<timestamp>_<id>_duel.sql` | catálogo, tabela de estado, funções `<id>_*` e grants |
+| 8 | `tests/<id>.test.js` | regras, lances legais/ilegais, resultados, casos de timeout |
+| 9 | `tests/<id>-session.test.js` | relógio, polling, pronto, resultado e cancelamento (sem DOM) |
+| 10 | `assets/thumbs/<id>-light.webp` e `-dark.webp` | miniatura do card (360×360) |
+| 11 | `games/<id>/tutorial.js` / `tutorial.css` | opcional, se o jogo tiver "Como jogar" |
+
+A migração `20261039000000_duel_ratings.sql` já é **global**: o trigger `duel_rating_finish` aplica Elo a
+qualquer duelo `finished` com dois jogadores (no Xadrez lê `chess_games.result`; nos demais usa
+`duels.winner_id`). Só altere essa migração se a fórmula ou a forma de decidir o vencedor do jogo novo forem
+diferentes. Não crie um trigger de rating por jogo.
+
+Arquivos alterados: `js/games.js`, `public.games` na migração nova,
+`supabase/functions/play/_shared/board.js` (`import`, `GAMES`, `SOLO_GAMES` se não gera fase, `GENS`),
+`supabase/functions/play/index.ts` (`DUEL_ACTIONS`, roteador `duel_*`/`<id>_*`, ação
+`<id>_create/move/state/resign`), `shared/music.js`, `tests/edge.test.js`, `tests/duel.test.js`,
+`tests/hub-nav.test.js`, `tests/theme.test.js`, `tests/supabase.test.js`, `README.md` e `docs/CONTINUAR.md`.
+
+#### 3.2.10 Testes mínimos de um duelo por turnos
+
+- **Domínio**: estado inicial, lances legais/ilegais, imutabilidade, resultado (vitória/empate), serialização
+  ida e volta, `canStillWin` nos casos de tempo. No Xadrez, `perft` prova as regras objetivamente.
+- **Sessão**: `clocksAt` só desconta o lado da vez e nada antes da largada; `msToStart` usa o
+  `serverOffset`; `outcome` do ponto de vista de quem vê; lance manda só o input; `resign/leave` encerram
+  uma única vez; attach não ocupa vaga.
+- **Edge**: catálogo × `DUEL`; `_shared` idêntico ao `games/`; `<id>_move` valida com o domínio e recusa
+  lance ilegal; `duel_create` recusa jogo sem `DUEL`; ação de turno não cai em `unknown_game`.
+- **Banco (pgTAP)**: criar/entrar/pronto/largada, lance fora da vez, `stale`, timeout, desistência,
+  cancelamento sem rating, cleanup, não-membro e exclusão de conta.
+- **Manual**: criar sala aberta/fechada, entrar pela lista e por código, aviso global, `?aceitar=1`,
+  recarregar (retomar), duas abas (uma recusa `stale`), tempo estourando e ranking mudando.
+
+#### 3.2.11 Armadilhas específicas de turnos
+
+1. **Copiar o Xadrez sem generalizar o assento.** `duel_seat`/`duel_join` só sabem preencher
+   `chess_games`; um segundo jogo de turnos precisa de dispatch por `game_id` ou tabela de assentos.
+2. **Deixar o cliente decidir o vencedor.** A UI só envia o lance; Edge valida e Postgres decide.
+3. **Esquecer `version`.** Sem concorrência otimista, duas abas aplicam lances na mesma posição.
+4. **Relógio no cliente.** `setInterval` é só pintura; quem debita e encerra é o `now()` do Postgres.
+5. **Esquecer `serverNow`.** A contagem e o relógio local adiantam/atrasam; o adversário vê tempo errado.
+6. **Ação `_` fora do roteador.** O `handleDuel` só recebe `duel_*` e `chess_*`; registre `<id>_*` no
+   `DUEL_ACTIONS` e no `if` do roteador, senão volta `unknown_game`.
+7. **Esquecer o deploy da Edge.** Banco/migração atualizados sem `functions deploy play` = `unknown_game`.
+8. **Rating em cancelamento.** O trigger só dispara em `finished`; não crie caminho paralelo que pontue
+   `cancelled`/`declined`.
+9. **Sala aberta duplicada.** Use o advisory lock e conte só `waiting` não expirada.
+10. **Deixar sala fechada vazar.** `duel_open_rooms` mostra fechada só para o criador; o join por id recusa
+    com `closed_room`.
+11. **Misturar com o desafio diário.** Jogo só de duelo não tem `generatePuzzle`/`LEVELS`; fique fora de
+    `SOLO_GAMES`, de `daily_generate` e do painel `#daily`.
+12. **Duplicar regra.** A validação do lance existe uma vez no domínio, usada pela UI, pela Edge e pelos
+    testes; não reimplemente no `ui.js`.
 
 ---
 
@@ -389,6 +714,11 @@ insert into public.games (id, title, sort) values ('<id>', '<Título>', 8)
 on conflict (id) do update set title = excluded.title, sort = excluded.sort;
 ```
 
+**Jogo de duelo por turnos:** o checklist de arquivos novos é o da **seção 3.2.9** (inclui sessão própria,
+tabela de estado e migração específica). Ele **não** tem os quatro níveis, o desafio diário nem a migração
+mínima acima: o registro em `games` continua necessário, mas a migração também cria a tabela
+`<id>_games`, as funções `<id>_*` e os grants.
+
 ---
 
 ## 7. Checklist — arquivos ALTERADOS
@@ -396,9 +726,9 @@ on conflict (id) do update set title = excluded.title, sort = excluded.sort;
 | # | Arquivo | Alteração |
 |---|---|---|
 | 1 | `js/games.js` | entrada `{ title, key: "<id>.wins", path: "games/<id>/", desc, preview }` — o `preview` (SVG) só aparece se faltar a miniatura |
-| 2 | `supabase/migrations/20261014000000_init.sql` | linha no `insert into public.games` (instalações novas) — **o teste compara com `GAMES`** |
+| 2 | migração nova (e/ou `supabase/migrations/20261014000000_init.sql` se for o caso) | linha em `insert into public.games` — o teste lê **todos** os inserts; jogos novos entram pela migração própria |
 | 3 | `supabase/functions/play/_shared/board.js` | `import`, `GAMES`, `GENS` e os switches de `viewOf`, `serialize`, `revive`, `validatePuzzle` |
-| 4 | `supabase/functions/play/index.ts` | `GAME_IDS` (linha ~14) |
+| 4 | `supabase/functions/play/index.ts` | `GAME_IDS` é derivado de `SOLO_GAMES`; se o jogo for duelo, registre as ações em `DUEL_ACTIONS` e no roteador |
 | 5 | `shared/music.js` | entrada em `MOODS` (sem ela o jogo fica **mudo**) |
 | 6 | `tests/edge.test.js` | listas de paridade, de visão pública, casos de snapshot e `Object.keys(GAMES)` |
 | 7 | `tests/theme.test.js` | id no laço de contraste |
@@ -409,6 +739,12 @@ on conflict (id) do update set title = excluded.title, sort = excluded.sort;
 
 `js/hub.js`, `js/perfil.js`, `js/admin.js` e `js/landing.js` **já iteram `GAMES`** e não precisam de código
 novo — mas entram no teste visual (card, painel do admin, lista do perfil, landing).
+
+**Jogo de duelo por turnos:** além dos itens acima, altere `supabase/functions/play/index.ts`
+(`DUEL_ACTIONS` + roteador `<id>_*`), `tests/duel.test.js` e `tests/hub-nav.test.js` (enumeram os duelos) e
+crie `shared/<id>-session.js`. Em `_shared/board.js`, importe o domínio e inclua-o em `GAMES`; como ele não
+tem `generatePuzzle`, fica automaticamente fora de `SOLO_GAMES` e do desafio diário. O checklist completo
+está em **3.2.9**.
 
 ---
 
@@ -434,10 +770,16 @@ export function validatePuzzle(game, p, data) { switch (game) {
 }};
 ```
 
-Os **duelos** não têm switch novo: `DUELS`/`duelOf(game)` são derivados de `GAMES[game].DUEL`. Ao criar a
-sala, a Edge usa `snapshot()` (puzzle completo + visão pública) e, ao finalizar, valida com
+Duelos de **corrida** não têm switch novo: `DUELS`/`duelOf(game)` são derivados de `GAMES[game].DUEL`. Ao
+criar a sala, a Edge usa `snapshot()` (puzzle completo + visão pública) e, ao finalizar, valida com
 `validateSnapshot()` (ou `validatePartial()` na regra `words`) e conta as palavras com `countWords()` antes
 de chamar `duel_finish`.
+
+Duelos **por turnos** (Xadrez) só precisam do `import` + entrada em `GAMES`: sem `LEVELS`/`generatePuzzle`,
+o jogo não entra em `SOLO_GAMES`, e `viewOf`/`serialize`/`validatePuzzle` nunca são chamados para ele. Quem
+valida o lance é o domínio diretamente na Edge (`findMove`/`playMove`), e o estado fica na tabela própria do
+jogo. Não acrescente um `case` de turnos nesses switches “para completar”: ele só criaria um caminho falso
+para um jogo que não gera fase.
 
 Detalhes que mordem:
 
@@ -449,9 +791,10 @@ Detalhes que mordem:
 
 ### 8.2 `index.ts`
 
-A Edge aceita **todos** os jogos de `_shared/board.js` (`const GAME_IDS = new Set(Object.keys(BOARD_GAMES))`):
-não há lista fixa para editar. `generateDayScenarios` percorre esses jogos e usa
-`BOARD_GAMES[game].LEVELS.length` — mais um jogo aumenta o custo da pré-geração e do cron.
+A Edge aceita **todos os jogos solo** de `_shared/board.js`: `const GAME_IDS = new Set(Object.keys(SOLO_GAMES))`,
+e `SOLO_GAMES` é derivado de quem tem `generatePuzzle`. O Xadrez fica de fora (é só duelo) e entra pelo
+roteador `handleDuel`, não por `GAME_IDS`. `generateDayScenarios` percorre `SOLO_GAMES` e usa
+`LEVELS.length` — mais um jogo solo aumenta o custo da pré-geração e do cron.
 
 ### 8.3 Deploy
 
@@ -466,10 +809,12 @@ supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...   # + DAILY_CRON_KEY para o c
 ```
 
 Se o jogo for de **duelo**, as migrações `20261035000000_duels.sql` a
-`20261037000000_duels_realtime_cron.sql` precisam estar aplicadas, a Edge `play` publicada e o canal
-privado do Realtime habilitado (policies em `realtime.messages`, criadas pela última migração). O
-`pg_cron` roda `duel_cleanup` a cada 5 minutos; sem ele, a limpeza preguiçosa do `duel_state` ainda fecha
-as salas quando alguém consulta.
+`20261046000000_duel_invite_when_ready.sql` precisam estar aplicadas (a base de salas é 35–37; rating em 39;
+salas abertas/convite/presença em 40–46), além da migração própria do jogo (ex.:
+`20261038000000_chess_duel.sql`). A Edge `play` publicada e o canal privado do Realtime habilitado (policies
+em `realtime.messages`) são obrigatórios. O `pg_cron` roda `duel_cleanup` a cada 5 minutos; sem ele, a
+limpeza preguiçosa do `duel_state` ainda fecha as salas quando alguém consulta — mas não substitui o relógio
+por jogador de um duelo de turnos.
 
 ---
 
@@ -495,16 +840,22 @@ O que o `npm test` já cobre e você precisa manter verde:
 - duelos: contrato `DUEL` × catálogo (`tests/edge.test.js`), sessão/UI/hub (`tests/duel.test.js`) e o fluxo
   completo no banco (`supabase/tests/database/02_duelos.test.sql`: criar/entrar/pronto/largada, `first`,
   `words`, empate por tempo, desistência, limpeza, não-membro e exclusão de conta).
+- duelo por turnos: regras e imutabilidade do domínio (`tests/chess.test.js`), sessão sem DOM
+  (`tests/chess-session.test.js`: relógios, `serverOffset`, pronto, resultado, desistência) e paridade
+  catálogo × `DUEL` no `tests/edge.test.js`. O Xadrez é o modelo; o jogo novo precisa do equivalente
+  `tests/<id>.test.js` + `tests/<id>-session.test.js`.
 
-Teste novo do domínio (item 7 do checklist) deve, no mínimo: gerar cada um dos 4 níveis, provar que a
-solução fornecida é aceita pelo próprio validador e que uma alteração mínima é recusada.
+Teste novo do domínio (item 7 do checklist solo) deve, no mínimo: gerar cada um dos 4 níveis, provar que a
+solução fornecida é aceita pelo próprio validador e que uma alteração mínima é recusada. Para duelo por
+turnos, o mínimo é o da **seção 3.2.10** — as regras de lance/resultado substituem os 4 níveis.
 
 ---
 
 ## 10. Armadilhas conhecidas
 
-1. **`init.sql` não é só histórico.** `tests/supabase.test.js` extrai as linhas `('id', 'title', sort)` da
-   migração inicial e compara com `js/games.js`. Registre o jogo nas **duas** (init + migração nova).
+1. **`public.games` não é opcional.** `tests/supabase.test.js` lê os `insert into public.games` de **todas**
+   as migrações e compara com `js/games.js`. Jogos novos entram na própria migração (modelo: `chess`);
+   instalações antigas não precisam de uma segunda linha em `init.sql`.
 2. **Cópias de domínio divergem.** Mexeu em `games/<id>/domain.js`? Copie para `_shared/<id>/` na mesma hora.
 3. **`GEN` esquecido.** Mudou o sorteio sem `GEN++` ⇒ fases locais salvas mostram tabuleiro inconsistente.
 4. **`Math.random()`/`Date.now()` no domínio.** Quebra o determinismo e toda vitória na nuvem vira `invalid`.
@@ -520,12 +871,12 @@ solução fornecida é aceita pelo próprio validador e que uma alteração mín
 
 | Sintoma | Causa |
 |---|---|
-| `unknown_game` no console / tela travada em "Preparando o cenário do dia…" | falta `GAME_IDS` ou o `case` no `board.js` |
+| `unknown_game` no console / tela travada em "Preparando o cenário do dia…" | falta `generatePuzzle` (o jogo fica fora de `SOLO_GAMES`) ou o `case` no `board.js` |
 | Ranking transparente, sem borda | faltam os tokens (`--cell`, `--grid`, `--bg`, `--fg`, `--muted`, `--accent`) |
 | Troféus não aparecem | falta `#board` (ou o `#daily`) |
 | Card no hub sem link / 404 | `path` errado em `js/games.js` |
 | `npm test` falha em "paridade" | cópias de domínio divergentes |
-| `npm test` falha em "os jogos cadastrados…" | `init.sql` sem a linha do jogo novo |
+| `npm test` falha em "os jogos cadastrados…" | a migração não tem a linha em `public.games` (ou o título/ordem divergem de `js/games.js`) |
 | Vitória recusada com `invalid` | gerador não determinístico ou `state` diferente do que o servidor espera |
 | Vitória recusada com `too_fast` | ritmo anti-farm (`phase_min_seconds`, 3 s) — é retentável |
 
@@ -539,11 +890,15 @@ solução fornecida é aceita pelo próprio validador e que uma alteração mín
 4. Escrever `index.html` + `style.css` e conferir os IDs da seção 5.
 5. Escrever `ui.js` com os dois modos (local/aleatório e nuvem/diário).
 6. (Opcional) Criar `tutorial.js` + `tutorial.css`, montar com `mountTutorial` e pôr o `?` de níveis com `mountLevelHelp` (seção 5.1).
-7. Registrar o jogo: `js/games.js`, `init.sql`, migração nova, `board.js`, `index.ts`, `music.js`.
+7. Registrar o jogo: `js/games.js`, migração nova (`public.games`), `board.js`, `index.ts`, `music.js`.
 8. Atualizar os testes de integração que enumeram jogos.
 9. Rodar `npm test`; abrir com `npm start` e jogar no modo local (fase aleatória, coins, reiniciar).
 10. Com a nuvem ligada: `daily_status`, abrir ticket, vencer, conferir pontos, troféus e pódio.
 11. Escrever a seção do jogo no `README.md` e no `docs/CONTINUAR.md`.
+
+**Se o jogo for um duelo por turnos**, o roteiro muda: não há 4 níveis, `daily_*` nem modo aleatório. Siga a
+seção **3.2** (catálogo → domínio → migração/tabela → Edge → sessão → UI → ranking → testes) e use
+`games/chess/` + `shared/chess-session.js` como modelo. Para duelo de **corrida**, siga 3.1 + 8.1.
 
 ---
 
@@ -552,8 +907,10 @@ solução fornecida é aceita pelo próprio validador e que uma alteração mín
 > Estou continuando o desenvolvimento do WebMiniGames. Leia `docs/NOVO-JOGO.md`, `docs/CONTINUAR.md` e o
 > `README.md` antes de responder. Vou adicionar um jogo novo (`<id>`), com estas regras: `<descreva>`.
 > Siga o checklist do `docs/NOVO-JOGO.md`: domínio puro e determinístico, cópia em `_shared/`, catálogo em
-> `js/games.js` + `init.sql` + migração, `board.js` com os quatro switches, `GAME_IDS`, `MOODS`, testes e
-> documentação. Mantenha os textos em pt-BR e rode `npm test` depois de cada mudança.
+> `js/games.js` + migração nova, `board.js` com os quatro switches, `GAME_IDS`, `MOODS`, testes e
+> documentação. Se o jogo for um duelo 1×1, diga se é de **corrida** ou de **turnos**: para turnos, leia a
+> seção 3.2 e use `games/chess/` + `shared/chess-session.js` como referência (sem níveis nem desafio diário).
+> Mantenha os textos em pt-BR e rode `npm test` depois de cada mudança.
 
 ---
 
@@ -567,6 +924,10 @@ solução fornecida é aceita pelo próprio validador e que uma alteração mín
 | ligar/desligar um jogo | `admin.html` (tabela `games.enabled`) |
 | entender os troféus | `shared/daily-stats.js` (cálculo puro) + `shared/daily.js` (desenho) |
 | ver o contrato da Edge | `supabase/functions/play/index.ts` + `_shared/board.js` |
+| criar um duelo por turnos | seção 3.2; modelo em `games/chess/` (`domain.js`, `ui.js`) + `shared/chess-session.js` |
+| ranking de duelo (Elo) | `duel_ratings` + `duel_ranking()` (migração `20261039000000_duel_ratings.sql`) |
+| sala, convite e código | `duels` + `duel_seat`/`duel_ready` + `shared/duel-invites.js` (migrações `20261035000000_*` a `20261046000000_*`) |
+| relógio e lance do Xadrez | `chess_games` + `chess_move`/`chess_state` (migração `20261038000000_chess_duel.sql`) |
 | mudar o tempo por dica | `daily_hint_seconds()` (migração nova) |
 | mudar o teto de acúmulo | `daily_backlog_days()` / `daily_backlog_start()` (migração nova) |
 | criar o tutorial animado | `shared/tutorial.js` + `css/tutorial.css` (seção 5.1); modelos em qualquer um dos dez jogos (o Zip é o piloto) |

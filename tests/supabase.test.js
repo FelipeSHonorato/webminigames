@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql", "20261044000000_duel_invite_flow.sql", "20261045000000_duel_resume_presence.sql", "20261046000000_duel_invite_when_ready.sql"];
+const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql", "20261044000000_duel_invite_flow.sql", "20261045000000_duel_resume_presence.sql", "20261046000000_duel_invite_when_ready.sql", "20261047000000_dama_duel.sql"];
 const migration = f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
 const migrations = migrationNames.map(migration);
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
@@ -245,6 +245,46 @@ test("SQL: xadrez 1x1 — duelo por turnos, chess_games e funções exclusivas d
   assert.match(sqlAll, /white_can_mate/, "FIDE 6.9: o estouro precisa saber quem ainda pode dar mate");
   assert.match(sqlAll, /white_id = case when white_id = p_uid then null else white_id end/, "sair do lobby libera a cor");
   assert.match(sqlAll, /kind = 'race'/, "a limpeza por max_seconds não pode encerrar xadrez");
+});
+
+test("SQL: dama 1x1 — duelo por turnos, dama_games e ranking Elo próprio", () => {
+  const damaSql = migration("20261047000000_dama_duel.sql");
+  assert.match(damaSql, /insert into public\.games \(id, title, sort\) values \('dama', 'Dama', 12\)/);
+  assert.match(damaSql, /create table public\.dama_games \(/);
+  for (const col of ["position", "turn", "version", "keys", "moves", "white_id", "black_id", "white_ms", "black_ms", "last_at", "result", "reason"])
+    assert.match(damaSql, new RegExp(`\\b${col}\\b`), `dama_games sem ${col}`);
+  assert.match(damaSql, /white_id is null or black_id is null or white_id <> black_id/);
+  assert.match(damaSql, /revoke all on public\.dama_games from anon, authenticated/);
+  assert.match(damaSql, /alter table public\.dama_games\s+enable row level security/);
+
+  for (const f of [
+    "dama_json\\(uuid, uuid, int, int\\)",
+    "dama_create\\(uuid, int, text, text, text, boolean\\)",
+    "dama_start\\(uuid, uuid\\)",
+    "dama_state\\(uuid, uuid\\)",
+    "dama_move\\(uuid, uuid, int, text, text, jsonb, jsonb, jsonb, text, text\\)",
+    "dama_resign\\(uuid, uuid\\)",
+  ]) {
+    assert.match(damaSql, new RegExp(`revoke all on function public\\.${f}\\s+from public, anon, authenticated`), `${f} acessível ao cliente`);
+    assert.match(damaSql, new RegExp(`grant execute on function public\\.${f}\\s+to service_role`), `${f} deveria ser da Edge`);
+  }
+
+  // Relógio e resultado no Postgres; na dama, estourar o tempo é derrota sempre (sem FIDE 6.9).
+  assert.match(damaSql, /if v_duel\.game_id <> 'dama' then raise exception 'not_dama_duel'/);
+  assert.match(damaSql, /reason = 'timeout'/);
+  assert.match(damaSql, /reason = 'resign'/);
+  assert.match(damaSql, /if v_dama\.turn = 'w' then\s*v_winner := v_dama\.black_id; v_result := 'black';/);
+  assert.doesNotMatch(damaSql, /can_mate/, "a dama não usa a exceção de material do xadrez");
+
+  // Assento e saída escolhem a tabela pelo game_id (xadrez continua funcionando).
+  assert.match(damaSql, /if p_duel\.game_id = 'dama' then\s*update public\.dama_games/);
+  assert.match(damaSql, /if v_duel\.game_id = 'dama' then\s*update public\.dama_games/);
+  assert.match(damaSql, /else\s*update public\.chess_games/, "xadrez continua no mesmo fluxo");
+
+  // O gatilho do ranking lê o resultado da tabela certa e usa o mesmo Elo de duel_ratings.
+  assert.match(damaSql, /if new\.game_id = 'dama' then[\s\S]*?from public\.dama_games/);
+  assert.match(damaSql, /perform public\.duel_rating_record\(new\.game_id, v_players\[1\], v_players\[2\], v_score\)/);
+  assert.match(damaSql, /'rating', coalesce\(dr\.rating, 1500\)/);
 });
 
 test("SQL: ranking dos duelos 1x1 — Elo por jogo, gatilho de fim e leitura pública", () => {
