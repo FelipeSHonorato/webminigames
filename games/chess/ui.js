@@ -418,6 +418,9 @@ els.leaveLobby.addEventListener("click", leaveGame);
 /* ===================== tabuleiro online ===================== */
 
 async function enterOnlineGame() {
+  /* Sem isto a página tratava a partida online como local: o clique jogava a peça só na tela, o lance nunca ia
+     ao servidor e a próxima consulta de estado devolvia a peça ao lugar. */
+  mode = "online";
   await applyOnlineState();
   if (els.game.hidden) {
     els.setup.hidden = true;
