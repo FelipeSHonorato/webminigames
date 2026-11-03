@@ -1,0 +1,484 @@
+diff --git a/docs/NOVO-JOGO.md b/docs/NOVO-JOGO.md
+index 2554786..7c15e1f 100644
+--- a/docs/NOVO-JOGO.md
++++ b/docs/NOVO-JOGO.md
+@@ -322,8 +322,9 @@ por **turnos**.
+    `status = 'running'` e `starts_at = now() + 4 s`.
+ 4. Enquanto `now() < starts_at`, `<id>_start`/`<id>_state` **não** entregam jogada nem mexem no relógio: só
+    contagem. O cliente usa `serverNow` para corrigir o relógio local.
+-5. Presença: `last_seen_at` é carimbado por `duel_touch` a cada consulta de estado enquanto a sala está
+-   `waiting`; `duel_ready` recusa com `opponent_away` se o desafiante está pronto mas sumiu há > 90 s.
++5. Presença: `last_seen_at` é carimbado a cada consulta de estado enquanto a sala está `waiting` — pelo
++   próprio `<id>_state` no banco (migração 48) e, redundantemente, por `duel_touch` na Edge. `duel_ready`
++   recusa com `opponent_away` se o desafiante está pronto mas sumiu há > 90 s. Detalhes em 3.2.12.
+ 6. O criador pode **desistir** (`duel_decline`): cancela com `cancel_reason = 'declined'`, o desafiante vê
+    o motivo e **ninguém ganha nem perde rating**. Em `waiting`, sair sem desafiante é `duel_leave`; sair
+    como desafiante libera a vaga/lado.
+@@ -484,6 +485,80 @@ Arquivos alterados: `js/games.js`, `public.games` na migração nova,
+ 12. **Duplicar regra.** A validação do lance existe uma vez no domínio, usada pela UI, pela Edge e pelos
+     testes; não reimplemente no `ui.js`.
+ 
++#### 3.2.12 Lições do bug "Estou pronto" da Dama (leia antes de entregar o próximo duelo)
++
++Na Dama, o criador não conseguia marcar "Estou pronto" e a partida nunca começava, enquanto o desafiante
++funcionava. O Xadrez, com o mesmo código, estava certo. Os pontos abaixo evitam repetir isso.
++
++**A) O contrato do "pronto" tem uma assimetria embutida.** A UI só habilita o botão do criador depois que
++o desafiante marcou pronto (`isCreator() && !opponent().ready` ⇒ `disabled`). Logo, **o criador é sempre o
++segundo a clicar**, e só o segundo a clicar passa pela guarda `opponent_away` do `duel_ready` (desafiante
++pronto, mas sem presença há > 90 s). Qualquer falha de presença do desafiante aparece **só** no botão do
++criador. Quando o relato for "funciona para um lado e não para o outro", comece por aqui.
++
++**B) Presença é responsabilidade do banco, não só da Edge.** A Edge chamava `duel_touch` após cada
++`<id>_state` e **engolia qualquer erro** (`try/catch` vazio; o `rpc` do supabase-js nem lança, devolve
++`{ error }`). Se o carimbo falhar, ou a Edge em produção for mais antiga que o repositório, o desafiante
++parece "ausente". Por isso a migração `20261048` carimba `last_seen_at` **dentro** de `dama_state` e
++`chess_state` enquanto a sala está `waiting`. Todo `<id>_state` novo deve fazer o mesmo.
++
++**C) Nunca edite uma migração já aplicada.** O banco é atualizado colando SQL no SQL Editor; o
++`supabase db push` não reexecuta o que já rodou. Um commit que editou a `20261045` não mudou o banco e, pior,
++trazia uma função inválida (`v_players` sem `declare`; depois, `nickname` lido de `duel_players`, que não
++tem essa coluna). Correção de função existente = **migração nova**, idempotente (`create or replace`),
++numerada depois da última e com `revoke`/`grant` repetidos no fim.
++
++**D) `nickname`/`avatar` vivem em `profiles`.** `duel_players` só tem `duel_id`, `user_id`, `ready`,
++`joined_at`, `last_seen_at`. Para devolver `players`, faça `join public.profiles p on p.id = dp.user_id`.
++
++**E) Erro de ação do lobby não pode desaparecer sozinho.** `flash()` some em ~1,5 s e o polling re-renderiza
++o lobby a cada ciclo, apagando a mensagem: o usuário vê "nada acontece". Guarde o erro em uma variável
++(`lobbyError`) e o `renderLobby()` o reexibe até a próxima tentativa ou até `me.ready`. Vale para
++"Estou pronto", "Entrar na sala" e qualquer botão do lobby.
++
++**F) Não existe "duelo que só o Xadrez testou".** `duel_ready`, `duel_seat`, `duel_touch`, `duel_invites`,
++`duel_leave` e `duel_decline` são compartilhados: alterar um deles para o jogo novo muda o Xadrez em
++produção. Mexa neles apenas em migração nova e rode o fluxo abaixo **nos dois jogos**.
++
++**G) Mantenha Edge e banco em sincronia.** Depois de rodar a migração, faça o deploy da Edge
++(`functions deploy play`, manual via workflow) e confira no painel do Supabase se a versão publicada é a
++do commit. Banco novo + Edge velha (ou o inverso) é fonte de bugs que não aparecem nos testes unitários.
++
++##### Teste de fumaça do lobby (rode antes de liberar um duelo novo)
++
++No SQL Editor de um projeto de teste (ou em um Postgres local com as migrações), troque `<jogo>_create` e
++os dois UUIDs de usuários reais de `auth.users`:
++
++```sql
++-- 1. criador cria sala aberta
++select (public.<jogo>_create('<CRIADOR>', 10, 'w', '<posição inicial>', '<chave inicial>', true))->>'id' as duel \gset
++-- 2. desafiante entra e marca pronto
++select public.duel_join_open('<DESAFIANTE>', :'duel'::uuid);
++select public.duel_ready('<DESAFIANTE>', :'duel'::uuid)->>'status';      -- esperado: waiting
++-- 3. o criador enxerga o desafiante pronto e é avisado
++select jsonb_pretty((public.<jogo>_state('<CRIADOR>', :'duel'::uuid))->'players');   -- opponent.ready = true
++select public.duel_invites('<CRIADOR>');                                  -- traz a sala
++-- 4. presença antiga do desafiante (simula Edge que não carimbou): o estado tem de renová-la
++update public.duel_players set last_seen_at = now() - interval '100 seconds' where user_id = '<DESAFIANTE>';
++select 1 from (select public.<jogo>_state('<DESAFIANTE>', :'duel'::uuid)) x;
++-- 5. criador marca pronto: não pode dar opponent_away
++select public.duel_ready('<CRIADOR>', :'duel'::uuid)->>'status';          -- esperado: running
++```
++
++Repita com o criador nas duas cores, sala aberta (lista) e fechada (código). Se qualquer passo falhar, não
++libere o jogo. Para cobrir também o cliente, rode `createXSession` dos dois lados contra o banco local,
++como em `tests/*-session.test.js`, mas com um `cloud` que chama as RPCs de verdade.
++
++##### Checklist de regressão do lobby
++
++- [ ] O botão do criador habilita quando o desafiante marca pronto (sem recarregar a página).
++- [ ] Criador e desafiante conseguem marcar pronto, em qualquer ordem permitida pela UI, e a partida vai a `running`.
++- [ ] O criador marca pronto mesmo se a Edge não carimbou a presença (passo 4 do teste).
++- [ ] Erro em "Estou pronto" fica visível na tela e não some no polling.
++- [ ] Nenhuma migração antiga foi editada; há uma migração nova com o conserto.
++- [ ] `duel_*` compartilhados continuam funcionando no Xadrez (rode o teste de fumaça nos dois jogos).
++- [ ] Edge publicada com o commit atual (`functions deploy play`) e `npm test` verde.
++
+ ---
+ 
+ ## 4. Contrato da `ui.js`
+@@ -879,6 +954,9 @@ turnos, o mínimo é o da **seção 3.2.10** — as regras de lance/resultado su
+ | `npm test` falha em "os jogos cadastrados…" | a migração não tem a linha em `public.games` (ou o título/ordem divergem de `js/games.js`) |
+ | Vitória recusada com `invalid` | gerador não determinístico ou `state` diferente do que o servidor espera |
+ | Vitória recusada com `too_fast` | ritmo anti-farm (`phase_min_seconds`, 3 s) — é retentável |
++| "Estou pronto" funciona para o desafiante mas não para o criador | o criador é o 2º a clicar e cai na guarda `opponent_away`: presença do desafiante antiga (ver 3.2.12-A/B); ou o erro some do lobby (3.2.12-E) |
++| "Estou pronto" falha para todos, em todos os jogos | `duel_ready` quebrada no banco (coluna/variável inexistente) por migração antiga editada ou colada errada (3.2.12-C/D) |
++| Correção "não pega" em produção | editou migração já aplicada, ou faltou rodar o SQL no SQL Editor / publicar a Edge (3.2.12-C/G) |
+ 
+ ---
+ 
+diff --git a/games/dama/ui.js b/games/dama/ui.js
+index 0b1d0e7..83ab3a0 100644
+--- a/games/dama/ui.js
++++ b/games/dama/ui.js
+@@ -86,6 +86,7 @@ Music.play(GAME_ID);
+ /* ===================== estado da partida ===================== */
+ 
+ let mode = "local";                              // "local" (hot-seat) | "online"
++let lobbyError = "";                              // erro do "Estou pronto": fica na tela até a próxima tentativa (o polling não apaga)
+ let online = null;                               // sessão de dama online (shared/dama-session.js)
+ let sending = false;                             // lance online em trânsito: bloqueia o tabuleiro
+ let settings = { minutes: 10, color: "w", open: true };  // ritmo, cor e visibilidade da sala online
+@@ -300,7 +301,8 @@ async function acceptOnlineInvite() {
+   if (!online.opponent()) { flash("O desafiante saiu da sala. Aguardando outro jogador…", els.lobbyStatus); return; }
+   if (online.me()?.ready) return;
+   els.ready.disabled = true;
+-  try { await online.ready(); } catch (e) { flash(onlineMessage(e), els.lobbyStatus); els.ready.disabled = false; }
++  lobbyError = "";
++  try { await online.ready(); } catch (e) { lobbyError = onlineMessage(e); renderLobby(); }
+ }
+ 
+ /* "Entrar na sala" do aviso global: quando esta página já está com a sala aberta, aceita aqui mesmo (sem recarregar). */
+@@ -417,6 +419,8 @@ function renderLobby() {
+         : me?.ready
+           ? `Aguardando ${name} aceitar o desafio…`
+           : `Você entrou na sala de ${name}. Marque pronto para começar.`;
++  if (me?.ready) lobbyError = "";
++  if (lobbyError) els.lobbyStatus.textContent = lobbyError;   // a falha não some no próximo ciclo do polling
+ }
+ 
+ async function copyText(text, okMessage) {
+@@ -433,7 +437,8 @@ els.copyLink.addEventListener("click", () => copyText(duelLink(location.href, on
+ els.ready.addEventListener("click", async () => {
+   if (!online) return;
+   els.ready.disabled = true;
+-  try { await online.ready(); } catch (e) { flash(onlineMessage(e), els.lobbyStatus); els.ready.disabled = false; }
++  lobbyError = "";
++  try { await online.ready(); } catch (e) { lobbyError = onlineMessage(e); renderLobby(); }
+ });
+ els.leaveLobby.addEventListener("click", leaveGame);
+ 
+diff --git a/shared/dama-session.js b/shared/dama-session.js
+index 8770466..ff31ae9 100644
+--- a/shared/dama-session.js
++++ b/shared/dama-session.js
+@@ -71,12 +71,7 @@ export function createDamaSession({ cloud = Cloud, pollMs = DAMA_POLL_MS, now =
+     if ("open" in data) isOpen = data.open !== false;
+     if (data.createdBy !== undefined) createdBy = data.createdBy;
+     if (data.cancelReason !== undefined) cancelReason = data.cancelReason;
+-    // Handle players: may be a JavaScript array (from jsonb_agg) or need parsing
+-    if (data.players) {
+-      if (Array.isArray(data.players)) players = data.players;
+-      else if (typeof data.players === "string") players = JSON.parse(data.players);
+-      else if (typeof data.players === "object") players = [data.players]; // fallback
+-    }
++    if (Array.isArray(data.players)) players = data.players;
+     if ("winner" in data) winner = data.winner;
+     if (data.serverNow) {
+       serverOffset = Date.parse(data.serverNow) - now();
+diff --git a/supabase/migrations/20261045000000_duel_resume_presence.sql b/supabase/migrations/20261045000000_duel_resume_presence.sql
+index 03d82f5..40e223f 100644
+--- a/supabase/migrations/20261045000000_duel_resume_presence.sql
++++ b/supabase/migrations/20261045000000_duel_resume_presence.sql
+@@ -159,20 +159,10 @@ begin
+      returning * into v_duel;
+   end if;
+ 
+-  select jsonb_agg(jsonb_build_object(
+-    'user_id', user_id,
+-    'nickname', nickname,
+-    'ready', ready,
+-    'is_me', user_id = p_uid
+-  )) into v_players
+-  from public.duel_players
+-  where duel_id = p_duel;
+-
+   return jsonb_build_object(
+     'status', v_duel.status,
+     'startsAt', v_duel.starts_at,
+-    'serverNow', now(),
+-    'players', v_players
++    'serverNow', now()
+   );
+ end $$;
+ 
+diff --git a/supabase/migrations/20261048000000_duel_ready_fix.sql b/supabase/migrations/20261048000000_duel_ready_fix.sql
+new file mode 100644
+index 0000000..da2a475
+--- /dev/null
++++ b/supabase/migrations/20261048000000_duel_ready_fix.sql
+@@ -0,0 +1,249 @@
++-- ====================================================================================================
++-- WebMiniGames · Duelos 1×1 — conserto do "Estou pronto" (duel_ready) e da presença do desafiante
++--
++-- Rode DEPOIS de 20261047000000_dama_duel.sql. Idempotente (pode rodar de novo).
++-- NÃO edita migrações antigas: o que já foi aplicado no banco não é reexecutado pelo `db push`.
++--
++-- O que muda:
++--   1. `duel_ready`: volta a ser a da 20261045 (guarda `opponent_away` incluída). Se a versão quebrada do
++--      commit c0a6a59 (que lia `nickname` de duel_players, coluna que não existe) foi colada no banco,
++--      esta migração a substitui. Agora a resposta traz `players` lido de `profiles`, do jeito certo.
++--   2. `dama_state` e `chess_state` carimbam `last_seen_at` do próprio consultante enquanto a sala está
++--      `waiting`. Antes só a Edge fazia isso (e ignorava erros em silêncio): se falhasse, o criador, que
++--      sempre clica por último, recebia `opponent_away` e o "Estou pronto" parecia não funcionar.
++-- ====================================================================================================
++
++-- ----------------------------------------------------------------------------------------------------
++-- 1. Pronto
++-- ----------------------------------------------------------------------------------------------------
++create or replace function public.duel_ready(p_uid uuid, p_duel uuid) returns jsonb
++language plpgsql security definer set search_path = public as $$
++declare
++  v_duel public.duels;
++  v_ready int;
++  v_players jsonb;
++begin
++  if p_uid is null then raise exception 'not_authenticated' using errcode = '28000'; end if;
++
++  select * into v_duel from public.duels where id = p_duel for update;
++  if not found then raise exception 'duel_not_found' using errcode = '22023'; end if;
++  if not exists (select 1 from public.duel_players where duel_id = p_duel and user_id = p_uid) then
++    raise exception 'not_member' using errcode = '55000';
++  end if;
++  if v_duel.status <> 'waiting' then raise exception 'bad_status' using errcode = '55000'; end if;
++
++  if exists (
++    select 1 from public.duel_players o
++     where o.duel_id = p_duel and o.user_id <> p_uid and o.ready
++       and coalesce(o.last_seen_at, o.joined_at) < now() - interval '90 seconds'
++  ) then
++    raise exception 'opponent_away' using errcode = '55000';
++  end if;
++
++  update public.duel_players set ready = true, last_seen_at = now()
++   where duel_id = p_duel and user_id = p_uid;
++
++  select count(*) into v_ready from public.duel_players where duel_id = p_duel and ready = true;
++  if v_ready = 2 then
++    update public.duels
++       set status = 'running', starts_at = now() + interval '4 seconds'
++     where id = p_duel
++     returning * into v_duel;
++  end if;
++
++  select jsonb_agg(jsonb_build_object(
++    'user_id', dp.user_id,
++    'nickname', coalesce(p.nickname, p.name),
++    'avatar', p.avatar,
++    'ready', dp.ready,
++    'is_me', dp.user_id = p_uid
++  ) order by dp.joined_at) into v_players
++  from public.duel_players dp
++  join public.profiles p on p.id = dp.user_id
++  where dp.duel_id = p_duel;
++
++  return jsonb_build_object(
++    'status', v_duel.status,
++    'startsAt', v_duel.starts_at,
++    'serverNow', now(),
++    'players', v_players
++  );
++end $$;
++
++-- ----------------------------------------------------------------------------------------------------
++-- 2. Presença dentro do estado da sala (dama e xadrez)
++-- ----------------------------------------------------------------------------------------------------
++create or replace function public.dama_state(p_uid uuid, p_duel uuid) returns jsonb
++language plpgsql security definer set search_path = public as $$
++declare
++  v_duel public.duels;
++  v_dama public.dama_games;
++  v_elapsed numeric;
++  v_remaining int;
++  v_winner uuid;
++  v_result text;
++begin
++  if p_uid is null then raise exception 'not_authenticated' using errcode = '28000'; end if;
++
++  select * into v_duel from public.duels where id = p_duel for update;
++  if not found then raise exception 'duel_not_found' using errcode = '22023'; end if;
++  if not exists (select 1 from public.duel_players where duel_id = p_duel and user_id = p_uid) then
++    raise exception 'not_member' using errcode = '55000';
++  end if;
++
++  -- Presença: quem consulta a sala de espera está na página. Carimbar aqui (e não só na Edge) garante que o
++  -- `opponent_away` do duel_ready nunca dispare por um carimbo que a Edge deixou de gravar.
++  if v_duel.status = 'waiting' then
++    update public.duel_players set last_seen_at = now()
++     where duel_id = p_duel and user_id = p_uid;
++  end if;
++
++  select * into v_dama from public.dama_games where duel_id = p_duel for update;
++  if not found then raise exception 'duel_not_found' using errcode = '22023'; end if;
++
++  -- Sala waiting expirada (o criador não achou adversário).
++  if v_duel.status = 'waiting' and v_duel.expires_at < now() then
++    update public.duels set status = 'cancelled', cancel_reason = 'expired' where id = p_duel;
++    select * into v_duel from public.duels where id = p_duel;
++  end if;
++
++  if v_duel.status = 'running' then
++    -- Antes da largada: mostra o tabuleiro e a contagem; nenhum relógio corre ainda.
++    if v_duel.starts_at is null or now() < v_duel.starts_at then
++      return public.dama_json(p_uid, p_duel, v_dama.white_ms, v_dama.black_ms);
++    end if;
++
++    -- Primeira consulta depois da largada: o relógio começou em starts_at, não agora.
++    if v_dama.last_at is null then
++      update public.dama_games set last_at = v_duel.starts_at where duel_id = p_duel;
++      v_dama.last_at := v_duel.starts_at;
++    end if;
++
++    v_elapsed := extract(epoch from (now() - v_dama.last_at)) * 1000;
++    v_remaining := floor(
++      (case when v_dama.turn = 'w' then v_dama.white_ms else v_dama.black_ms end) - v_elapsed
++    )::int;
++
++    if v_remaining <= 0 then
++      if v_dama.turn = 'w' then
++        v_winner := v_dama.black_id; v_result := 'black';
++      else
++        v_winner := v_dama.white_id; v_result := 'white';
++      end if;
++
++      update public.dama_games
++         set white_ms = case when turn = 'w' then 0 else white_ms end,
++             black_ms = case when turn = 'b' then 0 else black_ms end,
++             result = v_result, reason = 'timeout', last_at = null, updated_at = now()
++       where duel_id = p_duel;
++      update public.duels
++         set status = 'finished', winner_id = v_winner, finished_at = now()
++       where id = p_duel;
++
++      select * into v_dama from public.dama_games where duel_id = p_duel;
++      return public.dama_json(p_uid, p_duel, v_dama.white_ms, v_dama.black_ms);
++    end if;
++
++    if v_dama.turn = 'w' then
++      return public.dama_json(p_uid, p_duel, v_remaining, v_dama.black_ms);
++    end if;
++    return public.dama_json(p_uid, p_duel, v_dama.white_ms, v_remaining);
++  end if;
++
++  return public.dama_json(p_uid, p_duel, v_dama.white_ms, v_dama.black_ms);
++end $$;
++
++create or replace function public.chess_state(p_uid uuid, p_duel uuid) returns jsonb
++language plpgsql security definer set search_path = public as $$
++declare
++  v_duel public.duels;
++  v_chess public.chess_games;
++  v_elapsed numeric;
++  v_remaining int;
++  v_winner uuid;
++  v_result text;
++begin
++  if p_uid is null then raise exception 'not_authenticated' using errcode = '28000'; end if;
++
++  select * into v_duel from public.duels where id = p_duel for update;
++  if not found then raise exception 'duel_not_found' using errcode = '22023'; end if;
++  if not exists (select 1 from public.duel_players where duel_id = p_duel and user_id = p_uid) then
++    raise exception 'not_member' using errcode = '55000';
++  end if;
++
++  -- Presença: quem consulta a sala de espera está na página. Carimbar aqui (e não só na Edge) garante que o
++  -- `opponent_away` do duel_ready nunca dispare por um carimbo que a Edge deixou de gravar.
++  if v_duel.status = 'waiting' then
++    update public.duel_players set last_seen_at = now()
++     where duel_id = p_duel and user_id = p_uid;
++  end if;
++
++  select * into v_chess from public.chess_games where duel_id = p_duel for update;
++  if not found then raise exception 'duel_not_found' using errcode = '22023'; end if;
++
++  -- Sala waiting expirada (o criador não achou adversário).
++  if v_duel.status = 'waiting' and v_duel.expires_at < now() then
++    update public.duels set status = 'cancelled' where id = p_duel;
++    select * into v_duel from public.duels where id = p_duel;
++  end if;
++
++  if v_duel.status = 'running' then
++    -- Antes da largada: mostra o tabuleiro e a contagem; nenhum relógio corre ainda.
++    if v_duel.starts_at is null or now() < v_duel.starts_at then
++      return public.chess_json(p_uid, p_duel, v_chess.white_ms, v_chess.black_ms);
++    end if;
++
++    -- Primeira consulta depois da largada: o relógio começou em starts_at, não agora.
++    if v_chess.last_at is null then
++      update public.chess_games set last_at = v_duel.starts_at where duel_id = p_duel;
++      v_chess.last_at := v_duel.starts_at;
++    end if;
++
++    v_elapsed := extract(epoch from (now() - v_chess.last_at)) * 1000;
++    v_remaining := floor(
++      (case when v_chess.turn = 'w' then v_chess.white_ms else v_chess.black_ms end) - v_elapsed
++    )::int;
++
++    if v_remaining <= 0 then
++      -- FIDE 6.9: quem estourou perde, a não ser que o adversário não consiga dar mate.
++      if v_chess.turn = 'w' and v_chess.black_can_mate then
++        v_winner := v_chess.black_id; v_result := 'black';
++      elsif v_chess.turn = 'b' and v_chess.white_can_mate then
++        v_winner := v_chess.white_id; v_result := 'white';
++      else
++        v_winner := null; v_result := 'draw';
++      end if;
++
++      update public.chess_games
++         set white_ms = case when turn = 'w' then 0 else white_ms end,
++             black_ms = case when turn = 'b' then 0 else black_ms end,
++             result = v_result, reason = 'timeout', last_at = null, updated_at = now()
++       where duel_id = p_duel;
++      update public.duels
++         set status = 'finished', winner_id = v_winner, finished_at = now()
++       where id = p_duel;
++
++      select * into v_chess from public.chess_games where duel_id = p_duel;
++      return public.chess_json(p_uid, p_duel, v_chess.white_ms, v_chess.black_ms);
++    end if;
++
++    if v_chess.turn = 'w' then
++      return public.chess_json(p_uid, p_duel, v_remaining, v_chess.black_ms);
++    end if;
++    return public.chess_json(p_uid, p_duel, v_chess.white_ms, v_remaining);
++  end if;
++
++  return public.chess_json(p_uid, p_duel, v_chess.white_ms, v_chess.black_ms);
++end $$;
++
++-- ----------------------------------------------------------------------------------------------------
++-- 3. Permissões (só a Edge com service_role executa)
++-- ----------------------------------------------------------------------------------------------------
++revoke all on function public.duel_ready(uuid, uuid)  from public, anon, authenticated;
++grant execute on function public.duel_ready(uuid, uuid)  to service_role;
++revoke all on function public.dama_state(uuid, uuid)  from public, anon, authenticated;
++grant execute on function public.dama_state(uuid, uuid)  to service_role;
++revoke all on function public.chess_state(uuid, uuid) from public, anon, authenticated;
++grant execute on function public.chess_state(uuid, uuid) to service_role;
++
++-- FIM DA MIGRAÇÃO 20261048000000_duel_ready_fix.sql
+diff --git a/tests/supabase.test.js b/tests/supabase.test.js
+index 138977e..93fa5e5 100644
+--- a/tests/supabase.test.js
++++ b/tests/supabase.test.js
+@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
+ import { fileURLToPath } from "node:url";
+ 
+ /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
+-const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql", "20261044000000_duel_invite_flow.sql", "20261045000000_duel_resume_presence.sql", "20261046000000_duel_invite_when_ready.sql", "20261047000000_dama_duel.sql"];
++const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql", "20261044000000_duel_invite_flow.sql", "20261045000000_duel_resume_presence.sql", "20261046000000_duel_invite_when_ready.sql", "20261047000000_dama_duel.sql", "20261048000000_duel_ready_fix.sql"];
+ const migration = f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
+ const migrations = migrationNames.map(migration);
+ const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
+@@ -522,3 +522,23 @@ test("SQL: o criador só é avisado depois que o desafiante clica em \"Estou pro
+   assert.match(code, /grant execute on function public\.duel_invites\(uuid\) to service_role/);
+   assert.doesNotMatch(code, /to (anon|authenticated)/);
+ });
++
++
++test("SQL: migração 48 conserta duel_ready e carimba a presença dentro do banco", () => {
++  const code = migration("20261048000000_duel_ready_fix.sql").replace(/--.*$/gm, "");
++
++  // duel_ready: declara v_players, lê o apelido de profiles (duel_players não tem `nickname`) e mantém a guarda.
++  const ready = code.match(/function public\.duel_ready[\s\S]*?end \$\$;/)[0];
++  assert.match(ready, /v_players jsonb;/, "a variável precisa estar declarada");
++  assert.match(ready, /join public\.profiles p on p\.id = dp\.user_id/, "o apelido vem de profiles");
++  assert.doesNotMatch(ready, /'nickname', nickname/, "duel_players não tem a coluna nickname");
++  assert.match(ready, /raise exception 'opponent_away'/);
++  assert.match(ready, /v_ready = 2 then[\s\S]*?status = 'running', starts_at = now\(\) \+ interval '4 seconds'/);
++
++  // dama_state e chess_state carimbam a presença sem depender da Edge.
++  for (const fn of ["dama_state", "chess_state"]) {
++    const body = code.match(new RegExp(`function public\\.${fn}[\\s\\S]*?end \\$\\$;`))[0];
++    assert.match(body, /v_duel\.status = 'waiting' then\s+update public\.duel_players set last_seen_at = now\(\)/, fn);
++  }
++  assert.doesNotMatch(code, /to (anon|authenticated)/, "só a Edge executa");
++});

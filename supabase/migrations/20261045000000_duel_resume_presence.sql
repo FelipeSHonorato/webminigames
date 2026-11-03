@@ -130,6 +130,7 @@ language plpgsql security definer set search_path = public as $$
 declare
   v_duel public.duels;
   v_ready int;
+  v_players jsonb;
 begin
   if p_uid is null then raise exception 'not_authenticated' using errcode = '28000'; end if;
 
