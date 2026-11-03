@@ -322,8 +322,9 @@ por **turnos**.
    `status = 'running'` e `starts_at = now() + 4 s`.
 4. Enquanto `now() < starts_at`, `<id>_start`/`<id>_state` **não** entregam jogada nem mexem no relógio: só
    contagem. O cliente usa `serverNow` para corrigir o relógio local.
-5. Presença: `last_seen_at` é carimbado por `duel_touch` a cada consulta de estado enquanto a sala está
-   `waiting`; `duel_ready` recusa com `opponent_away` se o desafiante está pronto mas sumiu há > 90 s.
+5. Presença: `last_seen_at` é carimbado a cada consulta de estado enquanto a sala está `waiting` — pelo
+   próprio `<id>_state` no banco (migração 48) e, redundantemente, por `duel_touch` na Edge. `duel_ready`
+   recusa com `opponent_away` se o desafiante está pronto mas sumiu há > 90 s. Detalhes em 3.2.12.
 6. O criador pode **desistir** (`duel_decline`): cancela com `cancel_reason = 'declined'`, o desafiante vê
    o motivo e **ninguém ganha nem perde rating**. Em `waiting`, sair sem desafiante é `duel_leave`; sair
    como desafiante libera a vaga/lado.
@@ -483,6 +484,80 @@ Arquivos alterados: `js/games.js`, `public.games` na migração nova,
     `SOLO_GAMES`, de `daily_generate` e do painel `#daily`.
 12. **Duplicar regra.** A validação do lance existe uma vez no domínio, usada pela UI, pela Edge e pelos
     testes; não reimplemente no `ui.js`.
+
+#### 3.2.12 Lições do bug "Estou pronto" da Dama (leia antes de entregar o próximo duelo)
+
+Na Dama, o criador não conseguia marcar "Estou pronto" e a partida nunca começava, enquanto o desafiante
+funcionava. O Xadrez, com o mesmo código, estava certo. Os pontos abaixo evitam repetir isso.
+
+**A) O contrato do "pronto" tem uma assimetria embutida.** A UI só habilita o botão do criador depois que
+o desafiante marcou pronto (`isCreator() && !opponent().ready` ⇒ `disabled`). Logo, **o criador é sempre o
+segundo a clicar**, e só o segundo a clicar passa pela guarda `opponent_away` do `duel_ready` (desafiante
+pronto, mas sem presença há > 90 s). Qualquer falha de presença do desafiante aparece **só** no botão do
+criador. Quando o relato for "funciona para um lado e não para o outro", comece por aqui.
+
+**B) Presença é responsabilidade do banco, não só da Edge.** A Edge chamava `duel_touch` após cada
+`<id>_state` e **engolia qualquer erro** (`try/catch` vazio; o `rpc` do supabase-js nem lança, devolve
+`{ error }`). Se o carimbo falhar, ou a Edge em produção for mais antiga que o repositório, o desafiante
+parece "ausente". Por isso a migração `20261048` carimba `last_seen_at` **dentro** de `dama_state` e
+`chess_state` enquanto a sala está `waiting`. Todo `<id>_state` novo deve fazer o mesmo.
+
+**C) Nunca edite uma migração já aplicada.** O banco é atualizado colando SQL no SQL Editor; o
+`supabase db push` não reexecuta o que já rodou. Um commit que editou a `20261045` não mudou o banco e, pior,
+trazia uma função inválida (`v_players` sem `declare`; depois, `nickname` lido de `duel_players`, que não
+tem essa coluna). Correção de função existente = **migração nova**, idempotente (`create or replace`),
+numerada depois da última e com `revoke`/`grant` repetidos no fim.
+
+**D) `nickname`/`avatar` vivem em `profiles`.** `duel_players` só tem `duel_id`, `user_id`, `ready`,
+`joined_at`, `last_seen_at`. Para devolver `players`, faça `join public.profiles p on p.id = dp.user_id`.
+
+**E) Erro de ação do lobby não pode desaparecer sozinho.** `flash()` some em ~1,5 s e o polling re-renderiza
+o lobby a cada ciclo, apagando a mensagem: o usuário vê "nada acontece". Guarde o erro em uma variável
+(`lobbyError`) e o `renderLobby()` o reexibe até a próxima tentativa ou até `me.ready`. Vale para
+"Estou pronto", "Entrar na sala" e qualquer botão do lobby.
+
+**F) Não existe "duelo que só o Xadrez testou".** `duel_ready`, `duel_seat`, `duel_touch`, `duel_invites`,
+`duel_leave` e `duel_decline` são compartilhados: alterar um deles para o jogo novo muda o Xadrez em
+produção. Mexa neles apenas em migração nova e rode o fluxo abaixo **nos dois jogos**.
+
+**G) Mantenha Edge e banco em sincronia.** Depois de rodar a migração, faça o deploy da Edge
+(`functions deploy play`, manual via workflow) e confira no painel do Supabase se a versão publicada é a
+do commit. Banco novo + Edge velha (ou o inverso) é fonte de bugs que não aparecem nos testes unitários.
+
+##### Teste de fumaça do lobby (rode antes de liberar um duelo novo)
+
+No SQL Editor de um projeto de teste (ou em um Postgres local com as migrações), troque `<jogo>_create` e
+os dois UUIDs de usuários reais de `auth.users`:
+
+```sql
+-- 1. criador cria sala aberta
+select (public.<jogo>_create('<CRIADOR>', 10, 'w', '<posição inicial>', '<chave inicial>', true))->>'id' as duel \gset
+-- 2. desafiante entra e marca pronto
+select public.duel_join_open('<DESAFIANTE>', :'duel'::uuid);
+select public.duel_ready('<DESAFIANTE>', :'duel'::uuid)->>'status';      -- esperado: waiting
+-- 3. o criador enxerga o desafiante pronto e é avisado
+select jsonb_pretty((public.<jogo>_state('<CRIADOR>', :'duel'::uuid))->'players');   -- opponent.ready = true
+select public.duel_invites('<CRIADOR>');                                  -- traz a sala
+-- 4. presença antiga do desafiante (simula Edge que não carimbou): o estado tem de renová-la
+update public.duel_players set last_seen_at = now() - interval '100 seconds' where user_id = '<DESAFIANTE>';
+select 1 from (select public.<jogo>_state('<DESAFIANTE>', :'duel'::uuid)) x;
+-- 5. criador marca pronto: não pode dar opponent_away
+select public.duel_ready('<CRIADOR>', :'duel'::uuid)->>'status';          -- esperado: running
+```
+
+Repita com o criador nas duas cores, sala aberta (lista) e fechada (código). Se qualquer passo falhar, não
+libere o jogo. Para cobrir também o cliente, rode `createXSession` dos dois lados contra o banco local,
+como em `tests/*-session.test.js`, mas com um `cloud` que chama as RPCs de verdade.
+
+##### Checklist de regressão do lobby
+
+- [ ] O botão do criador habilita quando o desafiante marca pronto (sem recarregar a página).
+- [ ] Criador e desafiante conseguem marcar pronto, em qualquer ordem permitida pela UI, e a partida vai a `running`.
+- [ ] O criador marca pronto mesmo se a Edge não carimbou a presença (passo 4 do teste).
+- [ ] Erro em "Estou pronto" fica visível na tela e não some no polling.
+- [ ] Nenhuma migração antiga foi editada; há uma migração nova com o conserto.
+- [ ] `duel_*` compartilhados continuam funcionando no Xadrez (rode o teste de fumaça nos dois jogos).
+- [ ] Edge publicada com o commit atual (`functions deploy play`) e `npm test` verde.
 
 ---
 
@@ -879,6 +954,9 @@ turnos, o mínimo é o da **seção 3.2.10** — as regras de lance/resultado su
 | `npm test` falha em "os jogos cadastrados…" | a migração não tem a linha em `public.games` (ou o título/ordem divergem de `js/games.js`) |
 | Vitória recusada com `invalid` | gerador não determinístico ou `state` diferente do que o servidor espera |
 | Vitória recusada com `too_fast` | ritmo anti-farm (`phase_min_seconds`, 3 s) — é retentável |
+| "Estou pronto" funciona para o desafiante mas não para o criador | o criador é o 2º a clicar e cai na guarda `opponent_away`: presença do desafiante antiga (ver 3.2.12-A/B); ou o erro some do lobby (3.2.12-E) |
+| "Estou pronto" falha para todos, em todos os jogos | `duel_ready` quebrada no banco (coluna/variável inexistente) por migração antiga editada ou colada errada (3.2.12-C/D) |
+| Correção "não pega" em produção | editou migração já aplicada, ou faltou rodar o SQL no SQL Editor / publicar a Edge (3.2.12-C/G) |
 
 ---
 

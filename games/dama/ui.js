@@ -86,6 +86,7 @@ Music.play(GAME_ID);
 /* ===================== estado da partida ===================== */
 
 let mode = "local";                              // "local" (hot-seat) | "online"
+let lobbyError = "";                              // erro do "Estou pronto": fica na tela até a próxima tentativa (o polling não apaga)
 let online = null;                               // sessão de dama online (shared/dama-session.js)
 let sending = false;                             // lance online em trânsito: bloqueia o tabuleiro
 let settings = { minutes: 10, color: "w", open: true };  // ritmo, cor e visibilidade da sala online
@@ -300,7 +301,8 @@ async function acceptOnlineInvite() {
   if (!online.opponent()) { flash("O desafiante saiu da sala. Aguardando outro jogador…", els.lobbyStatus); return; }
   if (online.me()?.ready) return;
   els.ready.disabled = true;
-  try { await online.ready(); } catch (e) { flash(onlineMessage(e), els.lobbyStatus); els.ready.disabled = false; }
+  lobbyError = "";
+  try { await online.ready(); } catch (e) { lobbyError = onlineMessage(e); renderLobby(); }
 }
 
 /* "Entrar na sala" do aviso global: quando esta página já está com a sala aberta, aceita aqui mesmo (sem recarregar). */
@@ -417,6 +419,8 @@ function renderLobby() {
         : me?.ready
           ? `Aguardando ${name} aceitar o desafio…`
           : `Você entrou na sala de ${name}. Marque pronto para começar.`;
+  if (me?.ready) lobbyError = "";
+  if (lobbyError) els.lobbyStatus.textContent = lobbyError;   // a falha não some no próximo ciclo do polling
 }
 
 async function copyText(text, okMessage) {
@@ -433,7 +437,8 @@ els.copyLink.addEventListener("click", () => copyText(duelLink(location.href, on
 els.ready.addEventListener("click", async () => {
   if (!online) return;
   els.ready.disabled = true;
-  try { await online.ready(); } catch (e) { flash(onlineMessage(e), els.lobbyStatus); els.ready.disabled = false; }
+  lobbyError = "";
+  try { await online.ready(); } catch (e) { lobbyError = onlineMessage(e); renderLobby(); }
 });
 els.leaveLobby.addEventListener("click", leaveGame);
 

@@ -130,7 +130,6 @@ language plpgsql security definer set search_path = public as $$
 declare
   v_duel public.duels;
   v_ready int;
-  v_players jsonb;
 begin
   if p_uid is null then raise exception 'not_authenticated' using errcode = '28000'; end if;
 
@@ -160,20 +159,10 @@ begin
      returning * into v_duel;
   end if;
 
-  select jsonb_agg(jsonb_build_object(
-    'user_id', user_id,
-    'nickname', nickname,
-    'ready', ready,
-    'is_me', user_id = p_uid
-  )) into v_players
-  from public.duel_players
-  where duel_id = p_duel;
-
   return jsonb_build_object(
     'status', v_duel.status,
     'startsAt', v_duel.starts_at,
-    'serverNow', now(),
-    'players', v_players
+    'serverNow', now()
   );
 end $$;
 
