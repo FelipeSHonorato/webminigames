@@ -76,6 +76,11 @@ const MOODS = {
     chords: [[0, 3, 7, 10], [-4, 0, 3, 7], [-7, -3, 0, 3], [-5, -1, 2, 5]],
     melody: 0.13, kick: 0.04, hat: 0.045, swing: 0.15,
   },
+  gamao: {
+    bpm: 60, root: 46, scale: [0, 2, 3, 5, 7, 10], pad: "sine", lead: "triangle",
+    chords: [[0, 3, 7, 10], [-3, 0, 4, 7], [-5, -1, 2, 5], [-2, 2, 5, 9]],
+    melody: 0.12, kick: 0.035, hat: 0.04, swing: 0.17,
+  },
 };
 
 let ctx = null, master = null, bus = null, noise = null, timer = null, bar = 0, nextBar = 0;

@@ -8,6 +8,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { publicView, validate, hint, hasHints, snapshot, validateSnapshot, validatePartial, countWords, hintSnapshot, duelOf, GAMES as BOARD_GAMES, SOLO_GAMES } from "./_shared/board.js";
 import { canMate, findMove, fromFen, newGame, playMove, positionKey, squareName, toFen } from "./_shared/chess/domain.js";
 import { findMove as findDamaMove, fromPosition, newGame as newDamaGame, playMove as playDamaMove, positionKey as damaPositionKey, toPosition } from "./_shared/dama/domain.js";
+import { autoRoll as autoRollGamao, findMove as findGamaoMove, newGame as newGamaoGame, playMove as playGamaoMove, positionKey as gamaoPositionKey, revive as reviveGamao, rollOpening as rollGamaoOpening, serialize as serializeGamao } from "./_shared/gamao/domain.js";
 
 const URL = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -121,6 +122,18 @@ const damaRow = async (svc: any, id: string) => {
   return data;
 };
 
+/** Linha do gamão (estado + relógios). O relógio e o vencedor continuam no Postgres. */
+const gamaoRow = async (svc: any, id: string) => {
+  const { data, error } = await svc.from("gamao_games")
+    .select("duel_id, state, turn, version, keys, moves, last_move, white_id, black_id, white_ms, black_ms, last_at, result, reason")
+    .eq("duel_id", id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+/** Número em [0,1) com a mesma fonte criptográfica dos outros sorteios da Edge (dados do gamão). */
+const randomUnit = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
+
 const duelMeta = async (svc: any, id: string) => {
   const { data, error } = await svc.from("duels")
     .select("id, code, game_id, kind, status, starts_at, max_seconds, winner_id")
@@ -140,6 +153,7 @@ const DUEL_ACTIONS = new Set([
   "duel_invites", "duel_decline", "duel_mine",
   "chess_create", "chess_start", "chess_state", "chess_move", "chess_resign",
   "dama_create", "dama_start", "dama_state", "dama_move", "dama_resign",
+  "gamao_create", "gamao_start", "gamao_state", "gamao_move", "gamao_resign",
 ]);
 
 async function handleDuel(svc: any, uid: string, action: string, body: any) {
@@ -179,6 +193,25 @@ async function handleDuel(svc: any, uid: string, action: string, body: any) {
     const { data, error } = await svc.rpc("dama_create", {
       p_uid: uid, p_minutes: minutes, p_color: color,
       p_position: toPosition(start.state), p_key: start.keys[0], p_open: open,
+    });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    return json(data);
+  }
+
+  /* Criar sala de gamão: mesmo contrato de turnos, com a abertura sorteada no servidor. */
+  if (action === "gamao_create") {
+    const duel = duelOf("gamao");
+    if (!duel || duel.kind !== "turn") return json({ error: "not_duel_game" }, 400);
+    const minutes = Number(body?.minutes);
+    if (!duel.times.includes(minutes)) return json({ error: "bad_minutes" }, 400);
+    const color = body?.color;
+    if (color !== "w" && color !== "b") return json({ error: "bad_color" }, 400);
+    const open = body?.open !== false;                       // sala aberta por padrão (entra pela lista)
+
+    const start = newGamaoGame(rollGamaoOpening(randomUnit));
+    const { data, error } = await svc.rpc("gamao_create", {
+      p_uid: uid, p_minutes: minutes, p_color: color,
+      p_state: serializeGamao(start.state), p_key: start.keys[0], p_open: open,
     });
     if (error) return json({ error: error.message }, duelStatus(error.message));
     return json(data);
@@ -349,6 +382,53 @@ async function handleDuel(svc: any, uid: string, action: string, body: any) {
     return json(data);
   }
 
+  /* Estado / largada / desistência do gamão: o Postgres é a autoridade dos relógios e do resultado. */
+  if (action === "gamao_state" || action === "gamao_start" || action === "gamao_resign") {
+    const { data, error } = await svc.rpc(action, { p_uid: uid, p_duel: duelId });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    if (action === "gamao_state" && data?.status === "waiting") await touchPresence(svc, uid, duelId);
+    return json(data);
+  }
+
+  /* Lance do gamão: a Edge valida com o domínio puro e já rola os dados do próximo jogador.
+     O Postgres confere vez, relógio e versão antes de gravar. */
+  if (action === "gamao_move") {
+    const meta = await duelMeta(svc, duelId);
+    if (!meta) return json({ error: "duel_not_found" }, 404);
+    if (meta.kind !== "turn" || meta.game_id !== "gamao") return json({ error: "not_gamao_duel" }, 400);
+    if (meta.status !== "running") return json({ error: "bad_status" }, 409);
+
+    const row = await gamaoRow(svc, duelId);
+    if (!row) return json({ error: "duel_not_found" }, 404);
+
+    const state = reviveGamao(row.state);
+    const move = findGamaoMove(state, body?.move);
+    if (!move) return json({ error: "invalid_move" }, 422);
+
+    const game = {
+      state,
+      keys: Array.isArray(row.keys) && row.keys.length ? row.keys : [gamaoPositionKey(state)],
+      moves: Array.isArray(row.moves) ? row.moves : [],
+      last: row.last_move ?? null,
+      result: { over: false, winner: null, reason: null },
+    };
+    const next = playGamaoMove(game, move);
+    const result = next.result.over ? next.result : null;
+    const resultText = result ? (result.winner === "w" ? "white" : "black") : null;
+
+    const after = result ? next.state : autoRollGamao(next.state, randomUnit);
+    const keys = [...next.keys, gamaoPositionKey(after)];
+
+    const { data, error } = await svc.rpc("gamao_move", {
+      p_uid: uid, p_duel: duelId, p_version: row.version,
+      p_state: serializeGamao(after), p_turn: after.turn,
+      p_keys: keys, p_moves: next.moves, p_last: next.last,
+      p_result: resultText, p_reason: result?.reason ?? null,
+    });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    return json(data);
+  }
+
   if (action === "duel_ready" || action === "duel_start" || action === "duel_state" || action === "duel_leave"
       || action === "duel_decline") {
     const { data, error } = await svc.rpc(action, { p_uid: uid, p_duel: duelId });
@@ -414,8 +494,8 @@ Deno.serve(async (req) => {
       return json({ day, slots, games: GAME_IDS.size, scenarios });
     }
 
-    /* As ações de turnos começam com `chess_`/`dama_`: sem isto elas caíam na checagem de jogo solo e voltavam `unknown_game`. */
-    if (typeof action === "string" && (action.startsWith("duel_") || action.startsWith("chess_") || action.startsWith("dama_"))) {
+    /* As ações de turnos começam com `chess_`/`dama_`/`gamao_`: sem isto elas caíam na checagem de jogo solo e voltavam `unknown_game`. */
+    if (typeof action === "string" && (action.startsWith("duel_") || action.startsWith("chess_") || action.startsWith("dama_") || action.startsWith("gamao_"))) {
       return await handleDuel(svc, uid, action, body);
     }
 

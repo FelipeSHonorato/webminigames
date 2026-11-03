@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gamão 1×1</title>
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/email-logo.png" type="image/png" sizes="96x96">
+<link rel="apple-touch-icon" href="../../assets/email-logo.png">
+<script src="../../shared/theme-init.js"></script>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../css/gamebar.css">
+<link rel="stylesheet" href="../../css/userbar.css">
+</head>
+<body>
+<nav class="sitebar"><a href="../../jogos.html">← Jogos</a><div class="gametitle"><strong>Gamão</strong><span class="mode-tag">1×1</span></div><div id="userbar"></div></nav>
+
+<main>
+  <section id="setup" class="setup" aria-labelledby="setupTitle">
+    <header class="setup-head">
+      <p class="eyebrow">Duelo 1×1</p>
+      <h1 id="setupTitle">Gamão</h1>
+      <p class="lead">O backgammon clássico. Escolha o ritmo e as suas peças: cada jogador tem o próprio relógio, que corre só no seu turno. A abertura sorteia quem começa.</p>
+    </header>
+
+    <div id="duelNotice" class="notice" role="status" hidden></div>
+
+    <fieldset class="pick">
+      <legend>Ritmo de jogo</legend>
+      <div id="timeOptions" class="time-options" role="radiogroup" aria-label="Ritmo de jogo"></div>
+    </fieldset>
+
+    <fieldset class="pick">
+      <legend>Suas peças</legend>
+      <div id="colorOptions" class="color-options" role="radiogroup" aria-label="Cor das suas peças">
+        <button type="button" class="color-option" data-color="w" aria-pressed="true">
+          <span class="mini-piece w" aria-hidden="true"></span>
+          <span class="color-text"><b>Claras</b><small>Começam na casa 24 → 1</small></span>
+        </button>
+        <button type="button" class="color-option" data-color="b" aria-pressed="false">
+          <span class="mini-piece b" aria-hidden="true"></span>
+          <span class="color-text"><b>Escuras</b><small>Começam na casa 1 → 24</small></span>
+        </button>
+      </div>
+    </fieldset>
+
+    <fieldset class="pick">
+      <legend>Sala online</legend>
+      <div id="roomOptions" class="room-options" role="radiogroup" aria-label="Visibilidade da sala online">
+        <button type="button" class="visibility-option" data-open="true" aria-pressed="true">
+          <span class="color-text"><b>Aberta</b><small>Qualquer jogador entra pela lista de salas</small></span>
+        </button>
+        <button type="button" class="visibility-option" data-open="false" aria-pressed="false">
+          <span class="color-text"><b>Fechada</b><small>Só entra quem tiver o código do convite</small></span>
+        </button>
+      </div>
+    </fieldset>
+
+    <div class="setup-actions">
+      <button id="startLocal" class="primary" type="button">Jogar no mesmo dispositivo</button>
+      <button id="createRoom" class="secondary" type="button">Criar sala online</button>
+    </div>
+
+    <p class="setup-note">Cada jogador tem 15 peças. Dados dobres valem quatro jogadas e é obrigatório usar o máximo de dados possível. Só se tira peça com todas as 15 na casa e a barra vazia; vence quem tirar todas primeiro.</p>
+  </section>
+
+  <section id="lobby" class="lobby" aria-labelledby="lobbyTitle" hidden>
+    <header class="setup-head">
+      <p class="eyebrow">Sala online</p>
+      <h1 id="lobbyTitle">Gamão 1×1</h1>
+      <p class="lead" id="lobbyLead">Mande o código (ou o link) para o seu amigo. O duelo começa quando os dois marcarem pronto.</p>
+    </header>
+
+    <div class="lobby-code">
+      <p class="lobby-label">Código do convite</p>
+      <p id="lobbyCode" class="lobby-code-value">—</p>
+      <div class="lobby-buttons">
+        <button id="copyCode" class="secondary" type="button">Copiar código</button>
+        <button id="copyLink" class="secondary" type="button">Copiar link</button>
+      </div>
+    </div>
+
+    <ul id="lobbyPlayers" class="lobby-players" aria-label="Jogadores da sala"></ul>
+
+    <p id="lobbyStatus" class="lobby-status" role="status"></p>
+
+    <div class="setup-actions">
+      <button id="ready" class="primary" type="button">Estou pronto</button>
+      <button id="leaveLobby" class="secondary" type="button">Sair da sala</button>
+    </div>
+  </section>
+
+  <section id="game" class="game" aria-label="Partida de gamão" hidden>
+    <div class="game-layout">
+      <div class="board-col">
+        <div class="player-pane player-top-pane">
+          <div class="player-bar" id="playerTopBar">
+            <div class="player-profile">
+              <span class="player-avatar-wrap" id="topAvatar"></span>
+              <div class="player-meta">
+                <span class="player-name" id="topName">Escuras</span>
+                <span class="player-rating-badge" id="topRating"><span class="rating-label">Rating</span> <strong id="topRatingVal">1500</strong></span>
+              </div>
+            </div>
+            <div class="player-pieces" id="topPieces" aria-label="Peças fora e na barra"></div>
+          </div>
+          <div class="player" id="playerTop">
+            <span class="player-dot" id="topDot" aria-hidden="true"></span>
+            <span class="player-color-tag" id="topColorTag">Escuras</span>
+            <span class="clock" id="topClock" aria-label="Relógio das peças escuras">10:00</span>
+          </div>
+        </div>
+
+        <div class="board-frame">
+          <button id="trayLeft" class="tray tray-left" type="button" aria-label="Peças fora do jogador de cima">
+            <span class="tray-label">Fora</span>
+            <span class="tray-count" id="leftOffVal">0</span>
+          </button>
+          <div class="board-shell">
+            <div id="board" class="board" role="grid" aria-label="Tabuleiro de gamão"></div>
+          </div>
+          <button id="trayRight" class="tray tray-right" type="button" aria-label="Peças fora do jogador de baixo">
+            <span class="tray-label">Fora</span>
+            <span class="tray-count" id="rightOffVal">0</span>
+          </button>
+        </div>
+
+        <div class="player-pane player-bottom-pane">
+          <div class="player-bar" id="playerBottomBar">
+            <div class="player-profile">
+              <span class="player-avatar-wrap" id="bottomAvatar"></span>
+              <div class="player-meta">
+                <span class="player-name" id="bottomName">Claras</span>
+                <span class="player-rating-badge" id="bottomRating"><span class="rating-label">Rating</span> <strong id="bottomRatingVal">1500</strong></span>
+              </div>
+            </div>
+            <div class="player-pieces" id="bottomPieces" aria-label="Peças fora e na barra"></div>
+          </div>
+          <div class="player" id="playerBottom">
+            <span class="player-dot" id="bottomDot" aria-hidden="true"></span>
+            <span class="player-color-tag" id="bottomColorTag">Claras</span>
+            <span class="clock" id="bottomClock" aria-label="Relógio das peças claras">10:00</span>
+          </div>
+        </div>
+
+        <p id="status" class="status" role="status"></p>
+      </div>
+
+      <aside class="side-panel" aria-label="Histórico da partida">
+        <div class="dice-panel">
+          <div class="side-head"><h2>Dados</h2><span id="diceLeft"></span></div>
+          <div id="dice" class="dice" aria-label="Dados disponíveis"></div>
+        </div>
+        <div class="side-head"><h2>Jogadas</h2><span id="moveCount">0</span></div>
+        <ol id="moves" class="moves" aria-label="Jogadas realizadas"></ol>
+        <div class="side-actions">
+          <button id="resign" type="button">Desistir</button>
+          <button id="newGame" type="button">Nova partida</button>
+        </div>
+      </aside>
+    </div>
+  </section>
+</main>
+
+<div id="result" class="result" hidden>
+  <div class="result-card" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+    <span id="resultIcon" class="result-icon" aria-hidden="true">⚀</span>
+    <h2 id="resultTitle">Empate</h2>
+    <p id="resultReason"></p>
+    <div class="result-actions">
+      <button id="rematch" class="primary" type="button">Revanche</button>
+      <button id="backSetup" type="button">Trocar ritmo</button>
+    </div>
+  </div>
+</div>
+
+<script src="../../shared/file-warning.js"></script>
+<script type="module" src="./ui.js"></script>
+</body>
+</html>

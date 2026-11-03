@@ -72,18 +72,19 @@ test("hub: cada modo tem título e subtítulo próprios", () => {
   for (const mode of MODES) assert.ok(modeText(mode).sub.length > 20, `${mode} sem subtítulo`);
 });
 
-test("hub: só o xadrez e a dama são duelos — os jogos antigos continuam solo", () => {
+test("hub: só xadrez, dama e gamão são duelos — os jogos antigos continuam solo", () => {
   const items = navItems(CATALOG);
   assert.equal(items[0].count, Object.keys(CATALOG).length);
-  assert.equal(items[2].count, 2, "só xadrez e dama declaram duel: true");
-  assert.deepEqual(filterGames(CATALOG, "duel").map(([id]) => id), ["chess", "dama"]);
-  assert.equal(filterGames(CATALOG, "solo").length, Object.keys(CATALOG).length - 2);
+  assert.equal(items[2].count, 3, "só xadrez, dama e gamão declaram duel: true");
+  assert.deepEqual(filterGames(CATALOG, "duel").map(([id]) => id), ["chess", "dama", "gamao"]);
+  assert.equal(filterGames(CATALOG, "solo").length, Object.keys(CATALOG).length - 3);
 });
 
 test("hub: painel lateral é Solo fora dos duelos e um por jogo no carrossel", () => {
   const panels = {
     chess: { title: "Xadrez", duel: true },
     dama: { title: "Dama", duel: true },
+    gamao: { title: "Gamão", duel: true },
     zip: { title: "Zip" },
   };
   for (const mode of ["all", "solo"]) {
@@ -95,10 +96,11 @@ test("hub: painel lateral é Solo fora dos duelos e um por jogo no carrossel", (
   }
 
   const duel = rankingPanels(panels, "duel");
-  assert.deepEqual(duel.map(p => p.gameId), ["chess", "dama"]);
-  assert.deepEqual(duel.map(p => p.title), ["Ranking Geral Xadrez", "Ranking Geral Dama"]);
+  assert.deepEqual(duel.map(p => p.gameId), ["chess", "dama", "gamao"]);
+  assert.deepEqual(duel.map(p => p.title), ["Ranking Geral Xadrez", "Ranking Geral Dama", "Ranking Geral Gamão"]);
   assert.match(duel[0].sub, /Elo/, "o xadrez usa Elo");
   assert.match(duel[1].sub, /Elo/, "a dama usa o mesmo Elo, com ranking próprio");
+  assert.match(duel[2].sub, /Elo/, "o gamão usa o mesmo Elo, com ranking próprio");
   assert.equal(rankingPanels(panels, "duel")[0].gameId, "chess");
   assert.deepEqual(rankingPanels({}, "duel"), []);
   assert.equal(rankingPanels(CATALOG, "duel")[0].title, "Ranking Geral Xadrez");

@@ -384,6 +384,25 @@ test("xadrez online: cada ação chama a Edge com os campos certos", async () =>
   ]);
 });
 
+test("gamão online: cada ação chama a Edge com os campos certos", async () => {
+  const c = await boot({ functions: { invoke: (name, body) => ({ data: { action: body.action }, error: null }) } });
+
+  await Cloud.gamaoCreate(10, "w", true);
+  await Cloud.gamaoStart("d1");
+  await Cloud.gamaoState("d1");
+  await Cloud.gamaoMove("d1", { from: 13, to: 10, die: 3 });
+  await Cloud.gamaoResign("d1");
+
+  const bodies = c.calls.filter(x => x[0] === "invoke").map(x => x[2]);
+  assert.deepEqual(bodies, [
+    { action: "gamao_create", minutes: 10, color: "w", open: true },
+    { action: "gamao_start", duel: "d1" },
+    { action: "gamao_state", duel: "d1" },
+    { action: "gamao_move", duel: "d1", move: { from: 13, to: 10, die: 3 } },
+    { action: "gamao_resign", duel: "d1" },
+  ]);
+});
+
 test("duelos: finalizar valida no servidor e reaproveita o op no reenvio", async () => {
   const result = { won: true, winner: UID, seconds: 12, words: null };
   const c = await boot({ functions: { invoke: () => ({ data: result, error: null }) } });

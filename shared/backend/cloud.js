@@ -389,6 +389,14 @@ export const Cloud = {
   damaState(duel) { return invoke("dama_state", { duel }); },
   damaMove(duel, move) { return invoke("dama_move", { duel, move }); },
   damaResign(duel) { return invoke("dama_resign", { duel }); },
+
+  /* ----- gamão 1×1 (duelo por turnos, ranking próprio) -----
+     Mesmo fluxo do xadrez/dama, com o estado completo em jsonb. */
+  gamaoCreate(minutes, color, open = true) { return invoke("gamao_create", { minutes, color, open }); },
+  gamaoStart(duel) { return invoke("gamao_start", { duel }); },
+  gamaoState(duel) { return invoke("gamao_state", { duel }); },
+  gamaoMove(duel, move) { return invoke("gamao_move", { duel, move }); },
+  gamaoResign(duel) { return invoke("gamao_resign", { duel }); },
   /** Canal Realtime do duelo (só espelho). Devolve `null` quando a nuvem está desligada/degradada.
       `options` repassa a configuração do SDK (o duelo usa `{ config: { private: true } }`). */
   channel(topic, options) {

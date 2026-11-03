@@ -14,6 +14,7 @@ import * as canos from "../games/canos/domain.js";
 import * as chess from "../games/chess/domain.js";
 import * as cruzadas from "../games/cruzadas/domain.js";
 import * as dama from "../games/dama/domain.js";
+import * as gamao from "../games/gamao/domain.js";
 import * as patches from "../games/patches/domain.js";
 import * as queens from "../games/queens/domain.js";
 import * as sopa from "../games/sopa/domain.js";
@@ -28,7 +29,7 @@ const normPoints = s => s.replace(/"(?:\.\.\/)+(?:shared\/)?points\.js"/g, '"POI
 
 /* ---------- paridade entre games/ e a cópia usada pela Edge Function ---------- */
 test("cópias dos domínios na Edge Function batem com games/ (paridade)", () => {
-  for (const g of ["arrows", "canos", "chess", "cruzadas", "dama", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]) {
+  for (const g of ["arrows", "canos", "chess", "cruzadas", "dama", "gamao", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]) {
     assert.equal(normPoints(read(`supabase/functions/play/_shared/${g}/domain.js`)), normPoints(read(`games/${g}/domain.js`)), `domain de ${g} divergiu`);
   }
   for (const g of ["cruzadas", "sopa", "texttwist"]) {
@@ -269,11 +270,12 @@ test("snapshot diário: o puzzle completo valida e a visão pública continua se
   assert.equal(validateSnapshot("texttwist", twistSnap.fullPuzzle, { words: [] }), false);
 });
 
-test("GAMES agrupa os doze domínios e SOLO_GAMES deixa xadrez e dama de fora", () => {
-  assert.deepEqual(Object.keys(GAMES).sort(), ["arrows", "canos", "chess", "cruzadas", "dama", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
+test("GAMES agrupa os treze domínios e SOLO_GAMES deixa xadrez, dama e gamão de fora", () => {
+  assert.deepEqual(Object.keys(GAMES).sort(), ["arrows", "canos", "chess", "cruzadas", "dama", "gamao", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
   assert.deepEqual(Object.keys(SOLO_GAMES).sort(), ["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
   assert.equal(typeof chess.generatePuzzle, "undefined", "xadrez não gera fase: só duelo");
   assert.equal(typeof dama.generatePuzzle, "undefined", "dama não gera fase: só duelo");
+  assert.equal(typeof gamao.generatePuzzle, "undefined", "gamão não gera fase: só duelo");
 });
 
 test("a Edge aceita todo jogo SOLO do catálogo (lista vem do board, não fixa)", () => {
@@ -301,15 +303,15 @@ test("contrato DUEL: corrida e turnos aceitam só regras conhecidas; a lista sai
   assert.equal(duelOf("nao_existe"), null);
 });
 
-test("só xadrez e dama declaram DUEL (jogos antigos não viram multiplayer)", () => {
+test("só xadrez, dama e gamão declaram DUEL (jogos antigos não viram multiplayer)", () => {
   /* Decisão de produto: os jogos que já estão no site não viram multiplayer.
-     Xadrez e dama foram criados PARA o duelo; por isso são os únicos com contrato e com `duel` no catálogo. */
+     Xadrez, dama e gamão foram criados PARA o duelo; por isso são os únicos com contrato e com `duel` no catálogo. */
   const turn = { kind: "turn", times: [3, 10, 30, 60] };
   for (const g of Object.keys(GAMES)) {
-    if (g === "chess" || g === "dama") assert.deepEqual(duelOf(g), turn);
+    if (g === "chess" || g === "dama" || g === "gamao") assert.deepEqual(duelOf(g), turn);
     else assert.equal(duelOf(g), null, `${g} não deveria ser jogo de duelo`);
   }
-  assert.deepEqual(DUELS, { chess: turn, dama: turn });
+  assert.deepEqual(DUELS, { chess: turn, dama: turn, gamao: turn });
 });
 
 test("catálogo e domínios concordam sobre quais jogos são de duelo", () => {
@@ -355,6 +357,7 @@ test("a Edge atende o aviso de desafiante: convites, desistir, retomar a sala e 
   // Presença: só a consulta de estado de uma sala em espera carimba, e falhar nunca derruba a resposta.
   assert.match(entry, /action === "chess_state" && data\?\.status === "waiting"\) await touchPresence/);
   assert.match(entry, /action === "dama_state" && data\?\.status === "waiting"\) await touchPresence/);
+  assert.match(entry, /action === "gamao_state" && data\?\.status === "waiting"\) await touchPresence/);
   assert.match(entry, /action === "duel_state" && data\?\.status === "waiting"\) await touchPresence/);
   assert.match(entry, /rpc\("duel_touch", \{ p_uid: uid, p_duel: duelId \}\)/);
   assert.match(entry, /try \{ await svc\.rpc\("duel_touch"[\s\S]*?\} catch \{/, "presença é só um aviso");
@@ -375,6 +378,7 @@ test("a Edge expõe as ações de duelo e valida o tabuleiro antes de finalizar"
     "duel_create", "duel_join", "duel_join_open", "duel_ready", "duel_start", "duel_state", "duel_finish", "duel_leave", "duel_list",
     "chess_create", "chess_start", "chess_state", "chess_move", "chess_resign",
     "dama_create", "dama_start", "dama_state", "dama_move", "dama_resign",
+    "gamao_create", "gamao_start", "gamao_state", "gamao_move", "gamao_resign",
   ]) {
     assert.match(entry, new RegExp(`action === "${a}"`), `${a} ausente na Edge`);
   }
@@ -411,6 +415,13 @@ test("a Edge expõe as ações de duelo e valida o tabuleiro antes de finalizar"
   assert.match(entry, /p_position: toPosition\(next\.state\)/, "dama_move manda a posição serializada");
   assert.match(entry, /if \(duel\.kind === "turn"\) return json\(\{ error: "use_chess_create" \}, 400\)/,
     "duel_create não pode criar sala de corrida para um jogo de turnos");
+
+  // Gamão: estado jsonb, abertura sorteada com o domínio puro e rolagem automática do próximo jogador.
+  assert.match(entry, /findGamaoMove\(state, body\?\.move\)/, "gamao_move precisa validar o lance com o domínio");
+  assert.match(entry, /rpc\("gamao_move", \{/, "gamao_move precisa chamar a função do Postgres");
+  assert.match(entry, /p_state: serializeGamao\(after\)/, "gamao_move manda o estado serializado");
+  assert.match(entry, /autoRollGamao\(next\.state, randomUnit\)/, "a Edge rola os dados do próximo jogador");
+  assert.match(entry, /newGamaoGame\(rollGamaoOpening\(randomUnit\)\)/, "gamao_create sorteia a abertura no servidor");
 });
 
 
@@ -420,6 +431,12 @@ test("Edge: cada jogo de duelo cria a sala com o estado inicial do PRÓPRIO dom�
   // `newGame` sem alias é o do XADREZ. A Dama precisa importar o dela com outro nome e usá-lo em dama_create.
   assert.match(entry, /import \{[^}]*\bnewGame\b[^}]*\} from "\.\/_shared\/chess\/domain\.js"/, "newGame sem alias pertence ao xadrez");
   assert.match(entry, /import \{[^}]*newGame as newDamaGame[^}]*\} from "\.\/_shared\/dama\/domain\.js"/, "a Dama importa o newGame dela com alias");
+  assert.match(entry, /import \{[^}]*newGame as newGamaoGame[^}]*\} from "\.\/_shared\/gamao\/domain\.js"/, "o Gamão importa o newGame dele com alias");
+
+  const gamaoCreate = entry.match(/action === "gamao_create"[\s\S]*?action === "duel_create"/)?.[0];
+  assert.ok(gamaoCreate, "bloco gamao_create não encontrado");
+  assert.match(gamaoCreate, /newGamaoGame\(rollGamaoOpening\(randomUnit\)\)/, "gamao_create precisa usar o estado inicial do Gamão");
+  assert.doesNotMatch(gamaoCreate, /[^\w.]newGame\(/, "gamao_create não pode chamar o newGame do xadrez");
 
   const damaCreate = entry.match(/action === "dama_create"[\s\S]*?action === "dama_start"/)?.[0];
   assert.ok(damaCreate, "bloco dama_create não encontrado");

@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql", "20261044000000_duel_invite_flow.sql", "20261045000000_duel_resume_presence.sql", "20261046000000_duel_invite_when_ready.sql", "20261047000000_dama_duel.sql", "20261048000000_duel_ready_fix.sql", "20261049000000_dama_valida_posicao.sql"];
+const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql", "20261044000000_duel_invite_flow.sql", "20261045000000_duel_resume_presence.sql", "20261046000000_duel_invite_when_ready.sql", "20261047000000_dama_duel.sql", "20261048000000_duel_ready_fix.sql", "20261049000000_dama_valida_posicao.sql", "20261050000000_gamao_duel.sql"];
 const migration = f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
 const migrations = migrationNames.map(migration);
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
@@ -285,6 +285,51 @@ test("SQL: dama 1x1 — duelo por turnos, dama_games e ranking Elo próprio", ()
   assert.match(damaSql, /if new\.game_id = 'dama' then[\s\S]*?from public\.dama_games/);
   assert.match(damaSql, /perform public\.duel_rating_record\(new\.game_id, v_players\[1\], v_players\[2\], v_score\)/);
   assert.match(damaSql, /'rating', coalesce\(dr\.rating, 1500\)/);
+});
+
+test("SQL: gamão 1x1 — duelo por turnos, gamao_games e ranking Elo próprio", () => {
+  const gamaoSql = migration("20261050000000_gamao_duel.sql");
+  assert.match(gamaoSql, /insert into public\.games \(id, title, sort\) values \('gamao', 'Gamão', 13\)/);
+  assert.match(gamaoSql, /create table public\.gamao_games \(/);
+  for (const col of ["state", "turn", "version", "keys", "moves", "white_id", "black_id", "white_ms", "black_ms", "last_at", "result", "reason"])
+    assert.match(gamaoSql, new RegExp(`\\b${col}\\b`), `gamao_games sem ${col}`);
+  assert.match(gamaoSql, /white_id is null or black_id is null or white_id <> black_id/);
+  assert.match(gamaoSql, /revoke all on public\.gamao_games from anon, authenticated/);
+  assert.match(gamaoSql, /alter table public\.gamao_games\s+enable row level security/);
+
+  for (const f of [
+    "gamao_json\\(uuid, uuid, int, int\\)",
+    "gamao_create\\(uuid, int, text, jsonb, text, boolean\\)",
+    "gamao_start\\(uuid, uuid\\)",
+    "gamao_state\\(uuid, uuid\\)",
+    "gamao_move\\(uuid, uuid, int, jsonb, text, jsonb, jsonb, jsonb, text, text\\)",
+    "gamao_resign\\(uuid, uuid\\)",
+  ]) {
+    assert.match(gamaoSql, new RegExp(`revoke all on function public\\.${f}\\s+from public, anon, authenticated`), `${f} acessível ao cliente`);
+    assert.match(gamaoSql, new RegExp(`grant execute on function public\\.${f}\\s+to service_role`), `${f} deveria ser da Edge`);
+  }
+
+  // Relógio e resultado no Postgres; no gamão, estourar o tempo é derrota sempre (não há empate).
+  assert.match(gamaoSql, /if v_duel\.game_id <> 'gamao' then raise exception 'not_gamao_duel'/);
+  assert.match(gamaoSql, /reason = 'timeout'/);
+  assert.match(gamaoSql, /reason = 'resign'/);
+  assert.match(gamaoSql, /if v_gamao\.turn = 'w' then\s*v_winner := v_gamao\.black_id; v_result := 'black';/);
+  assert.doesNotMatch(gamaoSql, /can_mate/, "o gamão não usa a exceção de material do xadrez");
+
+  // Estado jsonb validado na criação e no lance (não aceita tabuleiro de outro jogo).
+  assert.match(gamaoSql, /p_state->>'game' is distinct from 'gamao'/);
+  assert.match(gamaoSql, /jsonb_array_length\(p_state->'points'\)/);
+
+  // Assento e saída escolhem a tabela pelo game_id (xadrez/dama continuam funcionando).
+  assert.match(gamaoSql, /if p_duel\.game_id = 'gamao' then\s*update public\.gamao_games/);
+  assert.match(gamaoSql, /if v_duel\.game_id = 'gamao' then\s*update public\.gamao_games/);
+  assert.match(gamaoSql, /elsif v_duel\.game_id = 'dama' then\s*update public\.dama_games/);
+  assert.match(gamaoSql, /else\s*update public\.chess_games/, "xadrez continua no mesmo fluxo");
+
+  // O gatilho do ranking lê o resultado da tabela certa e usa o mesmo Elo de duel_ratings.
+  assert.match(gamaoSql, /if new\.game_id = 'gamao' then[\s\S]*?from public\.gamao_games/);
+  assert.match(gamaoSql, /perform public\.duel_rating_record\(new\.game_id, v_players\[1\], v_players\[2\], v_score\)/);
+  assert.match(gamaoSql, /'rating', coalesce\(dr\.rating, 1500\)/);
 });
 
 test("SQL: ranking dos duelos 1x1 — Elo por jogo, gatilho de fim e leitura pública", () => {
