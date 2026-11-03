@@ -436,7 +436,7 @@ o jogo só monta o tabuleiro quando `onStart` entrega o puzzle.
 | 7 | `supabase/migrations/<timestamp>_<id>_duel.sql` | catálogo, tabela de estado, funções `<id>_*` e grants |
 | 8 | `tests/<id>.test.js` | regras, lances legais/ilegais, resultados, casos de timeout |
 | 9 | `tests/<id>-session.test.js` | relógio, polling, pronto, resultado e cancelamento (sem DOM) |
-| 10 | `assets/thumbs/<id>-light.webp` e `-dark.webp` | miniatura do card (360×360) |
+| 10 | `assets/thumbs/<id>-light.webp` e `-dark.webp` | miniatura do card (360×360). **Obrigatória**: o carrossel da página inicial carrega esses arquivos. Em jogo de tabuleiro gere com `node scripts/gen-thumbs.mjs <id>` a partir do `preview` do catálogo (ver 3.2.13) |
 | 11 | `games/<id>/tutorial.js` / `tutorial.css` | opcional, se o jogo tiver "Como jogar" |
 
 A migração `20261039000000_duel_ratings.sql` já é **global**: o trigger `duel_rating_finish` aplica Elo a
@@ -484,6 +484,24 @@ Arquivos alterados: `js/games.js`, `public.games` na migração nova,
     `SOLO_GAMES`, de `daily_generate` e do painel `#daily`.
 12. **Duplicar regra.** A validação do lance existe uma vez no domínio, usada pela UI, pela Edge e pelos
     testes; não reimplemente no `ui.js`.
+
+#### 3.2.13 Miniaturas do jogo (carrossel da página inicial e hub)
+
+Xadrez e Dama chegaram à página inicial com **imagem quebrada**: o carrossel (`js/landing.js`) carrega
+`assets/thumbs/<id>-light.webp` e `-dark.webp` de **todo** jogo do catálogo, e os dois jogos novos não tinham
+esses arquivos. O hub (`js/hub.js`) escondia o problema porque troca a imagem pelo `preview` SVG do catálogo; o
+carrossel não tinha essa reserva (agora tem, mas a reserva é só um paliativo: gere as imagens).
+
+1. **Tenha o `preview` certo em `js/games.js`**: SVG com `viewBox="0 0 160 160"` (tabuleiro quadrado), primeiro
+   elemento `<rect width="160" height="160" rx="10" fill="#141c26"/>`, tabuleiro completo e as peças na posição
+   inicial, **sem** `<defs>`/`url(#id)` (referência dentro de SVG escondido falha em alguns navegadores).
+   Gere o desenho a partir do `START_POSITION` do domínio para não divergir do jogo. Modelo: Xadrez e Dama.
+   Um tabuleiro desenhado só com as casas claras parece "corrompido": desenhe as 64 casas.
+2. **Gere as imagens**: `npm i --no-save sharp` e `node scripts/gen-thumbs.mjs <id>` cria `<id>-light.webp` e
+   `<id>-dark.webp` (360×360). A versão clara só troca a cor da moldura.
+3. **Commite os `.webp`**: são arquivos binários novos em `assets/thumbs/`; confira que entraram no `git add`.
+4. `tests/edge.test.js` falha se algum jogo do catálogo não tiver as duas imagens ou se o `preview` usar
+   `<defs>`/`url(#…)`, e confere que o `landing.js` mantém a reserva.
 
 #### 3.2.12 Lições do bug "Estou pronto" da Dama (leia antes de entregar o próximo duelo)
 
@@ -579,6 +597,7 @@ como em `tests/*-session.test.js`, mas com um `cloud` que chama as RPCs de verda
 - [ ] Criador e desafiante conseguem marcar pronto, em qualquer ordem permitida pela UI, e a partida vai a `running`.
 - [ ] O criador marca pronto mesmo se a Edge não carimbou a presença (passo 4 do teste).
 - [ ] Erro em "Estou pronto" fica visível na tela e não some no polling.
+- [ ] As miniaturas `assets/thumbs/<id>-light.webp` e `-dark.webp` existem e o card aparece certo na **página inicial** (carrossel) e no hub, nos dois temas.
 - [ ] Nenhuma migração antiga foi editada; há uma migração nova com o conserto.
 - [ ] `duel_*` compartilhados continuam funcionando no Xadrez (rode o teste de fumaça nos dois jogos).
 - [ ] Edge publicada com o commit atual (`functions deploy play`) e `npm test` verde.
@@ -974,6 +993,7 @@ turnos, o mínimo é o da **seção 3.2.10** — as regras de lance/resultado su
 | Ranking transparente, sem borda | faltam os tokens (`--cell`, `--grid`, `--bg`, `--fg`, `--muted`, `--accent`) |
 | Troféus não aparecem | falta `#board` (ou o `#daily`) |
 | Card no hub sem link / 404 | `path` errado em `js/games.js` |
+| Miniatura quebrada no carrossel da página inicial | faltam `assets/thumbs/<id>-light.webp`/`-dark.webp` (3.2.13); o hub mascara com o SVG de reserva |
 | `npm test` falha em "paridade" | cópias de domínio divergentes |
 | `npm test` falha em "os jogos cadastrados…" | a migração não tem a linha em `public.games` (ou o título/ordem divergem de `js/games.js`) |
 | Vitória recusada com `invalid` | gerador não determinístico ou `state` diferente do que o servidor espera |

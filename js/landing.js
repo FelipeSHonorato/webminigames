@@ -9,11 +9,24 @@ const dlg = $("authDialog");
 const card = ([id, g], dup) =>
   `<button type="button" class="game" data-open="login"${dup ? ' aria-hidden="true" tabindex="-1"' : ""}>` +
   `<span class="thumb"><img class="th-l" src="assets/thumbs/${id}-light.webp" alt="" width="360" height="360">` +
-  `<img class="th-d" src="assets/thumbs/${id}-dark.webp" alt="" width="360" height="360"></span>` +
+  `<img class="th-d" src="assets/thumbs/${id}-dark.webp" alt="" width="360" height="360">` +
+  `<span class="thumb-fallback" hidden>${g.preview}</span></span>` +
   `<h3>${g.title}</h3><p>${g.desc}</p><span class="play">Jogar</span></button>`;
+
+/* Se alguma imagem não existir (jogo novo sem miniatura), troca pelo SVG do catálogo — o mesmo que o hub usa.
+   Sem isto o carrossel mostrava imagem quebrada (foi o que aconteceu com Xadrez e Dama). */
+function wireThumbFallback(box) {
+  box.querySelectorAll("img").forEach(img => img.addEventListener("error", () => {
+    const fallback = box.querySelector(".thumb-fallback");
+    if (!fallback) return;
+    box.innerHTML = fallback.innerHTML;
+    box.classList.add("fallback");
+  }, { once: true }));
+}
 const entries = Object.entries(GAMES);
 /* Carrossel contínuo: a lista aparece duas vezes e a animação CSS desloca metade da faixa, voltando sem emenda. */
 $("games").innerHTML = entries.map(e => card(e, false)).join("") + entries.map(e => card(e, true)).join("");
+$("games").querySelectorAll(".thumb").forEach(wireThumbFallback);
 
 document.addEventListener("click", e => {
   const trigger = e.target.closest("[data-open]");

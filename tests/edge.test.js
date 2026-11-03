@@ -437,3 +437,18 @@ test("Edge: cada jogo de duelo cria a sala com o estado inicial do PRÓPRIO dom�
   // E o contrário é a armadilha: o tabuleiro de xadrez serializado como posição de Dama é rejeitado.
   assert.throws(() => dama.fromPosition(dama.toPosition(chess.newGame().state), "w"), /posição inválida: peça/);
 });
+
+test("miniaturas: todo jogo do catálogo tem as imagens do carrossel (claro e escuro) e um SVG de reserva válido", async () => {
+  const { existsSync, statSync } = await import("node:fs");
+  const landing = readFileSync(join(root, "js/landing.js"), "utf8");
+  for (const [id, g] of Object.entries(CATALOG)) {
+    for (const theme of ["light", "dark"]) {
+      const file = join(root, "assets/thumbs", `${id}-${theme}.webp`);
+      assert.ok(existsSync(file) && statSync(file).size > 1000, `falta assets/thumbs/${id}-${theme}.webp (a página inicial mostraria imagem quebrada; gere com scripts/gen-thumbs.mjs)`);
+    }
+    assert.match(g.preview, /^<svg [^>]*viewBox="0 0 160 (160|100)"/, `${id}: preview SVG inválido`);
+    assert.doesNotMatch(g.preview, /<defs|url\(#/, `${id}: o preview não pode usar <defs>/url(#…) (falha dentro de SVG escondido)`);
+  }
+  assert.match(landing, /thumb-fallback/, "o carrossel da página inicial precisa do SVG de reserva, como o hub");
+  assert.match(landing, /addEventListener\("error"/, "o carrossel precisa trocar pela reserva quando a imagem falha");
+});
