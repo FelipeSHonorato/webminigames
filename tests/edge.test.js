@@ -412,3 +412,28 @@ test("a Edge expõe as ações de duelo e valida o tabuleiro antes de finalizar"
   assert.match(entry, /if \(duel\.kind === "turn"\) return json\(\{ error: "use_chess_create" \}, 400\)/,
     "duel_create não pode criar sala de corrida para um jogo de turnos");
 });
+
+
+test("Edge: cada jogo de duelo cria a sala com o estado inicial do PRÓPRIO domínio (regressão: Dama criada com tabuleiro de xadrez)", () => {
+  const entry = readFileSync(join(root, "supabase/functions/play/index.ts"), "utf8");
+
+  // `newGame` sem alias é o do XADREZ. A Dama precisa importar o dela com outro nome e usá-lo em dama_create.
+  assert.match(entry, /import \{[^}]*\bnewGame\b[^}]*\} from "\.\/_shared\/chess\/domain\.js"/, "newGame sem alias pertence ao xadrez");
+  assert.match(entry, /import \{[^}]*newGame as newDamaGame[^}]*\} from "\.\/_shared\/dama\/domain\.js"/, "a Dama importa o newGame dela com alias");
+
+  const damaCreate = entry.match(/action === "dama_create"[\s\S]*?action === "dama_start"/)?.[0];
+  assert.ok(damaCreate, "bloco dama_create não encontrado");
+  assert.match(damaCreate, /const start = newDamaGame\(\)/, "dama_create precisa usar o estado inicial da Dama");
+  assert.doesNotMatch(damaCreate, /[^\w.]newGame\(/, "dama_create não pode chamar o newGame do xadrez");
+
+  const chessCreate = entry.match(/action === "chess_create"[\s\S]*?action === "chess_start"/)?.[0];
+  assert.ok(chessCreate, "bloco chess_create não encontrado");
+  assert.match(chessCreate, /const start = newGame\(\)/);
+
+  // O que a Edge grava em dama_create precisa ser lido pelo cliente da Dama (o erro era "posição inválida: peça").
+  const start = dama.newGame();
+  assert.doesNotThrow(() => dama.fromPosition(dama.toPosition(start.state), start.state.turn));
+  assert.equal(start.keys[0], dama.positionKey(start.state));
+  // E o contrário é a armadilha: o tabuleiro de xadrez serializado como posição de Dama é rejeitado.
+  assert.throws(() => dama.fromPosition(dama.toPosition(chess.newGame().state), "w"), /posição inválida: peça/);
+});

@@ -7,7 +7,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { publicView, validate, hint, hasHints, snapshot, validateSnapshot, validatePartial, countWords, hintSnapshot, duelOf, GAMES as BOARD_GAMES, SOLO_GAMES } from "./_shared/board.js";
 import { canMate, findMove, fromFen, newGame, playMove, positionKey, squareName, toFen } from "./_shared/chess/domain.js";
-import { findMove as findDamaMove, fromPosition, playMove as playDamaMove, positionKey as damaPositionKey, toPosition } from "./_shared/dama/domain.js";
+import { findMove as findDamaMove, fromPosition, newGame as newDamaGame, playMove as playDamaMove, positionKey as damaPositionKey, toPosition } from "./_shared/dama/domain.js";
 
 const URL = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -175,7 +175,7 @@ async function handleDuel(svc: any, uid: string, action: string, body: any) {
     if (color !== "w" && color !== "b") return json({ error: "bad_color" }, 400);
     const open = body?.open !== false;                       // sala aberta por padrão (entra pela lista)
 
-    const start = newGame();
+    const start = newDamaGame();   // NÃO use `newGame`: esse nome é o do XADREZ (import acima) e gravaria um tabuleiro de xadrez
     const { data, error } = await svc.rpc("dama_create", {
       p_uid: uid, p_minutes: minutes, p_color: color,
       p_position: toPosition(start.state), p_key: start.keys[0], p_open: open,

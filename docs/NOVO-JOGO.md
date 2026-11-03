@@ -488,13 +488,30 @@ Arquivos alterados: `js/games.js`, `public.games` na migração nova,
 #### 3.2.12 Lições do bug "Estou pronto" da Dama (leia antes de entregar o próximo duelo)
 
 Na Dama, o criador não conseguia marcar "Estou pronto" e a partida nunca começava, enquanto o desafiante
-funcionava. O Xadrez, com o mesmo código, estava certo. Os pontos abaixo evitam repetir isso.
+funcionava. O Xadrez, com o mesmo código, estava certo.
+
+**Causa raiz (confirmada pelo erro do console: `posição inválida: peça` em `fromPosition`).** Em
+`supabase/functions/play/index.ts`, o `dama_create` chamava `newGame()`, mas `newGame` é o import do **Xadrez**
+(o da Dama não estava importado). A Edge gravava `rnbqkbnr/pppppppp/...` em `dama_games.position`. O lobby
+funciona com qualquer posição; o erro só aparece quando a sala vira `running`, e quem faz isso é sempre o
+**criador** (2º a clicar). Nesse instante o cliente tenta desenhar o tabuleiro, `fromPosition` lança, o lobby
+nunca mostra "pronto" e a partida não abre. O desafiante clica antes, com a sala ainda `waiting`, e "funciona".
+Conserto: `import { newGame as newDamaGame } from ".../dama/domain.js"` e `const start = newDamaGame()`.
+
+**H) Dois domínios exportam o mesmo nome (`newGame`, `positionKey`, `toPosition`, `fromPosition`…).** Na Edge
+importe sempre com alias por jogo (`newDamaGame`, `damaPositionKey`) e nunca deixe um nome sem alias quando
+outro jogo exporta o mesmo. Um jogo de duelo novo que copia o bloco do Xadrez herda o `newGame` dele sem erro
+de sintaxe: só quebra na hora de iniciar a partida. Há teste de regressão em `tests/edge.test.js` e o banco
+recusa posição inválida (`dama_create` na migração 49).
+
+Os pontos A a G abaixo saíram da investigação (alguns eram hipóteses que se mostraram secundárias); continuam
+valendo como endurecimento do fluxo.
 
 **A) O contrato do "pronto" tem uma assimetria embutida.** A UI só habilita o botão do criador depois que
 o desafiante marcou pronto (`isCreator() && !opponent().ready` ⇒ `disabled`). Logo, **o criador é sempre o
 segundo a clicar**, e só o segundo a clicar passa pela guarda `opponent_away` do `duel_ready` (desafiante
 pronto, mas sem presença há > 90 s). Qualquer falha de presença do desafiante aparece **só** no botão do
-criador. Quando o relato for "funciona para um lado e não para o outro", comece por aqui.
+criador. Quando o relato for "funciona para um lado e não para o outro": **abra o console (F12) do navegador do criador e leia o erro primeiro**; só depois suspeite da presença. O criador também é quem dispara a entrada na partida, então qualquer exceção ao desenhar o tabuleiro aparece como "o pronto do criador não funciona".
 
 **B) Presença é responsabilidade do banco, não só da Edge.** A Edge chamava `duel_touch` após cada
 `<id>_state` e **engolia qualquer erro** (`try/catch` vazio; o `rpc` do supabase-js nem lança, devolve
@@ -526,6 +543,12 @@ do commit. Banco novo + Edge velha (ou o inverso) é fonte de bugs que não apar
 
 ##### Teste de fumaça do lobby (rode antes de liberar um duelo novo)
 
+> **Atenção:** um teste só em SQL **não pega** erro na Edge (foi assim que o `newGame` do Xadrez passou). Antes de
+> liberar o jogo, faça também o teste **pela interface com duas contas reais**, com o console aberto nos dois
+> navegadores: criar sala, entrar, os dois marcarem pronto e **ver o tabuleiro inicial do jogo aparecer**.
+> Nenhum erro vermelho no console. Confira a posição gravada: `select position from public.<jogo>_games
+> where duel_id = '<id>'` tem de ser a posição inicial do jogo, não a do Xadrez.
+
 No SQL Editor de um projeto de teste (ou em um Postgres local com as migrações), troque `<jogo>_create` e
 os dois UUIDs de usuários reais de `auth.users`:
 
@@ -551,6 +574,7 @@ como em `tests/*-session.test.js`, mas com um `cloud` que chama as RPCs de verda
 
 ##### Checklist de regressão do lobby
 
+- [ ] A posição inicial gravada pela Edge é a do jogo (e o tabuleiro aparece para os dois ao iniciar), sem erro no console.
 - [ ] O botão do criador habilita quando o desafiante marca pronto (sem recarregar a página).
 - [ ] Criador e desafiante conseguem marcar pronto, em qualquer ordem permitida pela UI, e a partida vai a `running`.
 - [ ] O criador marca pronto mesmo se a Edge não carimbou a presença (passo 4 do teste).
@@ -954,7 +978,7 @@ turnos, o mínimo é o da **seção 3.2.10** — as regras de lance/resultado su
 | `npm test` falha em "os jogos cadastrados…" | a migração não tem a linha em `public.games` (ou o título/ordem divergem de `js/games.js`) |
 | Vitória recusada com `invalid` | gerador não determinístico ou `state` diferente do que o servidor espera |
 | Vitória recusada com `too_fast` | ritmo anti-farm (`phase_min_seconds`, 3 s) — é retentável |
-| "Estou pronto" funciona para o desafiante mas não para o criador | o criador é o 2º a clicar e cai na guarda `opponent_away`: presença do desafiante antiga (ver 3.2.12-A/B); ou o erro some do lobby (3.2.12-E) |
+| "Estou pronto" funciona para o desafiante mas não para o criador; console com `posição inválida: peça` | a Edge gravou a posição inicial de OUTRO jogo (import sem alias de `newGame`, 3.2.12-H). Se o console não mostrar erro: presença do desafiante antiga (3.2.12-A/B) ou erro sumindo do lobby (3.2.12-E) |
 | "Estou pronto" falha para todos, em todos os jogos | `duel_ready` quebrada no banco (coluna/variável inexistente) por migração antiga editada ou colada errada (3.2.12-C/D) |
 | Correção "não pega" em produção | editou migração já aplicada, ou faltou rodar o SQL no SQL Editor / publicar a Edge (3.2.12-C/G) |
 
