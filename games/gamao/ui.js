@@ -72,7 +72,7 @@ const els = {
   topClock: $("topClock"), bottomClock: $("bottomClock"),
   topPieces: $("topPieces"), bottomPieces: $("bottomPieces"),
   trayLeft: $("trayLeft"), trayRight: $("trayRight"), leftOffVal: $("leftOffVal"), rightOffVal: $("rightOffVal"),
-  dice: $("dice"), diceLeft: $("diceLeft"),
+  dice: $("dice"), diceLeft: $("diceLeft"), diceStage: $("diceStage"),
   moves: $("moves"), moveCount: $("moveCount"), resign: $("resign"), newGame: $("newGame"),
   result: $("result"), resultIcon: $("resultIcon"), resultTitle: $("resultTitle"),
   resultReason: $("resultReason"), rematch: $("rematch"), backSetup: $("backSetup"),
@@ -102,6 +102,8 @@ let choice = null;                               // { to, toOff } quando o mesmo
 let onlineVersion = null;                        // versão da posição online já pintada (para limpar seleção velha)
 let lastResult = null;
 let flashTimer = null;
+let rollSig;                                     // assinatura da última rolagem exibida (undefined = ainda não inicializada)
+let rollTimers = [];                             // timers do efeito de dados no tabuleiro
 
 const label = color => (color === "w" ? "Claras" : "Escuras");
 const canOnline = () => Boolean(session && Cloud.active && Cloud.uid);
@@ -320,6 +322,8 @@ function teardownOnline() {
   mode = "local";
   sending = false;
   ended = true;
+  rollSig = undefined;
+  clearRollEffect();
   clearSelection();
   els.result.hidden = true;
   els.lobby.hidden = true;
@@ -482,7 +486,7 @@ function onlineTick() {
   if (mode !== "online" || !online || els.game.hidden) return;
   clocks = online.clocks();
   renderClocks();
-  if (!ended) renderOnlineStatus();
+  if (!ended) { renderOnlineStatus(); syncRollEffect(); }
 }
 
 function renderOnlineStatus() {
@@ -626,7 +630,6 @@ function renderBoard() {
   const topColor = opposite(bottomColor);
   const layout = visualPoints(bottomColor);
   const targets = pointTargets();
-  const last = game.last;
   const interactive = !ended && (mode === "local" || (online?.isMyTurn() && !sending));
 
   els.board.replaceChildren();
@@ -647,8 +650,6 @@ function renderBoard() {
     if (targets.has(point)) aria += " — destino legal";
     button.setAttribute("aria-label", aria);
 
-    if (selected === point) button.classList.add("sel");
-    if (last && (last.from === point || last.to === point)) button.classList.add("last");
     if (targets.has(point)) {
       button.classList.add(targets.get(point) ? "hit-target" : "target");
       const dot = document.createElement("span");
@@ -783,16 +784,22 @@ const PIPS = {
   6: ["1/1", "3/1", "1/2", "3/2", "1/3", "3/3"],
 };
 
-function dieNode(value, { button = false } = {}) {
-  const node = document.createElement(button ? "button" : "span");
-  if (button) node.type = "button";
-  node.className = "die";
-  node.setAttribute("aria-label", `Dado ${value}`);
+function setPips(node, value) {
+  node.replaceChildren();
   for (const area of PIPS[value] ?? []) {
     const pip = document.createElement("i");
     pip.style.gridArea = area;
     node.append(pip);
   }
+}
+
+/** Dado da cor de quem joga: peças escuras jogam dado escuro, peças claras jogam dado claro. */
+function dieNode(value, { button = false, color = game.state.turn } = {}) {
+  const node = document.createElement(button ? "button" : "span");
+  if (button) node.type = "button";
+  node.className = "die" + (color === "b" ? " die-dark" : "");
+  node.setAttribute("aria-label", `Dado ${value}`);
+  setPips(node, value);
   return node;
 }
 
@@ -838,6 +845,64 @@ function renderDice() {
     els.dice.append(wrap);
   }
   els.diceLeft.textContent = `${state.dice.length} ${state.dice.length === 1 ? "dado" : "dados"}`;
+}
+
+/* ===================== efeito de jogada dos dados ===================== */
+
+const rollSignature = state =>
+  (state.roll.length === 2 && !state.awaitingRoll) ? `${state.turnNo}|${state.turn}|${state.roll.join(",")}` : null;
+
+function clearRollEffect() {
+  rollTimers.forEach(timer => { clearTimeout(timer); clearInterval(timer); });
+  rollTimers = [];
+  els.diceStage.hidden = true;
+  els.diceStage.classList.remove("fading");
+  els.diceStage.replaceChildren();
+}
+
+/** Dois dados da cor de quem rolou são lançados na metade direita do tabuleiro, rolam trocando de face e assentam. */
+function playRollEffect(state) {
+  clearRollEffect();
+  const [d1, d2] = state.roll;
+  if (!d1 || !d2) return;
+  const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+  const dice = [d1, d2].map((value, i) => {
+    const holder = document.createElement("span");
+    holder.className = "stage-die" + (i ? " second" : "");
+    const node = dieNode(still ? value : 1 + Math.floor(Math.random() * 6), { color: state.turn });
+    holder.append(node);
+    return { holder, node, value };
+  });
+  els.diceStage.replaceChildren(...dice.map(d => d.holder));
+  els.diceStage.hidden = false;
+
+  els.dice.classList.add("fresh");
+  rollTimers.push(setTimeout(() => els.dice.classList.remove("fresh"), 700));
+
+  if (!still) {
+    const shuffle = setInterval(() => dice.forEach(d => setPips(d.node, 1 + Math.floor(Math.random() * 6))), 70);
+    rollTimers.push(shuffle);
+    rollTimers.push(setTimeout(() => {
+      clearInterval(shuffle);
+      dice.forEach(d => setPips(d.node, d.value));
+    }, 800));
+  }
+  rollTimers.push(setTimeout(() => els.diceStage.classList.add("fading"), 2300));
+  rollTimers.push(setTimeout(clearRollEffect, 2850));
+}
+
+/** Chamado a cada pintura: se saiu uma rolagem nova, dispara o efeito. Entrar numa partida online já em andamento não repete. */
+function syncRollEffect() {
+  if (els.game.hidden) return;
+  if (mode === "online" && online && online.msToStart() > 0) return;   // espera a contagem de largada acabar
+  const sig = rollSignature(game.state);
+  if (sig === rollSig) return;
+  const first = rollSig === undefined;
+  rollSig = sig;
+  if (!sig || ended) { if (!sig) clearRollEffect(); return; }
+  if (first && game.moves.length > 0) return;
+  playRollEffect(game.state);
 }
 
 /* ===================== seleção ===================== */
@@ -1028,6 +1093,7 @@ function renderAll() {
   renderDice();
   renderMoves();
   renderStatus();
+  syncRollEffect();
 }
 
 /* ===================== fim de jogo ===================== */
@@ -1110,6 +1176,8 @@ function startGame() {
   game = newGame(rollOpening(Math.random));
   clocks = { w: settings.minutes * 60000, b: settings.minutes * 60000 };
   ended = false;
+  rollSig = undefined;
+  clearRollEffect();
   clearSelection();
   lastResult = null;
   els.result.hidden = true;
@@ -1130,6 +1198,8 @@ function backToSetup() {
   clockTimer = 0;
   activeClock = null;
   ended = true;
+  rollSig = undefined;
+  clearRollEffect();
   clearSelection();
   els.result.hidden = true;
   els.game.hidden = true;
