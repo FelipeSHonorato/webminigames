@@ -10,6 +10,7 @@ import { coinBadge } from "../shared/coin-badge.js";
 import { scopeTabs, renderLeaderboard } from "../shared/ranking-list.js";
 import { requireSession } from "../shared/session.js";
 import { GAMES } from "./games.js";
+import { rankLabel } from "../games/go/domain.js";
 import { LEVEL_NAMES, WINS_PER_LEVEL, Progress } from "../shared/progress.js";
 import { mountDuelEntry } from "../shared/duel-hub.js";
 import { navItems, filterGames, modeFromHash, hashFor, modeText, normalizeMode, rankingPanels } from "../shared/hub-nav.js";
@@ -246,6 +247,7 @@ async function showRankingPanel(panel, panels) {
     list: $("overallList"), note: $("overallNote"), data, scope: overallTabs.scope,
     loginUrl: "index.html?modo=conta",
     suffix: panel.gameId ? "Elo" : "pts",
+    valueOf: panel.gameId === "go" ? r => rankLabel(r.points) : null,
     emptyText: panel.gameId ? `Ninguém disputou ${GAMES[panel.gameId]?.title ?? "este duelo"} ainda.` : undefined,
     emptyRegionText: panel.gameId ? "Ninguém da sua região disputou ainda." : undefined,
     noteText: panel.gameId

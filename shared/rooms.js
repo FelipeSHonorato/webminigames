@@ -3,6 +3,7 @@
    O filtro lateral é um item "Todos" + um item por jogo de duelo do catálogo (`duel: true`), o mesmo
    critério do hub (`shared/hub-nav.js`), então um jogo novo de duelo aparece aqui sem mexer nesta página. */
 import { filterGames } from "./hub-nav.js";
+import { rankLabel } from "../games/go/domain.js";
 
 export const ALL = "all";
 
@@ -84,8 +85,10 @@ export function roomHref(room, games = {}) {
   return `${path}?duelo=${encodeURIComponent(room.id)}`;
 }
 
-/** Pontuação do criador no ranking daquele jogo, como no ranking de duelos ("1520 Elo"). Sem valor válido: "". */
+/** Pontuação do criador no ranking daquele jogo, como no ranking de duelos ("1520 Elo").
+    No Go o rating vira o grau tradicional ("15 kyu"). Sem valor válido: "". */
 export function ratingLabel(room) {
   const rating = Number(room?.host?.rating);
-  return Number.isFinite(rating) && rating > 0 ? `${Math.round(rating)} Elo` : "";
+  if (!Number.isFinite(rating) || rating <= 0) return "";
+  return room?.gameId === "go" ? rankLabel(rating) : `${Math.round(rating)} Elo`;
 }

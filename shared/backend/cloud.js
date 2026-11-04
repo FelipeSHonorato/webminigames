@@ -397,6 +397,16 @@ export const Cloud = {
   gamaoState(duel) { return invoke("gamao_state", { duel }); },
   gamaoMove(duel, move) { return invoke("gamao_move", { duel, move }); },
   gamaoResign(duel) { return invoke("gamao_resign", { duel }); },
+
+  /* ----- Go 1×1 (duelo por turnos, ranking Kyu/Dan + handicap automático) -----
+     O cliente escolhe o tamanho do tabuleiro; o handicap/komi saem do ranking no servidor. */
+  goCreate(size, minutes, color, open = true) { return invoke("go_create", { size, minutes, color, open }); },
+  /** Marca "pronto"; o servidor calcula handicap pelo ranking e fixa a contagem. */
+  goReady(duel) { return invoke("go_ready", { duel }); },
+  goStart(duel) { return invoke("go_start", { duel }); },
+  goState(duel) { return invoke("go_state", { duel }); },
+  goMove(duel, move) { return invoke("go_move", { duel, move }); },
+  goResign(duel) { return invoke("go_resign", { duel }); },
   /** Canal Realtime do duelo (só espelho). Devolve `null` quando a nuvem está desligada/degradada.
       `options` repassa a configuração do SDK (o duelo usa `{ config: { private: true } }`). */
   channel(topic, options) {

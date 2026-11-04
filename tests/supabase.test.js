@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql", "20261044000000_duel_invite_flow.sql", "20261045000000_duel_resume_presence.sql", "20261046000000_duel_invite_when_ready.sql", "20261047000000_dama_duel.sql", "20261048000000_duel_ready_fix.sql", "20261049000000_dama_valida_posicao.sql", "20261050000000_gamao_duel.sql"];
+const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql", "20261044000000_duel_invite_flow.sql", "20261045000000_duel_resume_presence.sql", "20261046000000_duel_invite_when_ready.sql", "20261047000000_dama_duel.sql", "20261048000000_duel_ready_fix.sql", "20261049000000_dama_valida_posicao.sql", "20261050000000_gamao_duel.sql", "20261051000000_go_duel.sql"];
 const migration = f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
 const migrations = migrationNames.map(migration);
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
@@ -330,6 +330,77 @@ test("SQL: gamão 1x1 — duelo por turnos, gamao_games e ranking Elo próprio",
   assert.match(gamaoSql, /if new\.game_id = 'gamao' then[\s\S]*?from public\.gamao_games/);
   assert.match(gamaoSql, /perform public\.duel_rating_record\(new\.game_id, v_players\[1\], v_players\[2\], v_score\)/);
   assert.match(gamaoSql, /'rating', coalesce\(dr\.rating, 1500\)/);
+});
+
+test("SQL: Go 1x1 — duelo por turnos, handicap Kyu/Dan e go_games", () => {
+  const goSql = migration("20261051000000_go_duel.sql");
+  assert.match(goSql, /insert into public\.games \(id, title, sort\) values \('go', 'Go', 14\)/);
+  assert.match(goSql, /create table public\.go_games \(/);
+  for (const col of [
+    "size", "state", "turn", "version", "keys", "moves", "last_move",
+    "white_id", "black_id", "white_ms", "black_ms", "last_at", "handicap", "komi", "result", "reason",
+  ]) {
+    assert.match(goSql, new RegExp(`\\b${col}\\b`), `go_games sem ${col}`);
+  }
+  assert.match(goSql, /size\s+smallint not null check \(size in \(9, 13, 19\)\)/);
+  assert.match(goSql, /handicap\s+smallint not null default 0 check \(handicap between 0 and 9\)/);
+  assert.match(goSql, /white_id is null or black_id is null or white_id <> black_id/);
+  assert.match(goSql, /revoke all on public\.go_games from anon, authenticated/);
+  assert.match(goSql, /alter table public\.go_games\s+enable row level security/);
+
+  for (const f of [
+    "go_rank_level\\(int\\)",
+    "go_rank_label\\(int\\)",
+    "go_handicap\\(int, int\\)",
+    "go_handicap_points\\(int\\)",
+    "go_json\\(uuid, uuid, int, int\\)",
+    "go_create\\(uuid, int, int, text, jsonb, text, boolean\\)",
+    "go_ready\\(uuid, uuid\\)",
+    "go_start\\(uuid, uuid\\)",
+    "go_state\\(uuid, uuid\\)",
+    "go_move\\(uuid, uuid, int, jsonb, text, jsonb, jsonb, jsonb, text, text\\)",
+    "go_resign\\(uuid, uuid\\)",
+  ]) {
+    assert.match(goSql, new RegExp(`revoke all on function public\\.${f}\\s+from public, anon, authenticated`), `${f} acessível ao cliente`);
+    assert.match(goSql, new RegExp(`grant execute on function public\\.${f}\\s+to service_role`), `${f} deveria ser da Edge`);
+  }
+
+  // Ranking: 1500 = 15 kyu, 38 = 9 dan; handicap é a diferença de graus (até 9) e só conta de 2 em diante.
+  assert.match(goSql, /15 \+ round\(\(coalesce\(p_rating, 1500\) - 1500\) \/ 100\.0\)::int/);
+  assert.match(goSql, /least\(38, 15 \+/);
+  assert.match(goSql, /public\.go_rank_level\(p_rating\) <= 29/);
+  assert.match(goSql, /abs\(public\.go_rank_level\(p_rating_a\) - public\.go_rank_level\(p_rating_b\)\) < 2 then 0/);
+  assert.match(goSql, /least\(9, abs\(public\.go_rank_level/);
+  assert.match(goSql, /when 9  then array\[20, 60, 56, 24, 40, 38, 42, 22, 58\]/);
+  assert.match(goSql, /when 13 then array\[42, 126, 120, 48, 84, 81, 87, 45, 123\]/);
+  assert.match(goSql, /when 19 then array\[60, 300, 288, 72, 180, 174, 186, 66, 294\]/);
+  assert.match(goSql, /case when v_handicap >= 2 then 0\.5 else 6\.5 end/);
+
+  // Criação valida o tabuleiro; o handicap só é aplicado no go_ready, quando os dois ratings são conhecidos.
+  assert.match(goSql, /if p_size is null or p_size not in \(9, 13, 19\) then/);
+  assert.match(goSql, /if p_minutes is null or p_minutes not in \(3, 10, 30, 60\) then/);
+  assert.match(goSql, /if p_color is null or p_color not in \('w', 'b'\) then/);
+  assert.match(goSql, /\(p_state->>'size'\)::int is distinct from p_size/);
+  assert.match(goSql, /jsonb_array_length\(p_state->'board'\)/);
+  assert.match(goSql, /if v_ready = 2 then/);
+  assert.match(goSql, /v_levels\[1\] < v_levels\[2\]/);
+  assert.match(goSql, /set status = 'running', starts_at = now\(\) \+ interval '4 seconds'/);
+
+  // Relógio, vez e resultado são decididos no Postgres; o lance da Edge é conferido pela versão.
+  assert.match(goSql, /if v_duel\.game_id <> 'go' then raise exception 'not_go_duel'/);
+  assert.match(goSql, /reason = 'timeout'/);
+  assert.match(goSql, /reason = 'resign'/);
+  assert.match(goSql, /if v_go\.turn = 'w' then\s*v_winner := v_go\.black_id; v_result := 'black';/);
+  assert.match(goSql, /if v_go\.turn <> v_color then raise exception 'not_your_turn'/);
+  assert.match(goSql, /if p_version is null or p_version <> v_go\.version then/);
+
+  // Assento, saída e gatilho do ranking escolhem a tabela do Go (xadrez/dama/gamão seguem no mesmo fluxo).
+  assert.match(goSql, /if p_duel\.game_id = 'go' then\s*update public\.go_games/);
+  assert.match(goSql, /if v_duel\.game_id = 'go' then\s*update public\.go_games/);
+  assert.match(goSql, /elsif v_duel\.game_id = 'dama' then\s*update public\.dama_games/);
+  assert.match(goSql, /if new\.game_id = 'go' then[\s\S]*?from public\.go_games/);
+  assert.match(goSql, /perform public\.duel_rating_record\(new\.game_id, v_players\[1\], v_players\[2\], v_score\)/);
+  assert.match(goSql, /'rating', coalesce\(dr\.rating, 1500\)/);
 });
 
 test("SQL: ranking dos duelos 1x1 — Elo por jogo, gatilho de fim e leitura pública", () => {

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Go 1×1</title>
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/email-logo.png" type="image/png" sizes="96x96">
+<link rel="apple-touch-icon" href="../../assets/email-logo.png">
+<script src="../../shared/theme-init.js"></script>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../css/gamebar.css">
+<link rel="stylesheet" href="../../css/userbar.css">
+</head>
+<body>
+<nav class="sitebar"><a href="../../jogos.html">← Jogos</a><div class="gametitle"><strong>Go</strong><span class="mode-tag">1×1</span></div><div id="userbar"></div></nav>
+
+<main>
+  <section id="setup" class="setup" aria-labelledby="setupTitle">
+    <header class="setup-head">
+      <p class="eyebrow">Duelo 1×1</p>
+      <h1 id="setupTitle">Go</h1>
+      <p class="lead">O jogo milenar de cerco. Cerque território com as suas pedras: quem controlar mais área vence. No online, o ranking Kyu/Dan define automaticamente as pedras de handicap.</p>
+    </header>
+
+    <div id="duelNotice" class="notice" role="status" hidden></div>
+
+    <fieldset class="pick">
+      <legend>Tamanho do tabuleiro</legend>
+      <div id="sizeOptions" class="size-options" role="radiogroup" aria-label="Tamanho do tabuleiro"></div>
+    </fieldset>
+
+    <fieldset class="pick">
+      <legend>Ritmo de jogo</legend>
+      <div id="timeOptions" class="time-options" role="radiogroup" aria-label="Ritmo de jogo"></div>
+    </fieldset>
+
+    <fieldset class="pick">
+      <legend>Suas pedras</legend>
+      <div id="colorOptions" class="color-options" role="radiogroup" aria-label="Cor das suas pedras">
+        <button type="button" class="color-option" data-color="b" aria-pressed="true">
+          <span class="mini-stone b" aria-hidden="true"></span>
+          <span class="color-text"><b>Pretas</b><small>Começam a partida equilibrada</small></span>
+        </button>
+        <button type="button" class="color-option" data-color="w" aria-pressed="false">
+          <span class="mini-stone w" aria-hidden="true"></span>
+          <span class="color-text"><b>Brancas</b><small>Recebem o komi (6,5 pontos)</small></span>
+        </button>
+      </div>
+    </fieldset>
+
+    <fieldset class="pick">
+      <legend>Sala online</legend>
+      <div id="roomOptions" class="room-options" role="radiogroup" aria-label="Visibilidade da sala online">
+        <button type="button" class="visibility-option" data-open="true" aria-pressed="true">
+          <span class="color-text"><b>Aberta</b><small>Qualquer jogador entra pela lista de salas</small></span>
+        </button>
+        <button type="button" class="visibility-option" data-open="false" aria-pressed="false">
+          <span class="color-text"><b>Fechada</b><small>Só entra quem tiver o código do convite</small></span>
+        </button>
+      </div>
+    </fieldset>
+
+    <div class="setup-actions">
+      <button id="startLocal" class="primary" type="button">Jogar no mesmo dispositivo</button>
+      <button id="createRoom" class="secondary" type="button">Criar sala online</button>
+    </div>
+
+    <p class="setup-note">Você pode passar a vez. Duas passadas seguidas encerram a partida e a contagem é a chinesa: pedras no tabuleiro + território cercado + komi. No online o handicap vem da diferença de grau (Kyu/Dan) e o komi cai para 0,5.</p>
+  </section>
+
+  <section id="lobby" class="lobby" aria-labelledby="lobbyTitle" hidden>
+    <header class="setup-head">
+      <p class="eyebrow">Sala online</p>
+      <h1 id="lobbyTitle">Go 1×1</h1>
+      <p class="lead" id="lobbyLead">Mande o código (ou o link) para o seu amigo. O duelo começa quando os dois marcarem pronto.</p>
+    </header>
+
+    <div class="lobby-code">
+      <p class="lobby-label">Código do convite</p>
+      <p id="lobbyCode" class="lobby-code-value">—</p>
+      <div class="lobby-buttons">
+        <button id="copyCode" class="secondary" type="button">Copiar código</button>
+        <button id="copyLink" class="secondary" type="button">Copiar link</button>
+      </div>
+    </div>
+
+    <ul id="lobbyPlayers" class="lobby-players" aria-label="Jogadores da sala"></ul>
+
+    <p id="lobbyStatus" class="lobby-status" role="status"></p>
+
+    <div class="setup-actions">
+      <button id="ready" class="primary" type="button">Estou pronto</button>
+      <button id="leaveLobby" class="secondary" type="button">Sair da sala</button>
+    </div>
+  </section>
+
+  <section id="game" class="game" aria-label="Partida de Go" hidden>
+    <div class="game-layout">
+      <div class="board-col">
+        <div class="player-pane player-top-pane">
+          <div class="player-bar">
+            <div class="player-profile">
+              <span class="player-avatar-wrap" id="topAvatar"></span>
+              <div class="player-meta">
+                <span class="player-name" id="topName">Brancas</span>
+                <span class="player-rating-badge" id="topRating"><span class="rating-label">Grau</span> <strong id="topRatingVal">15 kyu</strong></span>
+              </div>
+            </div>
+            <div class="player-info" id="topInfo">Capturas 0</div>
+          </div>
+          <div class="player" id="playerTop">
+            <span class="player-dot" id="topDot" aria-hidden="true"></span>
+            <span class="player-stone b" id="topStone" aria-hidden="true"></span>
+            <span class="player-color-tag" id="topColorTag">Brancas</span>
+            <span class="clock" id="topClock" aria-label="Relógio das brancas">10:00</span>
+          </div>
+        </div>
+
+        <div class="board-frame">
+          <div id="board" class="board" role="grid" aria-label="Tabuleiro de Go"></div>
+        </div>
+
+        <div class="player-pane player-bottom-pane">
+          <div class="player-bar">
+            <div class="player-profile">
+              <span class="player-avatar-wrap" id="bottomAvatar"></span>
+              <div class="player-meta">
+                <span class="player-name" id="bottomName">Pretas</span>
+                <span class="player-rating-badge" id="bottomRating"><span class="rating-label">Grau</span> <strong id="bottomRatingVal">15 kyu</strong></span>
+              </div>
+            </div>
+            <div class="player-info" id="bottomInfo">Capturas 0</div>
+          </div>
+          <div class="player" id="playerBottom">
+            <span class="player-dot" id="bottomDot" aria-hidden="true"></span>
+            <span class="player-stone w" id="bottomStone" aria-hidden="true"></span>
+            <span class="player-color-tag" id="bottomColorTag">Pretas</span>
+            <span class="clock" id="bottomClock" aria-label="Relógio das pretas">10:00</span>
+          </div>
+        </div>
+
+        <p id="status" class="status" role="status"></p>
+      </div>
+
+      <aside class="side-panel" aria-label="Informações da partida">
+        <div class="match-panel">
+          <div class="side-head"><h2>Partida</h2><span id="turnTag"></span></div>
+          <dl class="match-info">
+            <div><dt>Handicap</dt><dd id="handicapInfo">Sem handicap</dd></div>
+            <div><dt>Komi</dt><dd id="komiInfo">6,5</dd></div>
+            <div><dt>Capturas</dt><dd id="captureInfo">P 0 · B 0</dd></div>
+            <div><dt>Passadas</dt><dd id="passInfo">0</dd></div>
+          </dl>
+        </div>
+        <div class="side-head"><h2>Jogadas</h2><span id="moveCount">0</span></div>
+        <ol id="moves" class="moves" aria-label="Jogadas realizadas"></ol>
+        <div class="side-actions">
+          <button id="pass" type="button">Passar</button>
+          <button id="resign" type="button">Desistir</button>
+          <button id="newGame" type="button">Nova partida</button>
+        </div>
+      </aside>
+    </div>
+  </section>
+</main>
+
+<div id="result" class="result" hidden>
+  <div class="result-card" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+    <span id="resultIcon" class="result-icon" aria-hidden="true">●</span>
+    <h2 id="resultTitle">Partida encerrada</h2>
+    <p id="resultReason"></p>
+    <p id="resultScore" class="result-score"></p>
+    <div class="result-actions">
+      <button id="rematch" class="primary" type="button">Revanche</button>
+      <button id="backSetup" type="button">Trocar ritmo</button>
+    </div>
+  </div>
+</div>
+
+<script src="../../shared/file-warning.js"></script>
+<script type="module" src="./ui.js"></script>
+</body>
+</html>

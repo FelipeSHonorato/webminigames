@@ -1,0 +1,243 @@
+/* Sessão do Go 1×1 (sem DOM) — lobby, polling, relógios e lances.
+   A Edge + o Postgres são a autoridade: aqui só pedimos (create/ready/state/move/resign),
+   escutamos o Realtime (espelho) e calculamos o relógio entre uma resposta e outra.
+   Nada de vitória decidida no cliente. */
+import { Cloud } from "./backend/cloud.js";
+
+export const GO_POLL_MS = 1500;
+
+/**
+ * Relógios no instante `now`: os valores do servidor valem em `clockAt` (o `serverNow` do payload).
+ * Só o lado da vez desconta o tempo; o outro fica parado. Durante a contagem (`startsAt` no futuro)
+ * nada é descontado: o relógio só começa a correr na largada.
+ */
+export function clocksAt(go, { status, clockAt, startsAt = null, now = Date.now(), serverOffset = 0 } = {}) {
+  const out = { w: Math.max(0, go?.clocks?.w ?? 0), b: Math.max(0, go?.clocks?.b ?? 0) };
+  const turn = go?.state?.turn ?? go?.turn;
+  if (status !== "running" || !turn || !clockAt) return out;
+  const start = startsAt ? Date.parse(startsAt) : clockAt;
+  const elapsed = Math.max(0, now + serverOffset - Math.max(clockAt, start));
+  out[turn] = Math.max(0, out[turn] - elapsed);
+  return out;
+}
+
+/** Milissegundos até a largada (relógio do servidor); 0 quando já começou. */
+export const msToStart = (startsAt, { now = Date.now(), serverOffset = 0 } = {}) =>
+  startsAt ? Math.max(0, Date.parse(startsAt) - (now + serverOffset)) : 0;
+
+/** Resultado do ponto de vista de `uid`: "idle" | "running" | "win" | "lose" | "draw" | "cancelled". */
+export function goOutcome(state, uid) {
+  if (!state) return "idle";
+  if (state.status === "cancelled") return "cancelled";
+  if (state.status !== "finished") return "running";
+  if (!state.winner) return "draw";
+  return state.winner.user_id === uid ? "win" : "lose";
+}
+
+/**
+ * Cria a sessão de Go.
+ * @param {object} opts
+ * @param {object} opts.cloud  Cloud (injetável nos testes)
+ * @param {number} opts.pollMs intervalo do polling de `go_state` (0 desliga)
+ * @param {() => number} opts.now relógio do cliente (injetável nos testes)
+ */
+export function createGoSession({ cloud = Cloud, pollMs = GO_POLL_MS, now = () => Date.now() } = {}) {
+  const listeners = new Map();
+  let id = null, code = null, status = "idle", startsAt = null, serverOffset = 0, isOpen = true;
+  let createdBy = null, cancelReason = null;
+  let players = [], winner = null, go = null;
+  let colors = { white: null, black: null }, myColor = null;
+  let clockAt = 0, finished = false, destroyed = false;
+  let channel = null, pollTimer = null;
+
+  const emit = (type, detail) => { for (const fn of listeners.get(type) ?? []) fn(detail); };
+  /** Escuta um evento; devolve a função que cancela a escuta. */
+  const on = (type, fn) => {
+    if (!listeners.has(type)) listeners.set(type, new Set());
+    listeners.get(type).add(fn);
+    return () => listeners.get(type)?.delete(fn);
+  };
+  const me = () => players.find(p => p.is_me) ?? null;
+  const opponent = () => players.find(p => !p.is_me) ?? null;
+  const myUid = () => cloud.uid ?? null;
+  /** Fui eu quem abriu a sala? (só o criador aceita o desafiante ou desiste da sala) */
+  const isCreator = () => Boolean(createdBy) && createdBy === myUid();
+
+  function apply(data) {
+    if (!data || typeof data !== "object") return;
+    if (data.id) id = data.id;
+    if (data.code) code = data.code;
+    if (data.status) status = data.status;
+    if (data.startsAt !== undefined) startsAt = data.startsAt;
+    if ("open" in data) isOpen = data.open !== false;
+    if (data.createdBy !== undefined) createdBy = data.createdBy;
+    if (data.cancelReason !== undefined) cancelReason = data.cancelReason;
+    if (Array.isArray(data.players)) players = data.players;
+    if ("winner" in data) winner = data.winner;
+    if (data.serverNow) {
+      serverOffset = Date.parse(data.serverNow) - now();
+      clockAt = Date.parse(data.serverNow);
+    }
+    if (data.go) {
+      go = data.go;
+      colors = data.go.colors ?? colors;
+      myColor = colors.white && colors.white === myUid() ? "w"
+        : colors.black && colors.black === myUid() ? "b" : null;
+    }
+    if (status === "finished" || status === "cancelled") settle();
+  }
+
+  function settle() {
+    if (finished) return;
+    if (status !== "finished" && status !== "cancelled") return;
+    finished = true;
+    stopPoll();
+    emit("finished", { state: state(), outcome: goOutcome(state(), myUid()) });
+  }
+
+  function stopPoll() {
+    clearTimeout(pollTimer);
+    pollTimer = null;
+  }
+
+  function schedulePoll() {
+    if (!pollMs || destroyed || finished) return;
+    clearTimeout(pollTimer);
+    pollTimer = setTimeout(async () => {
+      try { await refresh(); } catch { /* rede oscilou: o próximo ciclo tenta de novo */ }
+      schedulePoll();
+    }, pollMs);
+  }
+
+  function send(event, payload) {
+    try { channel?.send?.({ type: "broadcast", event, payload }); } catch { /* Realtime é só espelho */ }
+  }
+
+  function openChannel() {
+    if (channel || !id) return;
+    let ch;
+    try { ch = cloud.channel?.(cloud.duelTopic(id), { config: { private: true } }); } catch { return; }
+    if (!ch) return;
+    channel = ch;
+    const ping = () => { refresh().catch(() => {}); };
+    ch.on?.("broadcast", { event: "move" }, ping);
+    ch.on?.("broadcast", { event: "ready" }, ping);
+    ch.on?.("broadcast", { event: "resign" }, ping);
+    ch.subscribe?.(s => { if (s === "SUBSCRIBED") ch.track?.({ uid: myUid() }); });
+  }
+
+  async function create(size, minutes, color, open = true) {
+    const data = await cloud.goCreate(size, minutes, color, open);
+    apply(data);
+    openChannel();
+    emit("lobby", data);
+    schedulePoll();
+    return data;
+  }
+
+  async function join(invite) {
+    const data = await cloud.duelJoin(invite);
+    apply(data);
+    openChannel();
+    emit("lobby", data);
+    await refresh();                 // o duel_join é genérico; o estado do Go vem daqui
+    schedulePoll();
+    return data;
+  }
+
+  async function attach(duelId) {
+    id = duelId;
+    openChannel();
+    await refresh();
+    schedulePoll();
+    return state();
+  }
+
+  async function ready() {
+    const data = await cloud.goReady(id);
+    apply(data);
+    send("ready", { uid: myUid() });
+    emit("ready", data);
+    await refresh();
+    schedulePoll();
+    return data;
+  }
+
+  async function refresh() {
+    if (!id || destroyed) return null;
+    const data = await cloud.goState(id);
+    apply(data);
+    emit("state", data);
+    return data;
+  }
+
+  /** Envia um lance (a Edge valida; o Postgres confere vez/relógio/versão). */
+  async function move(move) {
+    const data = await cloud.goMove(id, move);
+    apply(data);
+    send("move", { uid: myUid(), version: data?.go?.version });
+    emit("move", data);
+    schedulePoll();
+    return data;
+  }
+
+  async function resign() {
+    const data = await cloud.goResign(id);
+    apply(data);
+    send("resign", { uid: myUid() });
+    emit("resign", data);
+    return data;
+  }
+
+  /** Sai da sala. O criador que sai com um desafiante já sentado DESISTE (o desafiante é avisado do motivo);
+      nos demais casos é o `duel_leave` de sempre (libera a vaga, cancela a sala vazia ou conta a derrota em jogo). */
+  async function leave() {
+    if (!id) return null;
+    const giveUp = isCreator() && status === "waiting" && Boolean(opponent());
+    const data = giveUp ? await cloud.duelDecline(id) : await cloud.duelLeave(id);
+    emit("left", data);
+    destroy();
+    return data;
+  }
+
+  function destroy() {
+    destroyed = true;
+    stopPoll();
+    try { channel?.unsubscribe?.(); } catch { /* canal já caiu */ }
+    channel = null;
+    listeners.clear();
+  }
+
+  const state = () => ({
+    id, code, status, startsAt, serverOffset, players, winner, go, colors, myColor, createdBy, cancelReason,
+  });
+
+  return {
+    on, create, join, attach, ready, refresh, move, resign, leave, destroy, me, opponent, isCreator,
+    get id() { return id; },
+    get code() { return code; },
+    get status() { return status; },
+    /** Quem abriu a sala (uuid) e, se foi cancelada, o motivo: "declined" (o criador desistiu), "expired" ou null. */
+    get createdBy() { return createdBy; },
+    get cancelReason() { return cancelReason; },
+    /** Sala aberta (entra pela lista) ou fechada (só pelo código). */
+    get open() { return isOpen; },
+    get startsAt() { return startsAt; },
+    get serverOffset() { return serverOffset; },
+    get clockAt() { return clockAt; },
+    get players() { return players; },
+    get winner() { return winner; },
+    get go() { return go; },
+    get colors() { return colors; },
+    get myColor() { return myColor; },
+    get state() { return state(); },
+    get outcome() { return goOutcome(state(), myUid()); },
+    /** Relógios exibidos agora (o da vez desconta o tempo desde a última resposta). */
+    clocks(nowMs = now()) { return clocksAt(go, { status, clockAt, startsAt, now: nowMs, serverOffset }); },
+    msToStart(nowMs = now()) { return msToStart(startsAt, { now: nowMs, serverOffset }); },
+    isMyTurn(nowMs = now()) {
+      const turn = go?.state?.turn ?? go?.turn;
+      return status === "running" && Boolean(myColor) && turn === myColor && this.msToStart(nowMs) === 0;
+    },
+  };
+}

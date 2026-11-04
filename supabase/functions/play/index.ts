@@ -9,6 +9,7 @@ import { publicView, validate, hint, hasHints, snapshot, validateSnapshot, valid
 import { canMate, findMove, fromFen, newGame, playMove, positionKey, squareName, toFen } from "./_shared/chess/domain.js";
 import { findMove as findDamaMove, fromPosition, newGame as newDamaGame, playMove as playDamaMove, positionKey as damaPositionKey, toPosition } from "./_shared/dama/domain.js";
 import { autoRoll as autoRollGamao, findMove as findGamaoMove, newGame as newGamaoGame, playMove as playGamaoMove, positionKey as gamaoPositionKey, revive as reviveGamao, rollOpening as rollGamaoOpening, serialize as serializeGamao } from "./_shared/gamao/domain.js";
+import { findMove as findGoMove, newGame as newGoGame, playMove as playGoMove, positionKey as goPositionKey, revive as reviveGo, serialize as serializeGo } from "./_shared/go/domain.js";
 
 const URL = Deno.env.get("SUPABASE_URL")!;
 const ANON = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -131,6 +132,15 @@ const gamaoRow = async (svc: any, id: string) => {
   return data;
 };
 
+/** Linha do Go (estado + relógios). Handicap e komi já vão dentro do estado. */
+const goRow = async (svc: any, id: string) => {
+  const { data, error } = await svc.from("go_games")
+    .select("duel_id, size, state, turn, version, keys, moves, last_move, white_id, black_id, white_ms, black_ms, last_at, result, reason")
+    .eq("duel_id", id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+};
+
 /** Número em [0,1) com a mesma fonte criptográfica dos outros sorteios da Edge (dados do gamão). */
 const randomUnit = () => crypto.getRandomValues(new Uint32Array(1))[0] / 4294967296;
 
@@ -154,6 +164,7 @@ const DUEL_ACTIONS = new Set([
   "chess_create", "chess_start", "chess_state", "chess_move", "chess_resign",
   "dama_create", "dama_start", "dama_state", "dama_move", "dama_resign",
   "gamao_create", "gamao_start", "gamao_state", "gamao_move", "gamao_resign",
+  "go_create", "go_ready", "go_start", "go_state", "go_move", "go_resign",
 ]);
 
 async function handleDuel(svc: any, uid: string, action: string, body: any) {
@@ -212,6 +223,27 @@ async function handleDuel(svc: any, uid: string, action: string, body: any) {
     const { data, error } = await svc.rpc("gamao_create", {
       p_uid: uid, p_minutes: minutes, p_color: color,
       p_state: serializeGamao(start.state), p_key: start.keys[0], p_open: open,
+    });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    return json(data);
+  }
+
+  /* Criar sala de Go: tamanho do tabuleiro + ritmo + cor. O handicap sai do ranking quando os dois ficam prontos. */
+  if (action === "go_create") {
+    const duel = duelOf("go");
+    if (!duel || duel.kind !== "turn") return json({ error: "not_duel_game" }, 400);
+    const size = Number(body?.size);
+    if (![9, 13, 19].includes(size)) return json({ error: "bad_size" }, 400);
+    const minutes = Number(body?.minutes);
+    if (!duel.times.includes(minutes)) return json({ error: "bad_minutes" }, 400);
+    const color = body?.color;
+    if (color !== "w" && color !== "b") return json({ error: "bad_color" }, 400);
+    const open = body?.open !== false;                       // sala aberta por padrão (entra pela lista)
+
+    const start = newGoGame({ size });   // partida equilibrada; o `go_ready` aplica o handicap do ranking
+    const { data, error } = await svc.rpc("go_create", {
+      p_uid: uid, p_size: size, p_minutes: minutes, p_color: color,
+      p_state: serializeGo(start.state), p_key: start.keys[0], p_open: open,
     });
     if (error) return json({ error: error.message }, duelStatus(error.message));
     return json(data);
@@ -429,6 +461,66 @@ async function handleDuel(svc: any, uid: string, action: string, body: any) {
     return json(data);
   }
 
+  /* Pronto do Go: o Postgres calcula handicap/komi pelo ranking e larga quando os dois marcam. */
+  if (action === "go_ready") {
+    const { data, error } = await svc.rpc("go_ready", { p_uid: uid, p_duel: duelId });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    return json(data);
+  }
+
+  /* Estado / largada / desistência do Go: o Postgres é a autoridade dos relógios e do resultado. */
+  if (action === "go_state" || action === "go_start" || action === "go_resign") {
+    const { data, error } = await svc.rpc(action, { p_uid: uid, p_duel: duelId });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    if (action === "go_state" && data?.status === "waiting") await touchPresence(svc, uid, duelId);
+    return json(data);
+  }
+
+  /* Lance do Go: a Edge valida com o domínio puro; o Postgres confere vez, relógio e versão. */
+  if (action === "go_move") {
+    const meta = await duelMeta(svc, duelId);
+    if (!meta) return json({ error: "duel_not_found" }, 404);
+    if (meta.kind !== "turn" || meta.game_id !== "go") return json({ error: "not_go_duel" }, 400);
+    if (meta.status !== "running") return json({ error: "bad_status" }, 409);
+
+    const row = await goRow(svc, duelId);
+    if (!row) return json({ error: "duel_not_found" }, 404);
+
+    const state = reviveGo(row.state);
+    const move = findGoMove(state, body?.move);
+    if (!move) return json({ error: "invalid_move" }, 422);
+
+    const game = {
+      state,
+      keys: Array.isArray(row.keys) && row.keys.length ? row.keys : [goPositionKey(state)],
+      moves: Array.isArray(row.moves) ? row.moves : [],
+      last: row.last_move ?? null,
+      result: { over: false, winner: null, reason: null },
+    };
+    const next = playGoMove(game, move);
+    const result = next.result.over ? next.result : null;
+    const resultText = result ? (result.winner === "w" ? "white" : "black") : null;
+
+    const { data, error } = await svc.rpc("go_move", {
+      p_uid: uid, p_duel: duelId, p_version: row.version,
+      p_state: serializeGo(next.state), p_turn: next.state.turn,
+      p_keys: next.keys, p_moves: next.moves, p_last: next.last,
+      p_result: resultText, p_reason: result?.reason ?? null,
+    });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    return json(data);
+  }
+  /* Go tem um "pronto" próprio: é ele que calcula handicap/komi pelo ranking. Impede que o
+     `duel_ready` genérico largue uma partida de Go sem handicap. */
+  if (action === "duel_ready") {
+    const meta = await duelMeta(svc, duelId);
+    if (meta?.game_id === "go") {
+      const { data, error } = await svc.rpc("go_ready", { p_uid: uid, p_duel: duelId });
+      if (error) return json({ error: error.message }, duelStatus(error.message));
+      return json(data);
+    }
+  }
+
   if (action === "duel_ready" || action === "duel_start" || action === "duel_state" || action === "duel_leave"
       || action === "duel_decline") {
     const { data, error } = await svc.rpc(action, { p_uid: uid, p_duel: duelId });
@@ -494,8 +586,8 @@ Deno.serve(async (req) => {
       return json({ day, slots, games: GAME_IDS.size, scenarios });
     }
 
-    /* As ações de turnos começam com `chess_`/`dama_`/`gamao_`: sem isto elas caíam na checagem de jogo solo e voltavam `unknown_game`. */
-    if (typeof action === "string" && (action.startsWith("duel_") || action.startsWith("chess_") || action.startsWith("dama_") || action.startsWith("gamao_"))) {
+    /* As ações de turnos começam com `chess_`/`dama_`/`gamao_`/`go_`: sem isto elas caíam na checagem de jogo solo e voltavam `unknown_game`. */
+    if (typeof action === "string" && (action.startsWith("duel_") || action.startsWith("chess_") || action.startsWith("dama_") || action.startsWith("gamao_") || action.startsWith("go_"))) {
       return await handleDuel(svc, uid, action, body);
     }
 

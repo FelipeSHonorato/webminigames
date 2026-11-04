@@ -55,7 +55,9 @@ export function rankingPanels(games = {}, mode = DEFAULT_MODE) {
   return filterGames(games, "duel").map(([id, game]) => ({
     gameId: id,
     title: `Ranking Geral ${game.title}`,
-    sub: "Sistema Elo · vitórias e derrotas ajustam o rating.",
+    sub: id === "go"
+      ? "Sistema Kyu/Dan · handicap automático pela diferença de grau."
+      : "Sistema Elo · vitórias e derrotas ajustam o rating.",
   }));
 }
 

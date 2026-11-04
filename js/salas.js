@@ -6,6 +6,7 @@ import { avatarNode } from "../shared/avatar.js";
 import { el, scopeTabs, renderLeaderboard } from "../shared/ranking-list.js";
 import { requireSession } from "../shared/session.js";
 import { GAMES } from "./games.js";
+import { rankLabel } from "../games/go/domain.js";
 import { rankingPanels } from "../shared/hub-nav.js";
 import {
   ALL, cleanRooms, filterItems, roomsOf, filterFromHash, hashForFilter, filterText, openedAgo, durationLabel,
@@ -301,6 +302,7 @@ async function showRankingPanel(panel) {
     list: $("overallList"), note: $("overallNote"), data, scope: overallTabs.scope,
     loginUrl: "index.html?modo=conta",
     suffix: "Elo",
+    valueOf: panel.gameId === "go" ? r => rankLabel(r.points) : null,
     emptyText: `Ninguém disputou ${GAMES[panel.gameId]?.title ?? "este duelo"} ainda.`,
     emptyRegionText: "Ninguém da sua região disputou ainda.",
     noteText: Cloud.active ? "Vença um duelo para entrar no ranking." : "O ranking de duelo aparece quando a conta está na nuvem.",

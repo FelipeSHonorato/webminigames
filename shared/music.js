@@ -81,6 +81,11 @@ const MOODS = {
     chords: [[0, 3, 7, 10], [-3, 0, 4, 7], [-5, -1, 2, 5], [-2, 2, 5, 9]],
     melody: 0.12, kick: 0.035, hat: 0.04, swing: 0.17,
   },
+  go: {
+    bpm: 54, root: 43, scale: [0, 2, 5, 7, 9], pad: "sine", lead: "sine",
+    chords: [[0, 5, 7, 12], [-3, 2, 5, 9], [-5, 0, 4, 7], [-2, 3, 5, 10]],
+    melody: 0.09, kick: 0.025, hat: 0.03, swing: 0.22,
+  },
 };
 
 let ctx = null, master = null, bus = null, noise = null, timer = null, bar = 0, nextBar = 0;

@@ -34,11 +34,13 @@ export function fmtTime(seconds) {
   return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-/** Linha do ranking: posição, foto pequena, nome e pontos (ou rating, no duelo). */
-export function rankingRow(r, suffix = "pts") {
+/** Linha do ranking: posição, foto pequena, nome e pontos (ou rating, no duelo).
+    `valueOf(r)` troca o texto do valor — o Go usa para mostrar o grau Kyu/Dan em vez do Elo. */
+export function rankingRow(r, suffix = "pts", valueOf = null) {
   const li = el("li", r.isMe ? "me" : "");
   li.title = regionName(r.region);
-  const value = suffix ? `${r.points} ${suffix}` : String(r.points);
+  const custom = typeof valueOf === "function" ? valueOf(r) : null;
+  const value = custom != null ? String(custom) : suffix ? `${r.points} ${suffix}` : String(r.points);
   li.append(el("span", "pos", String(r.rank)), avatarNode(r.avatar), el("span", "nm", r.name + (r.isMe ? " (você)" : "")), el("span", "pts", value));
   return li;
 }
@@ -48,14 +50,15 @@ export function rankingRow(r, suffix = "pts") {
 export function renderLeaderboard({
   list, note, data: { top, me }, scope, loginUrl,
   suffix = "pts",
+  valueOf = null,
   emptyText = "Ninguém pontuou ainda. Seja o primeiro!",
   emptyRegionText = "Ninguém da sua região pontuou ainda.",
   noteText = "Vença uma partida para entrar no ranking.",
 }) {
   list.replaceChildren(); note.replaceChildren();
   if (!top.length) list.append(el("li", "empty", scope === "region" ? emptyRegionText : emptyText));
-  top.forEach(r => list.append(rankingRow(r, suffix)));
-  if (me && !top.some(r => r.isMe)) list.append(el("li", "gap", "…"), rankingRow(me, suffix));
+  top.forEach(r => list.append(rankingRow(r, suffix, valueOf)));
+  if (me && !top.some(r => r.isMe)) list.append(el("li", "gap", "…"), rankingRow(me, suffix, valueOf));
   if (!Scores.canRank()) {
     note.append("Você joga como anônimo: as vitórias não contam. ");
     const a = el("a", "", "Criar conta"); a.href = loginUrl; note.append(a);
