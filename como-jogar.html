@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WebMiniGames · Como jogar</title>
+<meta name="description" content="Aprenda a jogar Xadrez, Dama e Gamão com figuras passo a passo: regras, lances e como usar a tela do jogo.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="assets/email-logo.png" type="image/png" sizes="96x96">
+<link rel="apple-touch-icon" href="assets/email-logo.png">
+<script src="shared/theme-init.js"></script>
+<link rel="stylesheet" href="css/site.css">
+<link rel="stylesheet" href="css/como-jogar.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="logo" viewBox="0 0 48 48">
+    <rect width="48" height="48" rx="12" fill="#14213d"/>
+    <rect x="27" y="27" width="13" height="13" rx="4" fill="#f2b134"/>
+    <path d="M10 12H32V24H10V36H24" fill="none" stroke="#2cc4b6" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="10" cy="12" r="3.4" fill="#fff"/>
+  </symbol>
+</svg>
+
+<header class="cj-top">
+  <a class="cj-brand" href="index.html"><svg class="logo" width="34" height="34" aria-hidden="true"><use href="#logo"/></svg><span>WebMiniGames</span></a>
+  <a class="cj-back" href="jogos.html">← Voltar aos jogos</a>
+</header>
+
+<main class="cj">
+  <header class="cj-intro">
+    <h1 id="cjTitle" tabindex="-1">Como jogar</h1>
+    <p>Escolha o jogo e aprenda passo a passo, com figuras. Cada regra vem com um exemplo, e no fim você vê como usar a tela.</p>
+  </header>
+
+  <div class="cj-tabs" id="cjTabs" role="tablist" aria-label="Escolha o jogo"></div>
+  <div id="cjPanels"></div>
+
+  <noscript><p class="cj-noscript">Esta página precisa de JavaScript para mostrar as figuras. Ative o JavaScript do navegador e recarregue.</p></noscript>
+</main>
+
+<script type="module" src="js/como-jogar.js"></script>
+</body>
+</html>

@@ -437,7 +437,7 @@ o jogo só monta o tabuleiro quando `onStart` entrega o puzzle.
 | 8 | `tests/<id>.test.js` | regras, lances legais/ilegais, resultados, casos de timeout |
 | 9 | `tests/<id>-session.test.js` | relógio, polling, pronto, resultado e cancelamento (sem DOM) |
 | 10 | `assets/thumbs/<id>-light.webp` e `-dark.webp` | miniatura do card (360×360). **Obrigatória**: o carrossel da página inicial carrega esses arquivos. Em jogo de tabuleiro gere com `node scripts/gen-thumbs.mjs <id>` a partir do `preview` do catálogo (ver 3.2.13) |
-| 11 | `games/<id>/tutorial.js` / `tutorial.css` | opcional, se o jogo tiver "Como jogar" |
+| 11 | `js/como-jogar-data.js` + link `howto-link` em `games/<id>/index.html` + testes em `tests/como-jogar.test.js` | guia "Como jogar" do duelo (**obrigatório**, ver 3.2.14). O modal `tutorial.js` das seções 5.x é só para jogos solo |
 
 A migração `20261039000000_duel_ratings.sql` já é **global**: o trigger `duel_rating_finish` aplica Elo a
 qualquer duelo `finished` com dois jogadores (no Xadrez lê `chess_games.result`; nos demais usa
@@ -502,6 +502,47 @@ carrossel não tinha essa reserva (agora tem, mas a reserva é só um paliativo:
 3. **Commite os `.webp`**: são arquivos binários novos em `assets/thumbs/`; confira que entraram no `git add`.
 4. `tests/edge.test.js` falha se algum jogo do catálogo não tiver as duas imagens ou se o `preview` usar
    `<defs>`/`url(#…)`, e confere que o `landing.js` mantém a reserva.
+
+#### 3.2.14 Guia "Como jogar" do jogo
+
+Todo jogo de duelo tem uma aba em `como-jogar.html` (Xadrez, Dama e Gamão são o modelo). A página é a mesma para
+todos: abas por hash (`#xadrez`, `#dama`, `#gamao`), figuras em SVG e um passo a passo de como usar a tela.
+
+| Arquivo | Papel |
+|---|---|
+| `js/como-jogar-art.js` | desenha as figuras: `chessBoard`, `damaBoard`, `gammonBoard`, `diceSvg`, setas e marcas |
+| `js/como-jogar-data.js` | **conteúdo** (textos, figuras) + os **exemplos** exportados (`CHESS`, `DAMA`, `GAMMON`) |
+| `js/como-jogar.js`, `css/como-jogar.css`, `como-jogar.html` | abas, layout e tema (não mudam por jogo) |
+| `tests/como-jogar.test.js` | confere cada exemplo contra o **domínio do jogo** e a ligação com o resto do site |
+
+Para um jogo novo:
+
+1. **Exemplos primeiro.** Escreva posições reais e exporte-as (como `CHESS`, `DAMA`, `GAMMON`). Cada figura nasce de
+   um exemplo; nada de desenhar "de cabeça".
+2. **Uma função `<jogo>Guide()`** em `como-jogar-data.js` devolvendo `{ id, name, glyph, title, lead, chips, legend,
+   sections, screen, cta }`, e inclua no array `GUIDES`. O `id` é o hash da aba: minúsculas, sem acento.
+3. **Ordem das seções** (todas as aulas têm o mesmo roteiro, o que ajuda a aprender o seguinte): objetivo → tabuleiro e
+   peças → como se move → capturas/regras que pegam iniciantes → regras especiais → como termina → **na tela do jogo**.
+4. **Figura em toda ação.** Uma ideia por seção, frases curtas, "você" no texto, legenda sempre com o mesmo significado:
+   ponto verde = pode ir, anel verde = pode capturar/bater, dourado = peça escolhida, vermelho = perigo/proibido.
+5. **Se o tabuleiro for diferente**, crie um `<jogo>Board` em `como-jogar-art.js` seguindo as regras do arquivo: só devolve
+   string, **sem `<defs>`/`url(#id)`**, cores fixas, `aria-label` obrigatório, sem recursos externos.
+6. **Teste cada exemplo no domínio** em `tests/como-jogar.test.js` (o mate é mate? a captura é a única válida? o ponto
+   realmente está bloqueado?). O teste existe porque a página não pode ensinar uma regra que o jogo não aplica.
+7. **Link no jogo:** em `games/<id>/index.html`, dentro de `.gametitle`, `<a class="howto-link" href="../../como-jogar.html#<id>"
+   aria-label="Como jogar <Nome>"><span>Como jogar</span></a>` (o CSS está em `css/gamebar.css`; em tela estreita vira só o "?").
+8. **Botão de CTA** aponta para `GAMES.<id>.path` e o texto da seção "na tela" deve usar os nomes reais dos botões
+   (`Criar sala online`, `Estou pronto`, `Desistir`…). Confira em `games/<id>/index.html` antes de escrever.
+
+Armadilhas que já apareceram:
+
+- **Setas que se sobrepõem** (roque do xadrez, dois dados indo ao mesmo ponto) parecem uma só: use `curve` em sentidos
+  opostos ou, melhor, mostre **antes e depois** em duas figuras (foi o que resolveu a retirada de peças do gamão).
+- **Marcas atrás das peças somem.** Marcas de destino/bloqueio vão na camada de cima (o ✕ do ponto bloqueado ficava
+  escondido atrás das peças).
+- **Peça de dama em casa clara** é erro (o `damaBoard` lança). Os reis de apoio que o xadrez exige para a posição ser legal
+  aparecem esmaecidos (`faded`) para não poluir a figura.
+- **Descreva só o que o jogo faz.** Ex.: o gamão desta versão não tem cubo de dobra nem pontuação de gammon; a página diz isso.
 
 #### 3.2.12 Lições do bug "Estou pronto" da Dama (leia antes de entregar o próximo duelo)
 
@@ -597,6 +638,7 @@ como em `tests/*-session.test.js`, mas com um `cloud` que chama as RPCs de verda
 - [ ] Criador e desafiante conseguem marcar pronto, em qualquer ordem permitida pela UI, e a partida vai a `running`.
 - [ ] O criador marca pronto mesmo se a Edge não carimbou a presença (passo 4 do teste).
 - [ ] Erro em "Estou pronto" fica visível na tela e não some no polling.
+- [ ] O jogo tem aba em **Como jogar** (figuras validadas por teste) e o link "?" na barra do jogo (3.2.14).
 - [ ] As miniaturas `assets/thumbs/<id>-light.webp` e `-dark.webp` existem e o card aparece certo na **página inicial** (carrossel) e no hub, nos dois temas.
 - [ ] Nenhuma migração antiga foi editada; há uma migração nova com o conserto.
 - [ ] `duel_*` compartilhados continuam funcionando no Xadrez (rode o teste de fumaça nos dois jogos).

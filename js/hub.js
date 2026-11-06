@@ -10,7 +10,6 @@ import { coinBadge } from "../shared/coin-badge.js";
 import { scopeTabs, renderLeaderboard } from "../shared/ranking-list.js";
 import { requireSession } from "../shared/session.js";
 import { GAMES } from "./games.js";
-import { rankLabel } from "../games/go/domain.js";
 import { LEVEL_NAMES, WINS_PER_LEVEL, Progress } from "../shared/progress.js";
 import { mountDuelEntry } from "../shared/duel-hub.js";
 import { navItems, filterGames, modeFromHash, hashFor, modeText, normalizeMode, rankingPanels } from "../shared/hub-nav.js";
@@ -32,10 +31,11 @@ let duelEntry = null;
 const winsOf = (game, uid) => Progress.wins(game.key, uid);
 const PROVIDER_NOTE = { password: "", google: "", "google-demo": "Google (simulação)", anonymous: "Anônimo: o progresso fica só neste navegador" };
 
-/* Ações logo abaixo de "Duelos 1×1": "Criar Sala" abre o pop-up do duelEntry; "Salas Online" é só um link por enquanto. */
+/* Ações logo abaixo de "Duelos 1×1": "Criar Sala" abre o pop-up do duelEntry; "Salas Online" e "Como jogar" são links. */
 const DUEL_ACTIONS = `<div class="hub-nav-sub">` +
   `<button class="hub-nav-sub-btn primary" type="button" id="btnCriarSala" data-action="create-room" aria-haspopup="dialog">Criar Sala</button>` +
-  `<a class="hub-nav-sub-btn" id="btnSalasOnline" href="salas-online.html">Salas Online</a></div>`;
+  `<a class="hub-nav-sub-btn" id="btnSalasOnline" href="salas-online.html">Salas Online</a>` +
+  `<a class="hub-nav-sub-btn" id="btnComoJogar" href="como-jogar.html">Como jogar</a></div>`;
 
 /** Lateral de modos: contadores vêm do catálogo; os jogos de duelo são os que têm `duel: true`. */
 function renderNav() {
@@ -247,7 +247,6 @@ async function showRankingPanel(panel, panels) {
     list: $("overallList"), note: $("overallNote"), data, scope: overallTabs.scope,
     loginUrl: "index.html?modo=conta",
     suffix: panel.gameId ? "Elo" : "pts",
-    valueOf: panel.gameId === "go" ? r => rankLabel(r.points) : null,
     emptyText: panel.gameId ? `Ninguém disputou ${GAMES[panel.gameId]?.title ?? "este duelo"} ainda.` : undefined,
     emptyRegionText: panel.gameId ? "Ninguém da sua região disputou ainda." : undefined,
     noteText: panel.gameId

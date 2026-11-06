@@ -5,3 +5,9 @@
 .sitebar strong{color:var(--fg)}
 /* Tela estreita: a barra fica com "← Jogos", o saldo de coins, o ranking, o tema e o menu sanduíche (o título sai). */
 @media (max-width:720px){.sitebar{gap:8px;padding:8px 12px}.sitebar strong{display:none}.sitebar > a{padding:6px 10px}}
+
+/* Link "Como jogar" (páginas de duelo): pílula ao lado do título; em tela estreita sobra só o "?". */
+.howto-link{display:inline-flex;align-items:center;gap:7px;margin-left:12px;padding:3px 12px 3px 4px;border:2px solid var(--grid);border-radius:999px;color:var(--fg);font-size:.82rem;font-weight:700;text-decoration:none;white-space:nowrap}
+.howto-link::before{content:"?";display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--accent,var(--path));color:var(--accent-fg,#fff);font-size:.74rem;font-weight:800}
+.howto-link:hover{border-color:var(--accent,var(--path))}
+@media (max-width:720px){.howto-link{margin-left:8px;padding:2px}.howto-link span{display:none}}
