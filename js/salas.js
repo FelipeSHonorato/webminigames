@@ -302,7 +302,7 @@ async function showRankingPanel(panel) {
     list: $("overallList"), note: $("overallNote"), data, scope: overallTabs.scope,
     loginUrl: "index.html?modo=conta",
     suffix: "Elo",
-    valueOf: panel.gameId === "go" ? r => rankLabel(r.points) : null,
+    formatValue: panel.gameId === "go" ? r => rankLabel(r.points) : null,
     emptyText: `Ninguém disputou ${GAMES[panel.gameId]?.title ?? "este duelo"} ainda.`,
     emptyRegionText: "Ninguém da sua região disputou ainda.",
     noteText: Cloud.active ? "Vença um duelo para entrar no ranking." : "O ranking de duelo aparece quando a conta está na nuvem.",

@@ -35,11 +35,13 @@ export function fmtTime(seconds) {
 }
 
 /** Linha do ranking: posição, foto pequena, nome e pontos (ou rating, no duelo).
-    `valueOf(r)` troca o texto do valor — o Go usa para mostrar o grau Kyu/Dan em vez do Elo. */
-export function rankingRow(r, suffix = "pts", valueOf = null) {
+    `formatValue(r)` troca o texto do valor — o Go usa para mostrar o grau Kyu/Dan em vez do Elo.
+    Não use nomes de propriedades de Object.prototype (valueOf, toString…) como opção: todo objeto
+    herda esses métodos, então o default nunca valeria e o método errado acabaria sendo chamado. */
+export function rankingRow(r, suffix = "pts", formatValue = null) {
   const li = el("li", r.isMe ? "me" : "");
   li.title = regionName(r.region);
-  const custom = typeof valueOf === "function" ? valueOf(r) : null;
+  const custom = typeof formatValue === "function" ? formatValue(r) : null;
   const value = custom != null ? String(custom) : suffix ? `${r.points} ${suffix}` : String(r.points);
   li.append(el("span", "pos", String(r.rank)), avatarNode(r.avatar), el("span", "nm", r.name + (r.isMe ? " (você)" : "")), el("span", "pts", value));
   return li;
@@ -50,15 +52,15 @@ export function rankingRow(r, suffix = "pts", valueOf = null) {
 export function renderLeaderboard({
   list, note, data: { top, me }, scope, loginUrl,
   suffix = "pts",
-  valueOf = null,
+  formatValue = null,
   emptyText = "Ninguém pontuou ainda. Seja o primeiro!",
   emptyRegionText = "Ninguém da sua região pontuou ainda.",
   noteText = "Vença uma partida para entrar no ranking.",
 }) {
   list.replaceChildren(); note.replaceChildren();
   if (!top.length) list.append(el("li", "empty", scope === "region" ? emptyRegionText : emptyText));
-  top.forEach(r => list.append(rankingRow(r, suffix, valueOf)));
-  if (me && !top.some(r => r.isMe)) list.append(el("li", "gap", "…"), rankingRow(me, suffix, valueOf));
+  top.forEach(r => list.append(rankingRow(r, suffix, formatValue)));
+  if (me && !top.some(r => r.isMe)) list.append(el("li", "gap", "…"), rankingRow(me, suffix, formatValue));
   if (!Scores.canRank()) {
     note.append("Você joga como anônimo: as vitórias não contam. ");
     const a = el("a", "", "Criar conta"); a.href = loginUrl; note.append(a);
