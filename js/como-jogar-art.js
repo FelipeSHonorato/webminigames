@@ -176,7 +176,7 @@ export function damaPosition(pieces) {
 
 /* ----------------------------------- gamão ----------------------------------- */
 
-const G = { pw: 28, bar: 26, x0: 14, y0: 24, y1: 256, tri: 104, r: 11.5, step: 21.6, trayX: 392, trayW: 36 };
+const G = { pw: 28, bar: 26, x0: 14, y0: 24, y1: 256, tri: 104, r: 9, step: 21.6, trayX: 392, trayW: 36 };
 const HALF = 6 * G.pw;
 const GW = G.trayX + G.trayW + 6, GH = 284;
 export const GAMMON_SIZE = { w: GW, h: GH };

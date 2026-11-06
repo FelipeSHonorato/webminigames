@@ -793,6 +793,9 @@ function setPips(node, value) {
   }
 }
 
+/** A abertura usa um dado de cada cor: o maior é de quem começa e o menor do adversário. */
+const isOpeningTurn = state => state.turnNo === 1 && !state.awaitingRoll;
+
 /** Dado da cor de quem joga: peças escuras jogam dado escuro, peças claras jogam dado claro. */
 function dieNode(value, { button = false, color = game.state.turn } = {}) {
   const node = document.createElement(button ? "button" : "span");
@@ -807,6 +810,8 @@ function renderDice() {
   const state = game.state;
   els.dice.replaceChildren();
   const values = [...new Set(state.dice)].sort((a, b) => a - b);
+  const opening = isOpeningTurn(state);
+  const openingHigh = opening ? Math.max(...state.dice) : null;
   const interactive = !ended && (mode === "local" || (online?.isMyTurn() && !sending)) && selected !== null;
 
   if (!state.dice.length) {
@@ -822,7 +827,8 @@ function renderDice() {
     const left = state.dice.filter(die => die === value).length;
     const wrap = document.createElement("span");
     wrap.className = "die-wrap";
-    const node = dieNode(value, { button: interactive });
+    const color = opening ? (value === openingHigh ? state.turn : opposite(state.turn)) : state.turn;
+    const node = dieNode(value, { button: interactive, color });
     const available = legalForSelected.some(move => move.die === value);
     if (interactive) {
       node.classList.add("pick");
@@ -866,11 +872,13 @@ function playRollEffect(state) {
   const [d1, d2] = state.roll;
   if (!d1 || !d2) return;
   const still = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  /* Na abertura, o primeiro dado é o de quem começa (o maior) e o segundo é o do adversário. */
+  const colors = isOpeningTurn(state) ? [state.turn, opposite(state.turn)] : [state.turn, state.turn];
 
   const dice = [d1, d2].map((value, i) => {
     const holder = document.createElement("span");
     holder.className = "stage-die" + (i ? " second" : "");
-    const node = dieNode(still ? value : 1 + Math.floor(Math.random() * 6), { color: state.turn });
+    const node = dieNode(still ? value : 1 + Math.floor(Math.random() * 6), { color: colors[i] });
     holder.append(node);
     return { holder, node, value };
   });
