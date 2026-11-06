@@ -299,7 +299,7 @@ begin
       end if;
 
       v_komi := case when v_handicap >= 2 then 0.5 else 6.5 end;
-      v_points := coalesce(public.go_handicap_points(v_go.size)[1:v_handicap], array[]::int[]);
+      v_points := coalesce((public.go_handicap_points(v_go.size))[1:v_handicap], array[]::int[]);
 
       v_board := (
         select jsonb_agg(
