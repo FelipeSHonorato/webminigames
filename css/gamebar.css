@@ -6,18 +6,14 @@
 /* Tela estreita: a barra fica com "← Jogos", o saldo de coins, o ranking, o tema e o menu sanduíche (o título sai). */
 @media (max-width:720px){.sitebar{gap:8px;padding:8px 12px}.sitebar strong{display:none}.sitebar > a{padding:6px 10px}}
 
-/* Link "Como jogar" (páginas de duelo): pílula antes do nome do jogo (o nome vem logo em seguida).
-   Em tela estreita o rótulo continua visível (um "?" sozinho não diz o que faz); se faltar espaço,
-   a pílula desce para a linha de baixo. */
-.howto-link{display:inline-flex;align-items:center;gap:7px;margin-right:12px;padding:3px 12px 3px 4px;border:2px solid var(--grid);border-radius:999px;color:var(--fg);font-size:.82rem;font-weight:700;text-decoration:none;white-space:nowrap}
+/* Link "Como jogar" (páginas de duelo): fica junto do título do setup, antes dele, e não no sitebar.
+   O rótulo é sempre visível (um "?" sozinho não diz o que faz); em tela estreita a linha quebra. */
+.howto-link{display:inline-flex;align-items:center;gap:7px;padding:3px 12px 3px 4px;border:2px solid var(--grid);border-radius:999px;color:var(--fg);font-size:.82rem;font-weight:700;text-decoration:none;white-space:nowrap}
 .howto-link::before{content:"?";display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--accent,var(--path));color:var(--accent-fg,#fff);font-size:.74rem;font-weight:800}
 .howto-link:hover{border-color:var(--accent,var(--path))}
-@media (max-width:720px){
-  .howto-link{margin-right:8px;padding:2px 10px 2px 3px;font-size:.78rem;gap:6px}
+.setup-title-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin:0 0 8px}
+.setup-title-row h1{margin:0}
+@media (max-width:560px){
+  .howto-link{padding:3px 10px 3px 3px;font-size:.78rem;gap:6px}
   .howto-link::before{width:22px;height:22px}
-}
-/* Muito estreito: o grupo do título ocupa a linha de baixo, então o rótulo não é espremido pelo menu. */
-@media (max-width:480px){
-  .sitebar{flex-wrap:wrap}
-  .gametitle{order:3;flex:1 0 100%;justify-content:flex-start;margin-top:2px}
 }

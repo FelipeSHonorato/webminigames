@@ -217,20 +217,23 @@ test("como jogar · página: abas, módulo, tema e sem recursos externos", () =>
   assert.match(js, /hashchange/);
 });
 
-test("como jogar · cada jogo de duelo tem o link 'Como jogar' na barra, antes do nome e apontando para a aba certa", () => {
+test("como jogar · cada jogo de duelo tem o link 'Como jogar' antes do título do setup, fora do sitebar", () => {
   const css = read("css/gamebar.css");
   assert.match(css, /howto-link/);
   for (const [dir, hash] of [["chess", "xadrez"], ["dama", "dama"], ["gamao", "gamao"]]) {
     const html = read(`games/${dir}/index.html`);
     assert.match(html, new RegExp(`<a class="howto-link" href="\\.\\./\\.\\./como-jogar\\.html#${hash}"`), `${dir}: link faltando`);
-    assert.match(html, /<div class="gametitle"><a class="howto-link"[^>]*><span>Como jogar<\/span><\/a><strong>/, `${dir}: o link deve vir antes do nome do jogo`);
+    assert.match(html, /<div class="setup-title-row"><a class="howto-link"[^>]*><span>Como jogar<\/span><\/a><h1 id="setupTitle">/, `${dir}: o link deve vir antes do título do setup`);
+    const nav = html.match(/<nav class="sitebar">[\s\S]*?<\/nav>/)?.[0] ?? "";
+    assert.doesNotMatch(nav, /howto-link/, `${dir}: o link não fica mais no sitebar`);
+    assert.match(nav, /<strong>[^<]+<\/strong><span class="mode-tag">1×1<\/span>/, `${dir}: o sitebar fica com o nome e o 1×1`);
   }
 });
 
 test("como jogar · celular: o rótulo 'Como jogar' continua visível e o texto dos passos flui na mesma linha", () => {
   const bar = read("css/gamebar.css");
   assert.ok(!bar.includes(".howto-link span{display:none}"), "no celular o link não pode virar só '?'");
-  assert.ok(bar.includes(".gametitle{order:3"), "em tela muito estreita a pílula desce para a linha de baixo");
+  assert.ok(bar.includes(".setup-title-row"), "o link fica junto do título do setup");
   const css = read("css/como-jogar.css");
   assert.ok(!css.includes(".cj-steps b{display:block"), "o <b> dentro da frase do passo não pode virar bloco");
   assert.ok(css.includes(".cj-steps li > div > b{display:block"), "só o título do passo é bloco");

@@ -529,10 +529,11 @@ Para um jogo novo:
    string, **sem `<defs>`/`url(#id)`**, cores fixas, `aria-label` obrigatório, sem recursos externos.
 6. **Teste cada exemplo no domínio** em `tests/como-jogar.test.js` (o mate é mate? a captura é a única válida? o ponto
    realmente está bloqueado?). O teste existe porque a página não pode ensinar uma regra que o jogo não aplica.
-7. **Link no jogo:** em `games/<id>/index.html`, dentro de `.gametitle`, **antes do nome do jogo**:
-   `<a class="howto-link" href="../../como-jogar.html#<id>" aria-label="Como jogar <Nome>"><span>Como jogar</span></a>`
-   seguido de `<strong><Nome></strong>` e do selo `1×1` (o CSS está em `css/gamebar.css`; em tela estreita
-   o rótulo "Como jogar" continua visível e, se faltar espaço, a pílula desce para a linha de baixo da barra).
+7. **Link no jogo:** em `games/<id>/index.html`, **fora do sitebar** (que fica só com `<strong><Nome></strong>` e o
+   selo `1×1`), dentro de `.setup-head` e **antes do `<h1 id="setupTitle">`**:
+   `<div class="setup-title-row"><a class="howto-link" href="../../como-jogar.html#<id>"
+   aria-label="Como jogar <Nome>"><span>Como jogar</span></a><h1 id="setupTitle"><Nome></h1></div>`
+   (o CSS está em `css/gamebar.css`; o rótulo "Como jogar" é sempre visível e a linha quebra se faltar espaço).
 8. **Botão de CTA** aponta para `GAMES.<id>.path` e o texto da seção "na tela" deve usar os nomes reais dos botões
    (`Criar sala online`, `Estou pronto`, `Desistir`…). Confira em `games/<id>/index.html` antes de escrever.
 
