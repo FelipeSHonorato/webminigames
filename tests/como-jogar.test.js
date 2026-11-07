@@ -217,12 +217,13 @@ test("como jogar · página: abas, módulo, tema e sem recursos externos", () =>
   assert.match(js, /hashchange/);
 });
 
-test("como jogar · cada jogo de duelo tem o link 'Como jogar' na barra, apontando para a aba certa", () => {
+test("como jogar · cada jogo de duelo tem o link 'Como jogar' na barra, antes do nome e apontando para a aba certa", () => {
   const css = read("css/gamebar.css");
   assert.match(css, /howto-link/);
   for (const [dir, hash] of [["chess", "xadrez"], ["dama", "dama"], ["gamao", "gamao"]]) {
     const html = read(`games/${dir}/index.html`);
     assert.match(html, new RegExp(`<a class="howto-link" href="\\.\\./\\.\\./como-jogar\\.html#${hash}"`), `${dir}: link faltando`);
+    assert.match(html, /<div class="gametitle"><a class="howto-link"[^>]*><span>Como jogar<\/span><\/a><strong>/, `${dir}: o link deve vir antes do nome do jogo`);
   }
 });
 
