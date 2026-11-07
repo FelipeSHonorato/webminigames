@@ -83,7 +83,7 @@ body{height:auto;min-height:100%}
 .cj-steps{counter-reset:step;display:grid;gap:12px;margin:0;padding:0;list-style:none}
 .cj-steps li{counter-increment:step;display:flex;gap:14px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:14px;background:var(--bg)}
 .cj-steps li::before{content:counter(step);flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;border:2px solid var(--accent);color:var(--accent);font-weight:800}
-.cj-steps b{display:block;margin-bottom:2px}
+.cj-steps li > div > b{display:block;margin-bottom:2px}
 .cj-steps p{margin:0;line-height:1.55;font-size:.96rem}
 
 .cj-end{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:16px;margin:26px 0 0;text-align:center}

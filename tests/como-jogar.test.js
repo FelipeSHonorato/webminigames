@@ -226,6 +226,15 @@ test("como jogar · cada jogo de duelo tem o link 'Como jogar' na barra, apontan
   }
 });
 
+test("como jogar · celular: o rótulo 'Como jogar' continua visível e o texto dos passos flui na mesma linha", () => {
+  const bar = read("css/gamebar.css");
+  assert.ok(!bar.includes(".howto-link span{display:none}"), "no celular o link não pode virar só '?'");
+  assert.ok(bar.includes(".gametitle{order:3"), "em tela muito estreita a pílula desce para a linha de baixo");
+  const css = read("css/como-jogar.css");
+  assert.ok(!css.includes(".cj-steps b{display:block"), "o <b> dentro da frase do passo não pode virar bloco");
+  assert.ok(css.includes(".cj-steps li > div > b{display:block"), "só o título do passo é bloco");
+});
+
 test("como jogar · o hub leva à página (botão no grupo Duelos 1×1)", () => {
   const hub = read("js/hub.js");
   assert.match(hub, /id="btnComoJogar" href="como-jogar\.html"/);

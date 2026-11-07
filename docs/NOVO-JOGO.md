@@ -530,7 +530,8 @@ Para um jogo novo:
 6. **Teste cada exemplo no domínio** em `tests/como-jogar.test.js` (o mate é mate? a captura é a única válida? o ponto
    realmente está bloqueado?). O teste existe porque a página não pode ensinar uma regra que o jogo não aplica.
 7. **Link no jogo:** em `games/<id>/index.html`, dentro de `.gametitle`, `<a class="howto-link" href="../../como-jogar.html#<id>"
-   aria-label="Como jogar <Nome>"><span>Como jogar</span></a>` (o CSS está em `css/gamebar.css`; em tela estreita vira só o "?").
+   aria-label="Como jogar <Nome>"><span>Como jogar</span></a>` (o CSS está em `css/gamebar.css`; em tela estreita
+   o rótulo "Como jogar" continua visível e, se faltar espaço, a pílula desce para a linha de baixo da barra).
 8. **Botão de CTA** aponta para `GAMES.<id>.path` e o texto da seção "na tela" deve usar os nomes reais dos botões
    (`Criar sala online`, `Estou pronto`, `Desistir`…). Confira em `games/<id>/index.html` antes de escrever.
 

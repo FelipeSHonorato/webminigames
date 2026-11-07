@@ -6,8 +6,18 @@
 /* Tela estreita: a barra fica com "← Jogos", o saldo de coins, o ranking, o tema e o menu sanduíche (o título sai). */
 @media (max-width:720px){.sitebar{gap:8px;padding:8px 12px}.sitebar strong{display:none}.sitebar > a{padding:6px 10px}}
 
-/* Link "Como jogar" (páginas de duelo): pílula ao lado do título; em tela estreita sobra só o "?". */
+/* Link "Como jogar" (páginas de duelo): pílula ao lado do título. Em tela estreita o rótulo continua
+   visível (um "?" sozinho não diz o que faz); se faltar espaço, a pílula desce para a linha de baixo. */
 .howto-link{display:inline-flex;align-items:center;gap:7px;margin-left:12px;padding:3px 12px 3px 4px;border:2px solid var(--grid);border-radius:999px;color:var(--fg);font-size:.82rem;font-weight:700;text-decoration:none;white-space:nowrap}
 .howto-link::before{content:"?";display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--accent,var(--path));color:var(--accent-fg,#fff);font-size:.74rem;font-weight:800}
 .howto-link:hover{border-color:var(--accent,var(--path))}
-@media (max-width:720px){.howto-link{margin-left:8px;padding:2px}.howto-link span{display:none}}
+@media (max-width:720px){
+  .howto-link{margin-left:8px;padding:2px 10px 2px 3px;font-size:.78rem;gap:6px}
+  .howto-link::before{width:22px;height:22px}
+}
+/* Muito estreito: o grupo do título ocupa a linha de baixo, então o rótulo não é espremido pelo menu. */
+@media (max-width:480px){
+  .sitebar{flex-wrap:wrap}
+  .gametitle{order:3;flex:1 0 100%;justify-content:flex-start;margin-top:2px}
+  .gametitle .mode-tag{margin-left:0}
+}
