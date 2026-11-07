@@ -31,11 +31,10 @@ let duelEntry = null;
 const winsOf = (game, uid) => Progress.wins(game.key, uid);
 const PROVIDER_NOTE = { password: "", google: "", "google-demo": "Google (simulação)", anonymous: "Anônimo: o progresso fica só neste navegador" };
 
-/* Ações logo abaixo de "Duelos 1×1": "Criar Sala" abre o pop-up do duelEntry; "Salas Online" e "Como jogar" são links. */
+/* Ações logo abaixo de "Duelos 1×1": "Criar Sala" abre o pop-up do duelEntry; "Salas Online" é link. */
 const DUEL_ACTIONS = `<div class="hub-nav-sub">` +
   `<button class="hub-nav-sub-btn primary" type="button" id="btnCriarSala" data-action="create-room" aria-haspopup="dialog">Criar Sala</button>` +
-  `<a class="hub-nav-sub-btn" id="btnSalasOnline" href="salas-online.html">Salas Online</a>` +
-  `<a class="hub-nav-sub-btn" id="btnComoJogar" href="como-jogar.html">Como jogar</a></div>`;
+  `<a class="hub-nav-sub-btn" id="btnSalasOnline" href="salas-online.html">Salas Online</a></div>`;
 
 /** Lateral de modos: contadores vêm do catálogo; os jogos de duelo são os que têm `duel: true`. */
 function renderNav() {

@@ -24,7 +24,6 @@
   border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font:inherit;font-size:.72rem;
   font-weight:700;line-height:1.2;text-decoration:none;white-space:nowrap;cursor:pointer}
 .hub-nav-sub-btn:hover{border-color:var(--accent);color:var(--accent)}
-#btnComoJogar{flex-basis:100%}   /* "Como jogar" ocupa a linha de baixo: três botões numa linha ficam apertados */
 .hub-nav-sub-btn.primary{border-color:var(--accent);background:var(--accent);color:var(--accent-fg)}
 .hub-nav-sub-btn.primary:hover{color:var(--accent-fg);filter:brightness(1.08)}
 

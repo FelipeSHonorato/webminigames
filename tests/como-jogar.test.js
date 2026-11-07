@@ -239,7 +239,10 @@ test("como jogar · celular: o rótulo 'Como jogar' continua visível e o texto 
   assert.ok(css.includes(".cj-steps li > div > b{display:block"), "só o título do passo é bloco");
 });
 
-test("como jogar · o hub leva à página (botão no grupo Duelos 1×1)", () => {
+test("como jogar · o grupo Duelos 1×1 do hub não tem o botão (o guia abre pelo link de cada jogo)", () => {
   const hub = read("js/hub.js");
-  assert.match(hub, /id="btnComoJogar" href="como-jogar\.html"/);
+  const actions = hub.match(/const DUEL_ACTIONS = [\s\S]*?;/)?.[0] ?? "";
+  assert.match(actions, /Criar Sala/);
+  assert.match(actions, /Salas Online/);
+  assert.doesNotMatch(actions, /Como jogar/);
 });

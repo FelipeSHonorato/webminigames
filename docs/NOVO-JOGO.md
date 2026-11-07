@@ -641,7 +641,7 @@ como em `tests/*-session.test.js`, mas com um `cloud` que chama as RPCs de verda
 - [ ] Criador e desafiante conseguem marcar pronto, em qualquer ordem permitida pela UI, e a partida vai a `running`.
 - [ ] O criador marca pronto mesmo se a Edge não carimbou a presença (passo 4 do teste).
 - [ ] Erro em "Estou pronto" fica visível na tela e não some no polling.
-- [ ] O jogo tem aba em **Como jogar** (figuras validadas por teste) e o link "?" na barra do jogo (3.2.14).
+- [ ] O jogo tem aba em **Como jogar** (figuras validadas por teste) e o link "Como jogar" ao lado do título do setup (3.2.14).
 - [ ] As miniaturas `assets/thumbs/<id>-light.webp` e `-dark.webp` existem e o card aparece certo na **página inicial** (carrossel) e no hub, nos dois temas.
 - [ ] Nenhuma migração antiga foi editada; há uma migração nova com o conserto.
 - [ ] `duel_*` compartilhados continuam funcionando no Xadrez (rode o teste de fumaça nos dois jogos).
