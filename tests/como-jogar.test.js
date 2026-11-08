@@ -6,8 +6,9 @@ import { readFileSync } from "node:fs";
 import * as chess from "../games/chess/domain.js";
 import * as dama from "../games/dama/domain.js";
 import * as gamao from "../games/gamao/domain.js";
-import { CHESS, DAMA, GAMMON, GUIDES, GUIDE_IDS, chessReach, damaFromPosition, damaPosition, gammonPoints } from "../js/como-jogar-data.js";
-import { chessBoard, damaBoard, gammonBoard, diceSvg, parseFen } from "../js/como-jogar-art.js";
+import * as go from "../games/go/domain.js";
+import { CHESS, DAMA, GAMMON, GO, GUIDES, GUIDE_IDS, chessReach, damaFromPosition, damaPosition, gammonPoints } from "../js/como-jogar-data.js";
+import { chessBoard, damaBoard, gammonBoard, goBoard, goCoord, goPoint, goPosition, diceSvg, parseFen } from "../js/como-jogar-art.js";
 
 const root = new URL("../", import.meta.url);
 const read = path => readFileSync(new URL(path, root), "utf8");
@@ -172,6 +173,71 @@ test("como jogar · gamão: bater, entrar pela barra e retirar peças", () => {
   assert.deepEqual(next.points.slice(1), gammonPoints(GAMMON.bearOffAfter).slice(1), "a figura 'depois' é o tabuleiro real depois dos dois lances");
 });
 
+/* ==================================== GO ==================================== */
+
+const goState = (stones, extra = {}) => go.revive({
+  size: GO.size, board: goPosition(GO.size, stones), turn: "b", captures: { b: 0, w: 0 },
+  ko: null, passes: 0, handicap: 0, komi: GO.count.komi, handicapColor: null, ...extra,
+});
+const goName = point => go.coordOf(GO.size, point);
+
+test("como jogar · go: o grupo do exemplo tem exatamente as liberdades mostradas", () => {
+  const state = goState(GO.group.stones);
+  const group = go.groupAt(state.board, GO.size, goPoint(GO.size, "E5"));
+  assert.deepEqual(group.stones.map(goName).sort(), ["E5", "E6"]);
+  assert.deepEqual([...group.liberties].map(goName).sort(), [...GO.group.liberties].sort());
+});
+
+test("como jogar · go: atari, captura e tabuleiro resultante", () => {
+  const before = goState(GO.capture.stones);
+  const white = go.groupAt(before.board, GO.size, goPoint(GO.size, "E5"));
+  assert.equal(white.liberties.size, 1, "a pedra branca está em atari");
+  assert.equal(goName([...white.liberties][0]), GO.capture.move, "a última liberdade é a jogada mostrada");
+  const played = go.playStone(before, goPoint(GO.size, GO.capture.move));
+  assert.ok(played, "fechar a última liberdade é legal");
+  assert.equal(played.captureCount, 1);
+  assert.deepEqual(played.captured.map(goName), ["E5"]);
+  assert.deepEqual(played.state.board, goPosition(GO.size, GO.capture.after), "a figura 'depois' é o tabuleiro real");
+});
+
+test("como jogar · go: o ko proíbe a recaptura imediata e o suicídio é recusado", () => {
+  const before = goState(GO.ko.stones);
+  const played = go.playStone(before, goPoint(GO.size, GO.ko.move));
+  assert.ok(played, "a captura que cria o ko é legal");
+  assert.equal(played.captureCount, 1);
+  assert.deepEqual(played.captured.map(goName), [GO.ko.point]);
+  assert.equal(played.state.ko, goPoint(GO.size, GO.ko.point), "a interseção vazia vira ko");
+  assert.equal(go.isLegal(played.state, goPoint(GO.size, GO.ko.point)), false, "brancas não recapturam na hora");
+  assert.deepEqual(played.state.board, goPosition(GO.size, GO.ko.after), "a figura 'depois' é o tabuleiro real");
+
+  const suicide = goState(GO.suicide.stones, { turn: "w" });
+  assert.equal(go.isLegal(suicide, goPoint(GO.size, GO.suicide.move)), false, "A9 sem liberdades seria suicídio");
+});
+
+test("como jogar · go: contagem, handicap e komi batem com o domínio", () => {
+  const scored = go.score(goState(GO.count.stones, { komi: GO.count.komi }));
+  assert.deepEqual([scored.black, scored.white, scored.komi], [9, 15.5, GO.count.komi]);
+  assert.equal(scored.winner, go.WHITE);
+
+  const handicapPoints = go.handicapPoints(GO.size).map(goName).sort();
+  assert.deepEqual(Object.keys(GO.handicap.stones).sort(), handicapPoints, "as 9 pedras ficam nos pontos de referência");
+  assert.equal(go.handicapFor(1500, 2400), 9, "30 graus de diferença: handicap máximo");
+  assert.equal(go.komiFor(9), go.HANDICAP_KOMI);
+});
+
+test("como jogar · go: coordenadas e figuras com marcas", () => {
+  assert.equal(goCoord(9, 0), "A9");
+  assert.equal(goCoord(9, 80), "J1");
+  assert.equal(goPoint(9, "E5"), 40);
+  assert.throws(() => goPoint(9, "I5"), /interseção inválida/, "não existe coluna I");
+  assert.throws(() => goPoint(9, "K5"), /interseção inválida/, "fora do tabuleiro 9×9");
+
+  const svg = goBoard({ size: 9, stones: GO.group.stones, label: "grupo", rings: ["E5"], dots: GO.group.liberties, selects: ["E6"], crosses: ["A1"], territory: { b: ["B1"] } });
+  assert.match(svg, /aria-label="grupo"/);
+  assert.match(svg, /cj-go/);
+  assert.ok((svg.match(/<circle/g) ?? []).length >= 8);
+});
+
 /* ============================== figuras e página ============================== */
 
 test("como jogar · figuras: SVG acessível, sem <defs>, sem recursos externos", () => {
@@ -192,8 +258,8 @@ test("como jogar · figuras: peça em casa clara da dama e FEN inválido são re
   assert.equal((gammonBoard({ label: "x" }).match(/<polygon/g) ?? []).length >= 24, true);
 });
 
-test("como jogar · conteúdo: ids únicos, três guias e links dos jogos", () => {
-  assert.deepEqual(GUIDE_IDS, ["xadrez", "dama", "gamao"]);
+test("como jogar · conteúdo: ids únicos, quatro guias e links dos jogos", () => {
+  assert.deepEqual(GUIDE_IDS, ["xadrez", "dama", "gamao", "go"]);
   const catalog = read("js/games.js");
   for (const g of GUIDES) {
     const ids = g.sections.map(s => s.id);
@@ -220,7 +286,7 @@ test("como jogar · página: abas, módulo, tema e sem recursos externos", () =>
 test("como jogar · cada jogo de duelo tem o link 'Como jogar' à direita do título do setup, fora do sitebar", () => {
   const css = read("css/gamebar.css");
   assert.match(css, /howto-link/);
-  for (const [dir, hash] of [["chess", "xadrez"], ["dama", "dama"], ["gamao", "gamao"]]) {
+  for (const [dir, hash] of [["chess", "xadrez"], ["dama", "dama"], ["gamao", "gamao"], ["go", "go"]]) {
     const html = read(`games/${dir}/index.html`);
     assert.match(html, new RegExp(`<a class="howto-link" href="\\.\\./\\.\\./como-jogar\\.html#${hash}"`), `${dir}: link faltando`);
     assert.match(html, /<div class="setup-title-row"><h1 id="setupTitle">[^<]+<\/h1><a class="howto-link"[^>]*><span>Como jogar<\/span><\/a><\/div>/, `${dir}: o link deve ficar à direita do título do setup`);

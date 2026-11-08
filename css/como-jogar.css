@@ -15,7 +15,7 @@ body{height:auto;min-height:100%}
 .cj-noscript{padding:16px;border:2px solid var(--err);border-radius:12px}
 
 /* ---------- abas ---------- */
-.cj-tabs{position:sticky;top:0;z-index:20;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px 0;background:var(--bg);box-shadow:0 1px 0 var(--line)}
+.cj-tabs{position:sticky;top:0;z-index:20;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:10px 0;background:var(--bg);box-shadow:0 1px 0 var(--line)}
 .cj-tab{display:flex;align-items:center;justify-content:center;gap:10px;min-height:52px;padding:8px 14px;border:2px solid var(--line);border-radius:14px;background:var(--surface);color:var(--muted);font-weight:800;font-size:1.02rem}
 .cj-tab:hover{border-color:var(--accent);color:var(--fg)}
 .cj-tab[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
@@ -63,7 +63,7 @@ body{height:auto;min-height:100%}
 .cj-fig{margin:0;padding:12px;border:1px solid var(--line);border-radius:14px;background:var(--bg);text-align:center}
 .cj-fig figcaption{margin-top:10px;text-align:left;font-size:.92rem;line-height:1.5}
 .cj-board{display:block;width:100%;height:auto;margin:0 auto;color:var(--muted)}
-.cj-chess,.cj-dama{max-width:400px}
+.cj-chess,.cj-dama,.cj-go{max-width:400px}
 .cj-gammon{max-width:700px}
 .cj-dice-row{display:flex;justify-content:center;gap:14px;margin:2px 0 10px}
 .cj-dice{display:block;width:auto;height:52px}
@@ -101,7 +101,7 @@ body{height:auto;min-height:100%}
   .cj{padding:2px 12px 56px}
   .cj-top{padding:10px 12px}
   .cj-brand span{display:none}
-  .cj-tabs{gap:6px}
+  .cj-tabs{grid-template-columns:repeat(2,1fr);gap:6px}
   .cj-tab{flex-direction:column;gap:2px;min-height:60px;padding:6px;font-size:.9rem}
   .cj-tab-glyph{font-size:1.3rem}
   .cj-hero{padding:16px}

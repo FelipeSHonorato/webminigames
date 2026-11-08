@@ -1,4 +1,4 @@
-/* Ilustrações da página "Como jogar": tabuleiros de Xadrez, Dama e Gamão e dados, desenhados em SVG por código.
+/* Ilustrações da página "Como jogar": tabuleiros de Xadrez, Dama, Gamão e Go e dados, desenhados em SVG por código.
    Módulo puro (só devolve strings): roda no navegador e nos testes do Node.
 
    Por que SVG gerado e não imagem: as figuras usam as mesmas cores e a mesma geometria dos jogos, escalam em
@@ -14,6 +14,7 @@ export const COLORS = Object.freeze({
   good: "#1fa971", bad: "#e5484d", sel: "#f2b134", // destino, perigo/captura inimiga, peça escolhida
   ink: "#1b222c", paper: "#fbfdff",
   boardWood: "#7a5230", boardDeep: "#3f2a19",      // gamão
+  goWood: "#dcb06a", goLine: "#6b4a25", goStar: "#4a3218",   // go
 });
 
 const FONT = "'Segoe UI Symbol','Noto Sans Symbols 2','DejaVu Sans',serif";
@@ -280,6 +281,116 @@ export function gammonBoard({ state = GAMMON_START, label, numbers = true, dots 
   return svgOpen("cj-board cj-gammon", label, GW, GH) +
     `<rect x="6" y="${G.y0 - 6}" width="${G.trayX - 14}" height="${G.y1 - G.y0 + 12}" rx="8" fill="${COLORS.boardWood}"/>` +
     tri + bar + num + over + men + barMen + tray + marksTop + arr + "</svg>";
+}
+
+/* ------------------------------------ go ------------------------------------ */
+
+const GO_SIDE = 360, GO_MARGIN = 30;
+const GO_COLS = "ABCDEFGHJKLMNOPQRST";   // sem o "I", como no Go tradicional
+const GO_SIZES = [9, 13, 19];
+const GO_STEP = size => (GO_SIDE - GO_MARGIN * 2) / (size - 1);
+
+/** Nome da interseção ("E5") → índice no tabuleiro (linha 0 no topo, como no domínio). */
+export function goPoint(size, name) {
+  const match = /^([A-HJ-T])\s*(\d{1,2})$/i.exec(String(name ?? "").trim());
+  if (!match) throw new Error(`interseção inválida: ${name}`);
+  const col = GO_COLS.indexOf(match[1].toUpperCase());
+  const row = size - Number(match[2]);
+  if (!GO_SIZES.includes(size) || col < 0 || col >= size || row < 0 || row >= size) throw new Error(`interseção inválida: ${name}`);
+  return row * size + col;
+}
+
+/** Índice no tabuleiro → nome da interseção ("E5"). */
+export function goCoord(size, point) {
+  if (!GO_SIZES.includes(size) || !Number.isInteger(point) || point < 0 || point >= size * size) return "";
+  return `${GO_COLS[point % size]}${size - Math.floor(point / size)}`;
+}
+
+/** { "E5": "b", … } → vetor `board` do domínio (1 = preta, 2 = branca, 0 = vazio). */
+export function goPosition(size, stones = {}) {
+  if (!GO_SIZES.includes(size)) throw new Error(`tabuleiro de go inválido: ${size}`);
+  const board = new Array(size * size).fill(0);
+  for (const [name, color] of Object.entries(stones)) {
+    if (color !== "b" && color !== "w") throw new Error(`pedra inválida: ${color}`);
+    board[goPoint(size, name)] = color === "b" ? 1 : 2;
+  }
+  return board;
+}
+
+const goStars = size => {
+  const low = size === 9 ? 2 : 3, high = size - 1 - low, mid = Math.floor(size / 2);
+  const points = new Set();
+  for (const col of [low, high, mid]) for (const row of [low, high, mid]) points.add(row * size + col);
+  return [...points];
+};
+
+const goXY = (size, point) => {
+  const step = GO_STEP(size);
+  return { x: GO_MARGIN + (point % size) * step, y: GO_MARGIN + Math.floor(point / size) * step, step };
+};
+
+function goStone(x, y, r, color) {
+  const black = color === "b";
+  return `<circle cx="${n1(x)}" cy="${n1(y)}" r="${n1(r)}" fill="${black ? "#1b1b1b" : "#f7f4ec"}" stroke="${black ? "#000" : "#a89a80"}" stroke-width="1.4"/>` +
+    `<circle cx="${n1(x - r * 0.3)}" cy="${n1(y - r * 0.34)}" r="${n1(r * 0.28)}" fill="${black ? "#5a5a5a" : "#fff"}" opacity=".8"/>`;
+}
+
+/**
+ * Tabuleiro de Go. `stones`: { "E5": "b"|"w" … }. Destaques por nome de interseção:
+ * dots (liberdade/lance legal), rings (grupo em destaque), selects (pedra em foco, aro dourado),
+ * crosses (lance proibido) e territory ({ b: ["A1", …], w: ["J9", …] }, interseções cercadas).
+ */
+export function goBoard({ size = 9, stones = {}, label, dots = [], rings = [], selects = [], crosses = [], territory = {} }) {
+  if (!GO_SIZES.includes(size)) throw new Error(`tabuleiro de go inválido: ${size}`);
+  const step = GO_STEP(size), rStone = step * 0.46;
+  let grid = "", coords = "", stars = "", terr = "", men = "", top = "";
+
+  for (let i = 0; i < size; i++) {
+    const p = GO_MARGIN + i * step;
+    const width = i === 0 || i === size - 1 ? 1.7 : 0.9;
+    grid += `<line x1="${n1(p)}" y1="${GO_MARGIN}" x2="${n1(p)}" y2="${GO_SIDE - GO_MARGIN}" stroke="${COLORS.goLine}" stroke-width="${width}"/>`;
+    grid += `<line x1="${GO_MARGIN}" y1="${n1(p)}" x2="${GO_SIDE - GO_MARGIN}" y2="${n1(p)}" stroke="${COLORS.goLine}" stroke-width="${width}"/>`;
+    coords += `<text x="${n1(p)}" y="${GO_SIDE - 10}" text-anchor="middle" font-size="11" fill="currentColor" opacity=".72">${GO_COLS[i]}</text>`;
+    coords += `<text x="11" y="${n1(p + 4)}" text-anchor="middle" font-size="11" fill="currentColor" opacity=".72">${size - i}</text>`;
+  }
+  for (const point of goStars(size)) {
+    const { x, y } = goXY(size, point);
+    stars += `<circle cx="${n1(x)}" cy="${n1(y)}" r="${size === 9 ? 2.8 : 3.2}" fill="${COLORS.goStar}"/>`;
+  }
+  for (const [color, names] of Object.entries(territory)) {
+    for (const name of names) {
+      const { x, y } = goXY(size, goPoint(size, name));
+      const side = step * 0.78;
+      const fill = color === "b" ? "#141414" : "#ffffff";
+      const edge = color === "b" ? "#141414" : "#6b4a25";
+      terr += `<rect x="${n1(x - side / 2)}" y="${n1(y - side / 2)}" width="${n1(side)}" height="${n1(side)}" rx="3" ` +
+        `fill="${fill}" opacity="${color === "b" ? ".24" : ".5"}" stroke="${edge}" stroke-opacity=".55" stroke-width="1"/>`;
+    }
+  }
+  for (const [name, color] of Object.entries(stones)) {
+    const { x, y } = goXY(size, goPoint(size, name));
+    men += goStone(x, y, rStone, color);
+  }
+  for (const name of selects) {
+    const { x, y } = goXY(size, goPoint(size, name));
+    men += `<circle cx="${n1(x)}" cy="${n1(y)}" r="${n1(rStone + 4)}" fill="none" stroke="${COLORS.sel}" stroke-width="3.4"/>`;
+  }
+  for (const name of dots) {
+    const { x, y } = goXY(size, goPoint(size, name));
+    top += `<circle class="cj-dot" cx="${n1(x)}" cy="${n1(y)}" r="${n1(step * 0.19)}" fill="${COLORS.good}" stroke="#fff" stroke-opacity=".85" stroke-width="1.6"/>`;
+  }
+  for (const name of rings) {
+    const { x, y } = goXY(size, goPoint(size, name));
+    top += `<circle class="cj-ring" cx="${n1(x)}" cy="${n1(y)}" r="${n1(rStone + 3)}" fill="none" stroke="${COLORS.good}" stroke-width="3.4"/>`;
+  }
+  for (const name of crosses) {
+    const { x, y } = goXY(size, goPoint(size, name));
+    top += crossMark(x, y, Math.max(9, step * 0.24));
+  }
+
+  return svgOpen("cj-board cj-go", label, GO_SIDE, GO_SIDE) +
+    `<rect x="0" y="0" width="${GO_SIDE}" height="${GO_SIDE}" rx="10" fill="${COLORS.goWood}" stroke="${COLORS.goLine}" stroke-width="2"/>` +
+    grid + stars + coords + terr + men + top + "</svg>";
 }
 
 /* ----------------------------------- dados ----------------------------------- */

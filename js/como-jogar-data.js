@@ -1,14 +1,14 @@
-/* Conteúdo das páginas "Como jogar" (Xadrez, Dama e Gamão). Módulo puro: sem DOM, roda no navegador e nos testes.
+/* Conteúdo das páginas "Como jogar" (Xadrez, Dama, Gamão e Go). Módulo puro: sem DOM, roda no navegador e nos testes.
 
-   Os EXEMPLOS (CHESS, DAMA, GAMMON) ficam exportados porque `tests/como-jogar.test.js` confere cada um contra o
-   domínio do jogo (ex.: o "mate do corredor" é mesmo xeque-mate; a captura dupla da Dama é mesmo a única válida).
-   Assim a página nunca ensina uma regra diferente da que o jogo aplica.
+   Os EXEMPLOS (CHESS, DAMA, GAMMON, GO) ficam exportados porque `tests/como-jogar.test.js` confere cada um contra o
+   domínio do jogo (ex.: o "mate do corredor" é mesmo xeque-mate; a captura dupla da Dama é mesmo a única válida; o
+   grupo do Go tem mesmo aquelas liberdades). Assim a página nunca ensina uma regra diferente da que o jogo aplica.
 
    Texto: pode usar <b>, <em> e <kbd>; é conteúdo nosso (não vem do usuário), por isso entra como HTML. */
 
 import { GAMES } from "./games.js";
 import {
-  chessBoard, damaBoard, gammonBoard, diceSvg, damaPosition, parseFen, parseSquare, squareName, GAMMON_START,
+  chessBoard, damaBoard, gammonBoard, goBoard, diceSvg, damaPosition, parseFen, parseSquare, squareName, GAMMON_START,
 } from "./como-jogar-art.js";
 
 export { damaPosition };
@@ -72,6 +72,48 @@ export function gammonPoints(state) {
   return points;
 }
 
+/* ==================================== GO ==================================== */
+
+/** Posições reais do guia (interseções no padrão do domínio: coluna A-T sem I, linha de baixo para cima). */
+export const GO = Object.freeze({
+  size: 9,
+  objective: {
+    stones: { A3: "b", B3: "b", C3: "b", C2: "b", C1: "b" },
+    territory: ["A1", "A2", "B1", "B2"],
+  },
+  group: {
+    stones: { E5: "b", E6: "b" },
+    liberties: ["D5", "F5", "E4", "D6", "F6", "E7"],
+  },
+  capture: {
+    stones: { E5: "w", D5: "b", F5: "b", E6: "b" },
+    move: "E4",
+    after: { D5: "b", F5: "b", E6: "b", E4: "b" },
+  },
+  ko: {
+    stones: { E5: "w", D6: "w", F6: "w", E7: "w", D5: "b", F5: "b", E4: "b" },
+    move: "E6",
+    after: { D6: "w", F6: "w", E7: "w", D5: "b", F5: "b", E4: "b", E6: "b" },
+    point: "E5",
+  },
+  suicide: {
+    stones: { B9: "b", A8: "b" },
+    move: "A9",
+  },
+  handicap: {
+    stones: { C7: "b", G3: "b", C3: "b", G7: "b", E5: "b", C5: "b", G5: "b", E7: "b", E3: "b" },
+  },
+  count: {
+    stones: {
+      A3: "b", B3: "b", C3: "b", C2: "b", C1: "b",
+      G7: "w", H7: "w", J7: "w", G8: "w", G9: "w",
+    },
+    black: ["A1", "A2", "B1", "B2"],
+    white: ["H8", "J8", "H9", "J9"],
+    komi: 6.5,
+  },
+});
+
 /** Casas para onde a peça de `from` pode ir no xadrez (sem xeque/cravada: os exemplos foram escolhidos sem isso;
     o teste confere o resultado contra o domínio). */
 export function chessReach(fen, from) {
@@ -134,6 +176,12 @@ const LEGEND_GAMMON = [
   ["ring", "Lance que bate uma peça adversária"],
   ["sel", "Ponto escolhido"],
   ["bad", "Ponto bloqueado (proibido)"],
+];
+const LEGEND_GO = [
+  ["dot", "Liberdade ou interseção legal"],
+  ["ring", "Pedra ou grupo em destaque"],
+  ["sel", "Jogada escolhida"],
+  ["bad", "Lance proibido (✕)"],
 ];
 
 const SCREEN_COMMON = [
@@ -449,5 +497,107 @@ function gammonGuide() {
   };
 }
 
-export const GUIDES = [chessGuide(), damaGuide(), gammonGuide()];
+/* ==================================== GO ==================================== */
+
+function goGuide() {
+  const N = GO.size;
+  const board = options => goBoard({ size: N, ...options });
+  return {
+    id: "go", name: "Go", glyph: "●",
+    title: "Como jogar Go",
+    lead: "O jogo milenar de cerco. As pedras não se movem: cada lance ocupa uma interseção e amplia o seu território. Em poucos minutos você aprende o essencial.",
+    chips: chips(["2 jogadores", "9×9, 13×13 ou 19×19", "Pretas começam", "Vence quem cercar mais território"]),
+    legend: LEGEND_GO,
+    sections: [
+      {
+        id: "objetivo", title: "O objetivo: cercar território",
+        body: [
+          "Cada jogador coloca pedras nas <b>interseções</b> do tabuleiro. O objetivo não é capturar todas as pedras: é <b>cercar a maior área vazia</b>, o território.",
+          "No fim, cada pedra no tabuleiro e cada interseção cercada valem <b>1 ponto</b>. Quem somar mais pontos vence.",
+        ],
+        figures: [fig(board({ stones: GO.objective.stones, territory: { b: GO.objective.territory }, label: "Tabuleiro 9 por 9 com quatro interseções vazias cercadas por pedras pretas no canto inferior esquerdo" }),
+          "<b>Território preto.</b> As cinco pedras da borda cercam quatro interseções vazias (marcadas): esse é o território das pretas.")],
+        tips: ["Pedras não se movem depois de colocadas: elas só saem do tabuleiro quando são capturadas."],
+      },
+      {
+        id: "tabuleiro", title: "O tabuleiro e as pedras",
+        body: [
+          "O Go é jogado nos <b>cruzamentos</b> (as interseções), não nos quadrados. Os tabuleiros têm <b>9×9</b> (iniciante), <b>13×13</b> (intermediário) ou <b>19×19</b> (clássico).",
+          "As <b>pretas jogam primeiro</b> e as cores se alternam. As bolinhas maiores são os <b>pontos de referência</b> (hoshi), que ajudam a se orientar.",
+        ],
+        figures: [fig(board({ label: "Tabuleiro de Go 9 por 9 vazio, com as coordenadas A a J e os pontos de referência" }),
+          "<b>Tabuleiro 9×9.</b> Cada cruzamento tem um nome, como <b>E5</b> no centro. A linha 1 fica embaixo e a coluna I não existe.")],
+        tips: ["No online, o handicap pode começar com pedras já colocadas nesses pontos de referência."],
+      },
+      {
+        id: "liberdades", title: "Colocar pedras e respirar",
+        body: [
+          "Uma pedra ocupa uma interseção vazia. As interseções livres em volta — em cima, embaixo e dos lados — são as <b>liberdades</b>. Sem nenhuma liberdade, a pedra sai do tabuleiro.",
+          "Pedras da mesma cor ligadas lado a lado formam um <b>grupo</b> e <b>compartilham as liberdades</b>.",
+        ],
+        figures: [fig(board({ stones: GO.group.stones, rings: ["E5", "E6"], dots: GO.group.liberties, label: "Grupo de duas pedras pretas em E5 e E6 com as seis liberdades marcadas em verde" }),
+          "<b>Grupo e liberdades.</b> As duas pedras pretas estão ligadas e têm seis liberdades (pontos verdes). Enquanto houver pelo menos uma, o grupo fica no tabuleiro.")],
+      },
+      {
+        id: "capturar", title: "Capturar: tirar as liberdades",
+        body: [
+          "Quando um grupo fica <b>sem nenhuma liberdade</b>, ele é capturado e todas as pedras dele saem do tabuleiro.",
+          "Com uma só liberdade restante, o grupo está em <b>atari</b>: a próxima pedra que fechar o cerco captura.",
+        ],
+        figures: [
+          fig(board({ stones: GO.capture.stones, rings: ["E5"], dots: [GO.capture.move], label: "Pedra branca em E5 cercada por três pedras pretas, com a última liberdade em E4" }),
+            "<b>Atari.</b> A pedra branca em <b>E5</b> só tem uma liberdade: <b>E4</b> (ponto verde). Se as pretas jogarem ali, ela é capturada."),
+          fig(board({ stones: GO.capture.after, selects: [GO.capture.move], label: "Depois da captura: a pedra branca saiu e as pretas ocupam E4" }),
+            "<b>Depois.</b> As pretas jogaram em <b>E4</b> (pedra destacada), fecharam a última liberdade e a pedra branca saiu do tabuleiro."),
+        ],
+      },
+      {
+        id: "proibidos", title: "Lances proibidos: suicídio e ko", grid: true,
+        body: [
+          "<b>Suicídio:</b> você não pode colocar uma pedra que fique <b>sem nenhuma liberdade</b> — a não ser que o lance capture alguma pedra adversária.",
+          "<b>Ko:</b> se um lance captura exatamente uma pedra e deixa a sua sozinha com uma liberdade, a <b>recaptura imediata</b> no mesmo ponto é proibida. Jogue em outro lugar antes de voltar.",
+        ],
+        figures: [
+          fig(board({ stones: GO.suicide.stones, crosses: [GO.suicide.move], label: "Canto A9 cercado por duas pedras pretas; uma pedra branca ali seria suicídio" }),
+            "<b>Suicídio.</b> A interseção <b>A9</b> está cercada pelas pedras pretas. Uma pedra branca ali ficaria sem liberdades e não capturaria ninguém: lance proibido (✕)."),
+          fig(board({ stones: GO.ko.after, selects: [GO.ko.move], crosses: [GO.ko.point], label: "Depois do ko: a pedra preta capturou em E6 e a recaptura imediata em E5 é proibida" }),
+            "<b>Ko.</b> A pedra preta em <b>E6</b> (destacada) capturou a branca em <b>E5</b>. A recaptura imediata em E5 (✕) é proibida: as brancas precisam jogar em outro lugar primeiro."),
+        ],
+      },
+      {
+        id: "handicap", title: "Graus, handicap e komi",
+        body: [
+          "No online, o ranking é <b>Kyu/Dan</b>. A diferença de grau vira <b>pedras de handicap</b>: até 9 pedras para o lado mais fraco, colocadas nos pontos de referência.",
+          "Quem recebe as pedras <b>começa jogando</b> e o <b>komi cai para 0,5</b>. Sem handicap, as brancas recebem <b>6,5 pontos de komi</b> para compensar a vantagem de as pretas começarem.",
+        ],
+        figures: [fig(board({ stones: GO.handicap.stones, label: "Tabuleiro 9 por 9 com as nove pedras de handicap nos pontos de referência" }),
+          "<b>Handicap de 9 pedras.</b> O lado mais fraco começa com essas pedras já no tabuleiro e joga primeiro.")],
+      },
+      {
+        id: "contagem", title: "Como a partida termina",
+        body: [
+          "A partida termina quando os dois <b>passam a vez em seguida</b> (ou quando alguém desiste ou fica sem tempo). Aí vem a <b>contagem chinesa</b>.",
+          "Some <b>1 ponto por pedra</b> no tabuleiro + <b>1 por interseção cercada</b>. As brancas ainda somam o <b>komi</b> de 6,5 (ou 0,5 com handicap).",
+        ],
+        figures: [fig(board({ stones: GO.count.stones, territory: { b: GO.count.black, w: GO.count.white }, label: "Tabuleiro no fim da partida com o território preto no canto inferior esquerdo e o branco no canto superior direito" }),
+          "<b>Contagem chinesa.</b> Cada lado tem 5 pedras e 4 pontos de território; as brancas somam ainda 6,5 de komi. Placar: <b>brancas 15,5 × 9 pretas</b>.")],
+        tips: ["As interseções vazias tocadas pelas duas cores não são território de ninguém: valem 0."],
+      },
+    ],
+    screen: {
+      title: "Como jogar na tela",
+      steps: [
+        ...SCREEN_COMMON,
+        ["Escolha o tabuleiro", "No modo local, escolha <b>9×9</b>, <b>13×13</b> ou <b>19×19</b>. Na sala online, vale o tamanho escolhido por quem criou a sala."],
+        ["Toque na interseção", "Toque num <b>cruzamento vazio</b> para colocar a sua pedra. Os lances legais aparecem como <b>pedras fantasma</b> translúcidas, e a última pedra jogada fica destacada."],
+        ["Passar e contar", "Use <b>Passar</b> quando não houver bom lance. Duas passadas seguidas encerram a partida e abrem a contagem. Você também pode <b>Desistir</b>."],
+        ["Handicap e komi", "No online, o servidor calcula as pedras de handicap pela diferença de grau e mostra o <b>komi</b> no painel da partida."],
+        ...SCREEN_END,
+      ],
+    },
+    cta: { label: "Jogar Go", href: GAMES.go.path },
+  };
+}
+
+export const GUIDES = [chessGuide(), damaGuide(), gammonGuide(), goGuide()];
 export const GUIDE_IDS = GUIDES.map(g => g.id);

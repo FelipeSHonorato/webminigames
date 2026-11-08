@@ -505,13 +505,13 @@ carrossel não tinha essa reserva (agora tem, mas a reserva é só um paliativo:
 
 #### 3.2.14 Guia "Como jogar" do jogo
 
-Todo jogo de duelo tem uma aba em `como-jogar.html` (Xadrez, Dama e Gamão são o modelo). A página é a mesma para
-todos: abas por hash (`#xadrez`, `#dama`, `#gamao`), figuras em SVG e um passo a passo de como usar a tela.
+Todo jogo de duelo tem uma aba em `como-jogar.html` (Xadrez, Dama, Gamão e Go são o modelo). A página é a mesma para
+todos: abas por hash (`#xadrez`, `#dama`, `#gamao`, `#go`), figuras em SVG e um passo a passo de como usar a tela.
 
 | Arquivo | Papel |
 |---|---|
-| `js/como-jogar-art.js` | desenha as figuras: `chessBoard`, `damaBoard`, `gammonBoard`, `diceSvg`, setas e marcas |
-| `js/como-jogar-data.js` | **conteúdo** (textos, figuras) + os **exemplos** exportados (`CHESS`, `DAMA`, `GAMMON`) |
+| `js/como-jogar-art.js` | desenha as figuras: `chessBoard`, `damaBoard`, `gammonBoard`, `goBoard`, `diceSvg`, setas e marcas |
+| `js/como-jogar-data.js` | **conteúdo** (textos, figuras) + os **exemplos** exportados (`CHESS`, `DAMA`, `GAMMON`, `GO`) |
 | `js/como-jogar.js`, `css/como-jogar.css`, `como-jogar.html` | abas, layout e tema (não mudam por jogo) |
 | `tests/como-jogar.test.js` | confere cada exemplo contra o **domínio do jogo** e a ligação com o resto do site |
 
