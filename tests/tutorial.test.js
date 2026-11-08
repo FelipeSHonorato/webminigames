@@ -36,6 +36,11 @@ test("tutorial: sem DOM, montar devolve null em vez de quebrar", () => {
   assert.equal(mountTutorial({ trigger: "howto", steps: [{ title: "a", text: "b", demo: "c" }] }), null);
 });
 
+test("tutorial: no botão 'Como jogar', a interrogação vem depois das palavras", () => {
+  const css = readFileSync(new URL("../css/tutorial.css", import.meta.url), "utf8");
+  assert.match(css, /\.howto \.howto-icon\{order:2\}/);
+});
+
 test("tutorial: botões do diálogo não herdam o width:100% dos jogos", () => {
   const css = readFileSync(new URL("../css/tutorial.css", import.meta.url), "utf8");
   const escape = selector => selector.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

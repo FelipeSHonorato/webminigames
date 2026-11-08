@@ -283,9 +283,11 @@ test("como jogar · página: abas, módulo, tema e sem recursos externos", () =>
   assert.match(js, /hashchange/);
 });
 
-test("como jogar · cada jogo de duelo tem o link 'Como jogar' à direita do título do setup, fora do sitebar", () => {
+test("como jogar · cada jogo de duelo tem o link 'Como jogar ?' à direita do título do setup, fora do sitebar", () => {
   const css = read("css/gamebar.css");
   assert.match(css, /howto-link/);
+  assert.match(css, /\.howto-link::after\{content:"\?"/, "a interrogação vem depois das palavras");
+  assert.doesNotMatch(css, /\.howto-link::before/, "a interrogação não fica antes das palavras");
   for (const [dir, hash] of [["chess", "xadrez"], ["dama", "dama"], ["gamao", "gamao"], ["go", "go"]]) {
     const html = read(`games/${dir}/index.html`);
     assert.match(html, new RegExp(`<a class="howto-link" href="\\.\\./\\.\\./como-jogar\\.html#${hash}"`), `${dir}: link faltando`);
@@ -293,6 +295,7 @@ test("como jogar · cada jogo de duelo tem o link 'Como jogar' à direita do tí
     const nav = html.match(/<nav class="sitebar">[\s\S]*?<\/nav>/)?.[0] ?? "";
     assert.doesNotMatch(nav, /howto-link/, `${dir}: o link não fica mais no sitebar`);
     assert.match(nav, /<strong>[^<]+<\/strong><span class="mode-tag">1×1<\/span>/, `${dir}: o sitebar fica com o nome e o 1×1`);
+    assert.match(read(`games/${dir}/style.css`), /--grid:/, `${dir}: o link usa var(--grid) como borda`);
   }
 });
 

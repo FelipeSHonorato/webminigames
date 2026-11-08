@@ -342,7 +342,7 @@ function goStone(x, y, r, color) {
  */
 export function goBoard({ size = 9, stones = {}, label, dots = [], rings = [], selects = [], crosses = [], territory = {} }) {
   if (!GO_SIZES.includes(size)) throw new Error(`tabuleiro de go inválido: ${size}`);
-  const step = GO_STEP(size), rStone = step * 0.46;
+  const step = GO_STEP(size), rStone = step * 0.42;
   let grid = "", coords = "", stars = "", terr = "", men = "", top = "";
 
   for (let i = 0; i < size; i++) {
@@ -373,7 +373,7 @@ export function goBoard({ size = 9, stones = {}, label, dots = [], rings = [], s
   }
   for (const name of selects) {
     const { x, y } = goXY(size, goPoint(size, name));
-    men += `<circle cx="${n1(x)}" cy="${n1(y)}" r="${n1(rStone + 4)}" fill="none" stroke="${COLORS.sel}" stroke-width="3.4"/>`;
+    men += `<circle cx="${n1(x)}" cy="${n1(y)}" r="${n1(rStone + 3)}" fill="none" stroke="${COLORS.sel}" stroke-width="3.4"/>`;
   }
   for (const name of dots) {
     const { x, y } = goXY(size, goPoint(size, name));
@@ -381,7 +381,7 @@ export function goBoard({ size = 9, stones = {}, label, dots = [], rings = [], s
   }
   for (const name of rings) {
     const { x, y } = goXY(size, goPoint(size, name));
-    top += `<circle class="cj-ring" cx="${n1(x)}" cy="${n1(y)}" r="${n1(rStone + 3)}" fill="none" stroke="${COLORS.good}" stroke-width="3.4"/>`;
+    top += `<circle class="cj-ring" cx="${n1(x)}" cy="${n1(y)}" r="${n1(rStone + 2)}" fill="none" stroke="${COLORS.good}" stroke-width="3.4"/>`;
   }
   for (const name of crosses) {
     const { x, y } = goXY(size, goPoint(size, name));

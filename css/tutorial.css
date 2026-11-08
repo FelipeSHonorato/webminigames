@@ -12,6 +12,8 @@
 .howto:focus-visible{outline:3px solid var(--accent,var(--path,currentColor));outline-offset:2px}
 .howto-icon{display:inline-grid;place-items:center;width:1.15em;height:1.15em;border-radius:50%;
   background:var(--accent,var(--path,currentColor));color:#fff;font-size:.8em;font-weight:700;line-height:1}
+/* A interrogação vem depois das palavras: "Como jogar ?". */
+.howto .howto-icon{order:2}
 @media (max-width:720px){
   .head-title{flex-wrap:wrap;gap:8px}
   .head-title h1{white-space:nowrap}

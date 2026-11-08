@@ -1,16 +1,16 @@
 /* Go 1×1 — tabuleiro de madeira, pedras, relógios e painel da partida. Tokens no mesmo formato dos outros jogos. */
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
---bg:#e9eef3;--fg:#14213d;--surface:#fff;--line:#c3ced9;--muted:#5b6b7e;--accent:#0f766e;--accent-fg:#fff;
+--bg:#e9eef3;--fg:#14213d;--surface:#fff;--line:#c3ced9;--grid:#c3ced9;--muted:#5b6b7e;--accent:#0f766e;--accent-fg:#fff;
 --chip:#eef2f7;--bad:#d64545;--good:#0f766e;
 --board-edge:#8a6234;--board-line:#6b4a25;--star:#4a3218;
 --stone-b-hi:#5c5c5c;--stone-b-lo:#101010;--stone-w-hi:#fff;--stone-w-lo:#ddd6c6;--stone-edge:#a89a80}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
---bg:#0e1621;--fg:#e8eef5;--surface:#17222f;--line:#2e4156;--muted:#8da0b5;--accent:#2cc4b6;--accent-fg:#062a27;
+--bg:#0e1621;--fg:#e8eef5;--surface:#17222f;--line:#2e4156;--grid:#2e4156;--muted:#8da0b5;--accent:#2cc4b6;--accent-fg:#062a27;
 --chip:#1f2c3b;--bad:#ff6b6b;--good:#2cc4b6;
 --board-edge:#6b4a25;--board-line:#7a5326;--star:#5c3f1c;
 --stone-b-hi:#6a6a6a;--stone-b-lo:#141414;--stone-w-hi:#fff;--stone-w-lo:#ddd6c6;--stone-edge:#a89a80}}
 :root[data-theme="dark"]{
---bg:#0e1621;--fg:#e8eef5;--surface:#17222f;--line:#2e4156;--muted:#8da0b5;--accent:#2cc4b6;--accent-fg:#062a27;
+--bg:#0e1621;--fg:#e8eef5;--surface:#17222f;--line:#2e4156;--grid:#2e4156;--muted:#8da0b5;--accent:#2cc4b6;--accent-fg:#062a27;
 --chip:#1f2c3b;--bad:#ff6b6b;--good:#2cc4b6;
 --board-edge:#6b4a25;--board-line:#7a5326;--star:#5c3f1c;
 --stone-b-hi:#6a6a6a;--stone-b-lo:#141414;--stone-w-hi:#fff;--stone-w-lo:#ddd6c6;--stone-edge:#a89a80}
