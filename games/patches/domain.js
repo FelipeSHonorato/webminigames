@@ -8,8 +8,8 @@ export const setSize = n => { N = n; TOTAL = n * n; };
 export const LEVELS = [
   { name: "Fácil", n: 5, pAny: 0, pNull: 0, singles: true },
   { name: "Médio", n: 6, pAny: 0.25, pNull: 0.08, singles: false },
-  { name: "Difícil", n: 7, pAny: 0.45, pNull: 0.15, singles: false },
-  { name: "Genius", n: 8, pAny: 0.65, pNull: 0.3, singles: false },
+  { name: "Difícil", n: 8, pAny: 0.8, pNull: 0.45, singles: false },
+  { name: "Genius", n: 9, pAny: 0.9, pNull: 0.55, singles: false },
 ];
 export const STORE_KEY = "patches.wins";
 

@@ -3,11 +3,13 @@
 /* ===================== DOMÍNIO ===================== */
 export let N = 6, TOTAL = 36;
 export const setSize = n => { N = n; TOTAL = n * n; };
+/* wp: quantidade de números ao longo do caminho (menos números = mais difícil); walls: teto de
+   paredes, que o gerador vai acrescentando até a solução ficar única. */
 export const LEVELS = [
   { name: "Fácil", n: 5, wp: [8, 10], walls: 6 },
   { name: "Médio", n: 6, wp: [6, 8], walls: 10 },
-  { name: "Difícil", n: 7, wp: [6, 8], walls: 12 },
-  { name: "Genius", n: 8, wp: [10, 12], walls: 18 },
+  { name: "Difícil", n: 7, wp: [4, 6], walls: 16 },
+  { name: "Genius", n: 8, wp: [5, 7], walls: 28 },
 ];
 export const STORE_KEY = "zip.wins";
 

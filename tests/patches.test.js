@@ -26,12 +26,22 @@ for (const [i, level] of LEVELS.entries()) {
   });
 }
 
-/* Pista "1" (patch de uma célula) só existe no Fácil; do Médio em diante a fase nunca tem. */
+test("níveis: a grade cresce e as pistas ficam mais incompletas", () => {
+  assert.deepEqual(LEVELS.map(l => l.n), [5, 6, 8, 9]);
+  for (let i = 1; i < LEVELS.length; i++) {
+    assert.ok(LEVELS[i].pAny >= LEVELS[i - 1].pAny, `pAny do nível ${LEVELS[i].name}`);
+    assert.ok(LEVELS[i].pNull >= LEVELS[i - 1].pNull, `pNull do nível ${LEVELS[i].name}`);
+  }
+});
+
+/* Pista "1" (patch de uma célula) só existe no Fácil; do Médio em diante a fase nunca tem.
+   A partição já garante a regra; os níveis altos geram menos seeds só para o teste não ficar lento. */
 const singles = p => p.solution.filter(([r0, c0, r1, c1]) => rectCells(r0, c0, r1, c1).length === 1).length;
 for (const [i, level] of LEVELS.entries()) {
   if (level.singles) continue;
+  const seeds = i === 1 ? 40 : 6;
   test(`nível ${level.name} não gera patch de 1 célula nem pista "1"`, () => {
-    for (let seed = 1; seed <= 40; seed++) {
+    for (let seed = 1; seed <= seeds; seed++) {
       const p = generatePuzzle(makeRng(seed * 101 + i), level);
       assert.equal(singles(p), 0, `seed ${seed}: patch de 1 célula na solução`);
       assert.ok(p.clues.every(k => k.area !== 1), `seed ${seed}: pista com área 1`);

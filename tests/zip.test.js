@@ -19,10 +19,17 @@ test("paredes e números fora de ordem bloqueiam o caminho", () => {
   const q = { waypoints: new Map([[0, 1], [1, 3], [2, 2]]), walls: new Set(), max: 3 };
   assert.deepEqual(applyMove(q, [0], 1), [0]);              // 3 antes do 2
 });
+test("níveis: o Genius tem menos números por célula e mais paredes que o Difícil", () => {
+  const numbersPerCell = l => ((l.wp[0] + l.wp[1]) / 2) / (l.n * l.n);
+  assert.deepEqual(LEVELS.map(l => l.n), [5, 6, 7, 8]);
+  assert.ok(numbersPerCell(LEVELS[3]) < numbersPerCell(LEVELS[2]));
+  assert.ok(LEVELS[3].walls > LEVELS[2].walls && LEVELS[2].walls > LEVELS[1].walls);
+});
 for (const [i, level] of LEVELS.entries()) {
   test(`gera fase de solução única no nível ${level.name}`, () => {
     const p = generatePuzzle(makeRng(1000 + i), level);
     assert.equal(countSolutions(p.waypoints, p.walls, p.max), 1);
     assert.equal(p.waypoints.size >= level.wp[0], true);
+    assert.equal(p.waypoints.size <= level.wp[1], true);
   });
 }
