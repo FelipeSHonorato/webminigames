@@ -219,7 +219,7 @@ test("sessão de duelo: usa 2,5 s de polling por padrão", () => {
 test("hub de duelos: só jogos marcados como duelo aparecem", () => {
   const games = { a: { path: "games/a/" }, b: { path: "games/b/", duel: true } };
   assert.deepEqual(duelGames(games).map(([id]) => id), ["b"]);
-  assert.deepEqual(duelGames(CATALOG).map(([id]) => id), ["chess", "dama", "gamao", "go"], "xadrez, dama, gamão e Go são os jogos de duelo");
+  assert.deepEqual(duelGames(CATALOG).map(([id]) => id), ["chess", "dama", "gamao", "go", "onitama"], "xadrez, dama, gamão, Go e Onitama são os jogos de duelo");
 });
 
 test("hub de duelos: código do convite é normalizado e validado", () => {

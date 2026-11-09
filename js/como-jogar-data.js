@@ -1,4 +1,4 @@
-/* Conteúdo das páginas "Como jogar" (Xadrez, Dama, Gamão e Go). Módulo puro: sem DOM, roda no navegador e nos testes.
+/* Conteúdo das páginas "Como jogar" (Xadrez, Dama, Gamão, Go e Onitama). Módulo puro: sem DOM, roda no navegador e nos testes.
 
    Os EXEMPLOS (CHESS, DAMA, GAMMON, GO) ficam exportados porque `tests/como-jogar.test.js` confere cada um contra o
    domínio do jogo (ex.: o "mate do corredor" é mesmo xeque-mate; a captura dupla da Dama é mesmo a única válida; o
@@ -8,8 +8,9 @@
 
 import { GAMES } from "./games.js";
 import {
-  chessBoard, damaBoard, gammonBoard, goBoard, diceSvg, damaPosition, parseFen, parseSquare, squareName, GAMMON_START,
+  chessBoard, damaBoard, gammonBoard, goBoard, onitamaBoard, onitamaCardSvg, diceSvg, damaPosition, parseFen, parseSquare, squareName, GAMMON_START,
 } from "./como-jogar-art.js";
+import { CARDS as ONITAMA_CARDS } from "../games/onitama/domain.js";
 
 export { damaPosition };
 
@@ -41,6 +42,18 @@ export const DAMA = Object.freeze({
   majority: { pieces: { c3: "P", d4: "p", f6: "p", h2: "P", g3: "p" } },
   promo: { pieces: { c7: "P", h6: "p" }, from: "c7" },
   king: { pieces: { a1: "D", e5: "p" }, from: "a1" },
+});
+
+/* Onitama: `pieces` em { casa: peça } (maiúscula = azul, minúscula = vermelho; M/m = mestre, S/s = aluno). Os testes montam
+   cada posição no domínio e conferem destinos, capturas e vitórias. */
+export const ONITAMA = Object.freeze({
+  start: "ssmss/...../...../...../SSMSS",
+  deal: { b: ["tiger", "dragon"], r: ["frog", "rabbit"], side: "crab" },
+  move: { pieces: { c3: "S", a1: "M", e5: "m" }, card: "dragon", from: "c3", dots: ["a4", "e4", "b2", "d2"] },
+  capture: { pieces: { c3: "S", d4: "s", a1: "M", e5: "m" }, card: "elephant", from: "c3", rings: ["d4"], dots: ["b3", "b4", "d3"] },
+  mirror: { pieces: { c4: "s", a1: "M", e5: "m" }, card: "tiger", from: "c4", dots: ["c2", "c5"] },
+  stone: { pieces: { c3: "S", c5: "m", e1: "M" }, card: "tiger", from: "c3", to: "c5" },
+  stream: { pieces: { c4: "M", a5: "m", e1: "s" }, card: "boar", from: "c4", to: "c5" },
 });
 
 export const GAMMON = Object.freeze({
@@ -599,5 +612,112 @@ function goGuide() {
   };
 }
 
-export const GUIDES = [chessGuide(), damaGuide(), gammonGuide(), goGuide()];
+/* ================================== ONITAMA ================================== */
+
+const LEGEND_ONITAMA = [
+  ["dot", "Casa para onde a peça pode ir com a carta"],
+  ["ring", "Peça adversária que pode ser capturada"],
+  ["sel", "Peça escolhida por você"],
+  ["bad", "Perigo ou lance proibido"],
+];
+
+function onitamaGuide() {
+  const O = ONITAMA;
+  const card = (id, color = "b") => onitamaCardSvg(ONITAMA_CARDS[id].moves, { name: ONITAMA_CARDS[id].name, label: `Carta ${ONITAMA_CARDS[id].name}`, color });
+  const row = html => `<div class="cj-card-row">${html}</div>`;
+  const cardName = id => ONITAMA_CARDS[id].name;
+  return {
+    id: "onitama", name: "Onitama", glyph: "⛩",
+    title: "Como jogar Onitama",
+    lead: "Um duelo de estratégia em tabuleiro 5×5 em que <b>as cartas mandam em como suas peças andam</b>. Poucas regras, muita tática. Veja como funciona.",
+    chips: chips(["2 jogadores", "5 peças cada", "Tabuleiro 5×5", "Cartas de movimento"]),
+    legend: LEGEND_ONITAMA,
+    sections: [
+      {
+        id: "objetivo", title: "O objetivo",
+        body: [
+          "Cada jogador tem <b>1 mestre</b> (a peça com o miolo dourado) e <b>4 alunos</b>. Há duas formas de vencer:",
+          "<b>Caminho da Pedra:</b> capture o <b>mestre</b> do adversário. <b>Caminho do Rio:</b> leve o <b>seu mestre</b> até o <b>templo</b> do adversário, a casa dourada do centro da fileira dele.",
+        ],
+        figures: [fig(onitamaBoard({ pieces: Object.fromEntries(O.start.split("/").flatMap((rowText, i) => [...rowText].map((ch, f) => [`${"abcde"[f]}${5 - i}`, ch]).filter(([, ch]) => ch !== "."))), label: "Posição inicial do Onitama: cinco peças azuis embaixo e cinco vermelhas em cima, com o mestre no templo central" }),
+          "<b>Posição inicial.</b> O mestre de cada lado começa em cima do <b>próprio templo</b> (<b>c1</b> para o azul, <b>c5</b> para o vermelho).")],
+      },
+      {
+        id: "cartas", title: "As cartas de movimento",
+        body: [
+          "Em cada partida são sorteadas <b>5 cartas</b> entre 16: <b>duas para cada jogador</b> e <b>uma ao lado</b> do tabuleiro. Cada carta é um animal e mostra, numa grade, <b>para onde uma peça pode andar</b>.",
+          "O quadrado do centro é a peça que se move; os quadrados coloridos são os destinos. <b>Qualquer peça sua</b>, mestre ou aluno, pode usar a carta.",
+        ],
+        figures: [fig(row(["tiger", "dragon", "frog", "rabbit"].map(id => card(id)).join("")),
+          `Exemplos: <b>${cardName("tiger")}</b> (duas casas à frente e uma atrás), <b>${cardName("dragon")}</b>, <b>${cardName("frog")}</b> e <b>${cardName("rabbit")}</b>. Cada carta tem o seu jeito, e é isso que muda de partida para partida.`, "cj-fig-small")],
+        tips: ["A frente da carta é <b>sempre a direção do adversário</b>: o jogo já espelha a carta para quem joga de cima, você não precisa inverter nada."],
+      },
+      {
+        id: "mover", title: "Mover uma peça",
+        body: ["No seu turno, escolha <b>uma das suas duas cartas</b> e <b>uma peça</b>: ela anda para uma das casas que a carta mostra, desde que a casa esteja dentro do tabuleiro e <b>sem peça sua</b>."],
+        figures: [fig(onitamaBoard({ pieces: O.move.pieces, label: "Aluno em c3 com a carta Dragão pode ir para a4, e4, b2 ou d2", selects: [O.move.from], dots: O.move.dots, faded: ["a1", "e5"] }),
+          `Com a carta <b>${cardName(O.move.card)}</b>, o aluno azul em <b>c3</b> pode ir para <b>a4</b>, <b>e4</b>, <b>b2</b> ou <b>d2</b>. Quem pula é só a peça: <b>não importa o que está no caminho</b>.`)],
+      },
+      {
+        id: "capturar", title: "Capturar",
+        body: ["Para capturar, <b>termine o lance sobre uma peça adversária</b>: ela sai do tabuleiro. Não existe captura obrigatória e não dá para capturar com salto passando por cima de outras peças: só importa a <b>casa de destino</b>."],
+        figures: [fig(onitamaBoard({ pieces: O.capture.pieces, label: "Aluno em c3 com a carta Elefante captura o aluno vermelho em d4", selects: [O.capture.from], rings: O.capture.rings, dots: O.capture.dots, arrows: [["c3", "d4"]], faded: ["a1", "e5"] }),
+          `Com <b>${cardName(O.capture.card)}</b>, o aluno em <b>c3</b> captura a peça vermelha em <b>d4</b> (anel). As casas com ponto são lances sem captura.`)],
+      },
+      {
+        id: "espelho", title: "O vermelho joga espelhado",
+        body: ["O jogador de cima enxerga o tabuleiro de cabeça para baixo, então a <b>frente dele é para baixo</b> e esquerda e direita também se invertem. Por isso as cartas dele aparecem <b>giradas</b> no jogo."],
+        figures: [fig(onitamaBoard({ pieces: O.mirror.pieces, label: "Aluno vermelho em c4 com a carta Tigre pode ir para c2 ou c5", selects: [O.mirror.from], dots: O.mirror.dots, faded: ["a1", "e5"] }),
+          `O aluno vermelho em <b>c4</b> com <b>${cardName(O.mirror.card)}</b> anda <b>duas casas para baixo</b> (c2) ou <b>uma para trás</b> (c5): é o mesmo desenho da carta, visto do lado dele.`)],
+      },
+      {
+        id: "troca", title: "Trocar de carta",
+        body: [
+          "Depois do lance, a carta que você usou <b>vai para o lado</b> e você <b>pega a carta que estava ali</b>. Quem joga depois de você vai pegar a que você acabou de usar.",
+          "Isso é o coração do jogo: <b>você nunca joga sempre com as mesmas cartas</b>, e a carta que sai da sua mão vai parar na mão do adversário.",
+        ],
+        figures: [fig(row(["tiger", "dragon"].map(id => card(id)).join("") + `<span class="cj-card-arrow" aria-hidden="true">→</span>` + ["crab", "dragon"].map(id => card(id)).join("")),
+          `Antes: <b>${cardName("tiger")}</b> e <b>${cardName("dragon")}</b> na mão, <b>${cardName("crab")}</b> ao lado. Depois de jogar o ${cardName("tiger")}: a mão fica com <b>${cardName("crab")}</b> e <b>${cardName("dragon")}</b>, e o ${cardName("tiger")} vai para o lado.`, "cj-fig-small")],
+        tips: ["Pense na carta que você <b>entrega</b>: usar uma carta forte agora pode dar ao adversário o lance que ele precisava."],
+      },
+      {
+        id: "vencer", title: "Como vencer",
+        body: [
+          "<b>Caminho da Pedra:</b> capturou o <b>mestre</b> do adversário, venceu na hora.",
+          "<b>Caminho do Rio:</b> o <b>seu mestre</b> terminou o lance no <b>templo</b> do adversário, venceu. Só vale com o <b>mestre</b>: um aluno no templo não conta.",
+        ],
+        figures: [
+          fig(onitamaBoard({ pieces: O.stone.pieces, label: "Aluno azul em c3 com a carta Tigre captura o mestre vermelho em c5", selects: [O.stone.from], rings: [O.stone.to], arrows: [["c3", "c5"]], faded: ["e1"] }),
+            `<b>Pedra.</b> Com <b>${cardName(O.stone.card)}</b>, o aluno em <b>c3</b> vai a <b>c5</b> e captura o mestre vermelho.`),
+          fig(onitamaBoard({ pieces: O.stream.pieces, label: "Mestre azul em c4 com a carta Javali anda para o templo em c5", selects: [O.stream.from], dots: [O.stream.to], arrows: [["c4", "c5"]], faded: ["a5", "e1"] }),
+            `<b>Rio.</b> Com <b>${cardName(O.stream.card)}</b>, o mestre em <b>c4</b> entra no templo em <b>c5</b> e vence.`),
+        ],
+      },
+      {
+        id: "fim", title: "Passar a vez, empate e tempo",
+        body: [
+          "<b>Sem lance:</b> se nenhuma das suas cartas permite mover nenhuma peça, você <b>passa</b>: escolhe uma carta para trocar com a do lado e a vez segue. É raro, mas acontece.",
+          "<b>Empate:</b> a mesma posição, <b>com as mesmas cartas</b>, aparece 3 vezes. O jogo de mesa não tem empate; aqui ele evita partidas infinitas.",
+          "<b>Tempo:</b> quem estourar o relógio perde. <b>Quem começa:</b> é definido pela cor da carta que ficou ao lado.",
+        ],
+      },
+    ],
+    screen: {
+      title: "Como jogar na tela",
+      steps: [
+        ["Escolha o ritmo e o lado", "Cada jogador tem o <b>próprio relógio</b>, que só corre no seu turno: 2, 5, 10 ou 15 minutos por jogador. Escolha <b>Azul</b>, <b>Vermelho</b> ou <b>Sorteio</b>. Quem fica sem tempo perde."],
+        SCREEN_COMMON[1],
+        SCREEN_COMMON[2],
+        ["Escolha a carta, a peça e o destino", "Toque numa das <b>suas cartas</b>: as peças que podem usá-la ficam realçadas. Toque na <b>peça</b> (os <b>pontos</b> mostram os destinos; anel = captura) e depois no <b>destino</b>. Dá para tocar na peça primeiro também."],
+        ["Dois caminhos para o mesmo destino", "Se as duas cartas levam a peça ao mesmo lugar, o jogo realça as cartas e pergunta <b>qual usar</b>."],
+        ["A carta do lado", "Fica ao lado do seu baralho, marcada <b>Do lado</b>. É a que você vai pegar quando jogar."],
+        ["Sem lance possível", "Se nenhuma carta serve, toque numa carta para <b>trocá-la e passar a vez</b>."],
+        ...SCREEN_END,
+      ],
+    },
+    cta: { label: "Jogar Onitama", href: GAMES.onitama.path },
+  };
+}
+
+export const GUIDES = [chessGuide(), damaGuide(), gammonGuide(), goGuide(), onitamaGuide()];
 export const GUIDE_IDS = GUIDES.map(g => g.id);

@@ -5,10 +5,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as chess from "../games/chess/domain.js";
 import * as dama from "../games/dama/domain.js";
+import * as onitama from "../games/onitama/domain.js";
 import * as gamao from "../games/gamao/domain.js";
 import * as go from "../games/go/domain.js";
-import { CHESS, DAMA, GAMMON, GO, GUIDES, GUIDE_IDS, chessReach, damaFromPosition, damaPosition, gammonPoints } from "../js/como-jogar-data.js";
-import { chessBoard, damaBoard, gammonBoard, goBoard, goCoord, goPoint, goPosition, diceSvg, parseFen } from "../js/como-jogar-art.js";
+import { CHESS, DAMA, GAMMON, GO, ONITAMA, GUIDES, GUIDE_IDS, chessReach, damaFromPosition, damaPosition, gammonPoints } from "../js/como-jogar-data.js";
+import { chessBoard, damaBoard, gammonBoard, goBoard, onitamaBoard, onitamaCardSvg, goCoord, goPoint, goPosition, diceSvg, parseFen } from "../js/como-jogar-art.js";
 
 const root = new URL("../", import.meta.url);
 const read = path => readFileSync(new URL(path, root), "utf8");
@@ -238,6 +239,78 @@ test("como jogar · go: coordenadas e figuras com marcas", () => {
   assert.ok((svg.match(/<circle/g) ?? []).length >= 8);
 });
 
+/* ============================== onitama ============================== */
+
+const ON_FILLERS = ["monkey", "cobra", "horse", "mantis", "goose", "ox"];
+/** Estado do domínio a partir de um exemplo: a mão de quem joga tem a carta do exemplo; as outras são de enchimento. */
+function onitamaState(ex, turn) {
+  const rest = ON_FILLERS.filter(c => c !== ex.card);
+  const board = new Array(25).fill(null);
+  for (const [sq, p] of Object.entries(ex.pieces)) board[onitama.parseSquare(sq)] = p;
+  const mine = [ex.card, rest[0]], theirs = [rest[1], rest[2]];
+  return { board, turn, cards: { b: turn === "b" ? mine : theirs, r: turn === "r" ? mine : theirs, side: rest[3] } };
+}
+const onNames = (moves, pick = m => m.to) => [...new Set(moves.map(m => onitama.squareName(pick(m))))].sort();
+const onFrom = (ex, turn = "b") => onitama.legalMoves(onitamaState(ex, turn)).filter(m => !m.pass && m.card === ex.card && onitama.squareName(m.from) === ex.from);
+
+test("como jogar · onitama: a posição inicial desenhada é a do jogo", () => {
+  assert.equal(ONITAMA.start, onitama.START_POSITION);
+  const state = onitama.fromPosition(`${ONITAMA.start} b ${ONITAMA.deal.b} ${ONITAMA.deal.r} ${ONITAMA.deal.side}`.replace(/\s+/g, " "));
+  assert.equal(state.board.filter(Boolean).length, 10);
+  assert.equal(state.board[onitama.TEMPLE.b], "M");
+  assert.equal(state.board[onitama.TEMPLE.r], "m");
+});
+
+test("como jogar · onitama: mover, capturar e o espelho do vermelho batem com o domínio", () => {
+  assert.deepEqual(onNames(onFrom(ONITAMA.move)), [...ONITAMA.move.dots].sort(), "destinos do Dragão a partir de c3");
+
+  const cap = onFrom(ONITAMA.capture);
+  assert.deepEqual(onNames(cap), [...ONITAMA.capture.dots, ...ONITAMA.capture.rings].sort());
+  assert.deepEqual(onNames(cap.filter(m => m.captured)), ONITAMA.capture.rings, "só d4 é captura");
+
+  const mirror = onFrom(ONITAMA.mirror, "r");
+  assert.deepEqual(onNames(mirror), [...ONITAMA.mirror.dots].sort(), "o Tigre do vermelho anda para baixo");
+  assert.equal(onFrom(ONITAMA.mirror, "b").length, 0, "o mesmo lance não existe para o azul (a peça é vermelha)");
+});
+
+test("como jogar · onitama: Pedra e Rio são vitórias de verdade, aluno no templo não", () => {
+  const stone = onitamaState(ONITAMA.stone, "b");
+  const won = onitama.playMove({ state: stone, keys: [onitama.positionKey(stone)], moves: [], last: null, result: { over: false } },
+    { from: ONITAMA.stone.from, to: ONITAMA.stone.to, card: ONITAMA.stone.card });
+  assert.deepEqual(won.result, { over: true, winner: "b", reason: "stone" });
+
+  const stream = onitamaState(ONITAMA.stream, "b");
+  const rio = onitama.playMove({ state: stream, keys: [onitama.positionKey(stream)], moves: [], last: null, result: { over: false } },
+    { from: ONITAMA.stream.from, to: ONITAMA.stream.to, card: ONITAMA.stream.card });
+  assert.deepEqual(rio.result, { over: true, winner: "b", reason: "stream" });
+
+  const student = { ...ONITAMA.stream, pieces: { ...ONITAMA.stream.pieces, c4: "S", e3: "M" } };
+  const st = onitamaState(student, "b");
+  const not = onitama.playMove({ state: st, keys: [onitama.positionKey(st)], moves: [], last: null, result: { over: false } },
+    { from: "c4", to: "c5", card: student.card });
+  assert.equal(not.result.over, false, "aluno no templo não vence");
+});
+
+test("como jogar · onitama: a troca de cartas do exemplo é a do jogo", () => {
+  const { deal } = ONITAMA;
+  const state = { board: onitama.fromPosition(`${ONITAMA.start} b ${deal.b} ${deal.r} ${deal.side}`).board, turn: "b", cards: { b: [...deal.b], r: [...deal.r], side: deal.side } };
+  const next = onitama.applyMove(state, onitama.findMove(state, { from: "c1", to: "c3", card: "tiger" }));
+  assert.deepEqual(next.cards.b, ["crab", "dragon"]);
+  assert.equal(next.cards.side, "tiger");
+});
+
+test("como jogar · onitama: figuras e cartas desenhadas (acessíveis, sem <defs>)", () => {
+  const board = onitamaBoard({ pieces: ONITAMA.move.pieces, label: "teste", selects: ["c3"], dots: ["a4"], rings: ["d4"], crosses: ["b2"], arrows: [["c3", "a4"]] });
+  assert.match(board, /aria-label="teste"/);
+  assert.match(board, /cj-onitama/);
+  assert.equal((board.match(/<rect/g) ?? []).length >= 25 + 2, true, "25 casas + 2 templos");
+  assert.throws(() => onitamaBoard({ pieces: { z9: "S" }, label: "x" }), /casa inválida/);
+  const card = onitamaCardSvg(onitama.CARDS.tiger.moves, { name: "Tigre" });
+  assert.match(card, /aria-label="Carta Tigre"/);
+  assert.equal((card.match(/<rect/g) ?? []).length, 1 + 25 + 2, "moldura, 25 casas e 2 destinos do Tigre");
+  assert.doesNotMatch(card + board, /<defs|url\(#/);
+});
+
 /* ============================== figuras e página ============================== */
 
 test("como jogar · figuras: SVG acessível, sem <defs>, sem recursos externos", () => {
@@ -258,8 +331,8 @@ test("como jogar · figuras: peça em casa clara da dama e FEN inválido são re
   assert.equal((gammonBoard({ label: "x" }).match(/<polygon/g) ?? []).length >= 24, true);
 });
 
-test("como jogar · conteúdo: ids únicos, quatro guias e links dos jogos", () => {
-  assert.deepEqual(GUIDE_IDS, ["xadrez", "dama", "gamao", "go"]);
+test("como jogar · conteúdo: ids únicos, cinco guias e links dos jogos", () => {
+  assert.deepEqual(GUIDE_IDS, ["xadrez", "dama", "gamao", "go", "onitama"]);
   const catalog = read("js/games.js");
   for (const g of GUIDES) {
     const ids = g.sections.map(s => s.id);
@@ -288,7 +361,7 @@ test("como jogar · cada jogo de duelo tem o link 'Como jogar ?' à direita do t
   assert.match(css, /howto-link/);
   assert.match(css, /\.howto-link::after\{content:"\?"/, "a interrogação vem depois das palavras");
   assert.doesNotMatch(css, /\.howto-link::before/, "a interrogação não fica antes das palavras");
-  for (const [dir, hash] of [["chess", "xadrez"], ["dama", "dama"], ["gamao", "gamao"], ["go", "go"]]) {
+  for (const [dir, hash] of [["chess", "xadrez"], ["dama", "dama"], ["gamao", "gamao"], ["go", "go"], ["onitama", "onitama"]]) {
     const html = read(`games/${dir}/index.html`);
     assert.match(html, new RegExp(`<a class="howto-link" href="\\.\\./\\.\\./como-jogar\\.html#${hash}"`), `${dir}: link faltando`);
     assert.match(html, /<div class="setup-title-row"><h1 id="setupTitle">[^<]+<\/h1><a class="howto-link"[^>]*><span>Como jogar<\/span><\/a><\/div>/, `${dir}: o link deve ficar à direita do título do setup`);

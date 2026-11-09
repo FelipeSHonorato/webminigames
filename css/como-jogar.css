@@ -65,6 +65,11 @@ body{height:auto;min-height:100%}
 .cj-board{display:block;width:100%;height:auto;margin:0 auto;color:var(--muted)}
 .cj-chess,.cj-dama,.cj-go{max-width:400px}
 .cj-gammon{max-width:700px}
+.cj-onitama{max-width:360px}
+.cj-card-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;margin:2px 0 10px}
+.cj-card{display:block;width:auto;height:150px}
+.cj-fig-small .cj-card{height:128px}
+.cj-card-arrow{font-size:1.6rem;font-weight:800;color:var(--muted)}
 .cj-dice-row{display:flex;justify-content:center;gap:14px;margin:2px 0 10px}
 .cj-dice{display:block;width:auto;height:52px}
 .cj-fig-small .cj-dice{height:62px}

@@ -9,6 +9,7 @@ import { publicView, validate, hint, hasHints, snapshot, validateSnapshot, valid
 import { canMate, findMove, fromFen, newGame, playMove, positionKey, squareName, toFen } from "./_shared/chess/domain.js";
 import { findMove as findDamaMove, fromPosition, newGame as newDamaGame, playMove as playDamaMove, positionKey as damaPositionKey, toPosition } from "./_shared/dama/domain.js";
 import { autoRoll as autoRollGamao, findMove as findGamaoMove, newGame as newGamaoGame, playMove as playGamaoMove, positionKey as gamaoPositionKey, revive as reviveGamao, rollOpening as rollGamaoOpening, serialize as serializeGamao } from "./_shared/gamao/domain.js";
+import { dealCards as dealOnitamaCards, findMove as findOnitamaMove, fromPosition as fromOnitamaPosition, newGame as newOnitamaGame, playMove as playOnitamaMove, positionKey as onitamaPositionKey, toPosition as toOnitamaPosition } from "./_shared/onitama/domain.js";
 import { findMove as findGoMove, newGame as newGoGame, playMove as playGoMove, positionKey as goPositionKey, revive as reviveGo, serialize as serializeGo } from "./_shared/go/domain.js";
 
 const URL = Deno.env.get("SUPABASE_URL")!;
@@ -123,6 +124,15 @@ const damaRow = async (svc: any, id: string) => {
   return data;
 };
 
+/** Linha do Onitama (estado + relógios). O relógio e o vencedor continuam no Postgres. */
+const onitamaRow = async (svc: any, id: string) => {
+  const { data, error } = await svc.from("onitama_games")
+    .select("duel_id, position, turn, version, keys, moves, last_move, blue_id, red_id, blue_ms, red_ms, last_at, result, reason")
+    .eq("duel_id", id).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+};
+
 /** Linha do gamão (estado + relógios). O relógio e o vencedor continuam no Postgres. */
 const gamaoRow = async (svc: any, id: string) => {
   const { data, error } = await svc.from("gamao_games")
@@ -165,6 +175,7 @@ const DUEL_ACTIONS = new Set([
   "dama_create", "dama_start", "dama_state", "dama_move", "dama_resign",
   "gamao_create", "gamao_start", "gamao_state", "gamao_move", "gamao_resign",
   "go_create", "go_ready", "go_start", "go_state", "go_move", "go_resign",
+  "onitama_create", "onitama_start", "onitama_state", "onitama_move", "onitama_resign",
 ]);
 
 async function handleDuel(svc: any, uid: string, action: string, body: any) {
@@ -204,6 +215,27 @@ async function handleDuel(svc: any, uid: string, action: string, body: any) {
     const { data, error } = await svc.rpc("dama_create", {
       p_uid: uid, p_minutes: minutes, p_color: color,
       p_position: toPosition(start.state), p_key: start.keys[0], p_open: open,
+    });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    return json(data);
+  }
+
+  /* Criar sala de Onitama: ritmo + lado ("b", "r" ou "random"). As 5 cartas são sorteadas AQUI, no servidor
+     (fonte criptográfica), e a vez inicial vem do selo da carta do lado — o cliente nunca decide isso. */
+  if (action === "onitama_create") {
+    const duel = duelOf("onitama");
+    if (!duel || duel.kind !== "turn") return json({ error: "not_duel_game" }, 400);
+    const minutes = Number(body?.minutes);
+    if (!duel.times.includes(minutes)) return json({ error: "bad_minutes" }, 400);
+    let color = body?.color;
+    if (color === "random") color = randomUnit() < 0.5 ? "b" : "r";
+    if (color !== "b" && color !== "r") return json({ error: "bad_color" }, 400);
+    const open = body?.open !== false;                       // sala aberta por padrão (entra pela lista)
+
+    const start = newOnitamaGame(dealOnitamaCards(randomUnit));   // alias próprio: `newGame` é o do XADREZ
+    const { data, error } = await svc.rpc("onitama_create", {
+      p_uid: uid, p_minutes: minutes, p_color: color,
+      p_position: toOnitamaPosition(start.state), p_turn: start.state.turn, p_key: start.keys[0], p_open: open,
     });
     if (error) return json({ error: error.message }, duelStatus(error.message));
     return json(data);
@@ -414,6 +446,51 @@ async function handleDuel(svc: any, uid: string, action: string, body: any) {
     return json(data);
   }
 
+  /* Estado / largada / desistência do Onitama: o Postgres é a autoridade dos relógios e do resultado. */
+  if (action === "onitama_state" || action === "onitama_start" || action === "onitama_resign") {
+    const { data, error } = await svc.rpc(action, { p_uid: uid, p_duel: duelId });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    if (action === "onitama_state" && data?.status === "waiting") await touchPresence(svc, uid, duelId);
+    return json(data);
+  }
+
+  /* Lance do Onitama: a Edge valida com o domínio puro; o Postgres confere vez, relógio e versão.
+     O cliente manda só `{ from, to, card }` (ou `{ pass: true, card }`): nunca o estado novo. */
+  if (action === "onitama_move") {
+    const meta = await duelMeta(svc, duelId);
+    if (!meta) return json({ error: "duel_not_found" }, 404);
+    if (meta.kind !== "turn" || meta.game_id !== "onitama") return json({ error: "not_onitama_duel" }, 400);
+    if (meta.status !== "running") return json({ error: "bad_status" }, 409);
+
+    const row = await onitamaRow(svc, duelId);
+    if (!row) return json({ error: "duel_not_found" }, 404);
+
+    let state;
+    try { state = fromOnitamaPosition(row.position); } catch { return json({ error: "bad_state" }, 500); }
+    const move = findOnitamaMove(state, body?.move);
+    if (!move) return json({ error: "invalid_move" }, 422);
+
+    const game = {
+      state,
+      keys: Array.isArray(row.keys) && row.keys.length ? row.keys : [onitamaPositionKey(state)],
+      moves: Array.isArray(row.moves) ? row.moves : [],
+      last: row.last_move ?? null,
+      result: { over: false, winner: null, reason: null },
+    };
+    const next = playOnitamaMove(game, move);
+    const result = next.result.over ? next.result : null;
+    const resultText = result ? (result.winner === "b" ? "blue" : result.winner === "r" ? "red" : "draw") : null;
+
+    const { data, error } = await svc.rpc("onitama_move", {
+      p_uid: uid, p_duel: duelId, p_version: row.version,
+      p_position: toOnitamaPosition(next.state), p_turn: next.state.turn,
+      p_keys: next.keys, p_moves: next.moves, p_last: next.last,
+      p_result: resultText, p_reason: result?.reason ?? null,
+    });
+    if (error) return json({ error: error.message }, duelStatus(error.message));
+    return json(data);
+  }
+
   /* Estado / largada / desistência do gamão: o Postgres é a autoridade dos relógios e do resultado. */
   if (action === "gamao_state" || action === "gamao_start" || action === "gamao_resign") {
     const { data, error } = await svc.rpc(action, { p_uid: uid, p_duel: duelId });
@@ -586,8 +663,8 @@ Deno.serve(async (req) => {
       return json({ day, slots, games: GAME_IDS.size, scenarios });
     }
 
-    /* As ações de turnos começam com `chess_`/`dama_`/`gamao_`/`go_`: sem isto elas caíam na checagem de jogo solo e voltavam `unknown_game`. */
-    if (typeof action === "string" && (action.startsWith("duel_") || action.startsWith("chess_") || action.startsWith("dama_") || action.startsWith("gamao_") || action.startsWith("go_"))) {
+    /* As ações de turnos começam com `chess_`/`dama_`/`gamao_`/`go_`/`onitama_`: sem isto elas caíam na checagem de jogo solo e voltavam `unknown_game`. */
+    if (typeof action === "string" && (action.startsWith("duel_") || action.startsWith("chess_") || action.startsWith("dama_") || action.startsWith("gamao_") || action.startsWith("go_") || action.startsWith("onitama_"))) {
       return await handleDuel(svc, uid, action, body);
     }
 

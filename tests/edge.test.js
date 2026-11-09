@@ -14,6 +14,7 @@ import * as canos from "../games/canos/domain.js";
 import * as chess from "../games/chess/domain.js";
 import * as cruzadas from "../games/cruzadas/domain.js";
 import * as dama from "../games/dama/domain.js";
+import * as onitama from "../games/onitama/domain.js";
 import * as gamao from "../games/gamao/domain.js";
 import * as go from "../games/go/domain.js";
 import * as patches from "../games/patches/domain.js";
@@ -30,7 +31,7 @@ const normPoints = s => s.replace(/"(?:\.\.\/)+(?:shared\/)?points\.js"/g, '"POI
 
 /* ---------- paridade entre games/ e a cópia usada pela Edge Function ---------- */
 test("cópias dos domínios na Edge Function batem com games/ (paridade)", () => {
-  for (const g of ["arrows", "canos", "chess", "cruzadas", "dama", "gamao", "go", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]) {
+  for (const g of ["arrows", "canos", "chess", "cruzadas", "dama", "gamao", "go", "onitama", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]) {
     assert.equal(normPoints(read(`supabase/functions/play/_shared/${g}/domain.js`)), normPoints(read(`games/${g}/domain.js`)), `domain de ${g} divergiu`);
   }
   for (const g of ["cruzadas", "sopa", "texttwist"]) {
@@ -271,13 +272,14 @@ test("snapshot diário: o puzzle completo valida e a visão pública continua se
   assert.equal(validateSnapshot("texttwist", twistSnap.fullPuzzle, { words: [] }), false);
 });
 
-test("GAMES agrupa os quatorze domínios e SOLO_GAMES deixa xadrez, dama, gamão e Go de fora", () => {
-  assert.deepEqual(Object.keys(GAMES).sort(), ["arrows", "canos", "chess", "cruzadas", "dama", "gamao", "go", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
+test("GAMES agrupa os quinze domínios e SOLO_GAMES deixa xadrez, dama, gamão, Go e Onitama de fora", () => {
+  assert.deepEqual(Object.keys(GAMES).sort(), ["arrows", "canos", "chess", "cruzadas", "dama", "gamao", "go", "onitama", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
   assert.deepEqual(Object.keys(SOLO_GAMES).sort(), ["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
   assert.equal(typeof chess.generatePuzzle, "undefined", "xadrez não gera fase: só duelo");
   assert.equal(typeof dama.generatePuzzle, "undefined", "dama não gera fase: só duelo");
   assert.equal(typeof gamao.generatePuzzle, "undefined", "gamão não gera fase: só duelo");
   assert.equal(typeof go.generatePuzzle, "undefined", "Go não gera fase: só duelo");
+  assert.equal(typeof onitama.generatePuzzle, "undefined", "Onitama não gera fase: só duelo");
 });
 
 test("a Edge aceita todo jogo SOLO do catálogo (lista vem do board, não fixa)", () => {
@@ -305,15 +307,16 @@ test("contrato DUEL: corrida e turnos aceitam só regras conhecidas; a lista sai
   assert.equal(duelOf("nao_existe"), null);
 });
 
-test("só xadrez, dama, gamão e Go declaram DUEL (jogos antigos não viram multiplayer)", () => {
+test("só xadrez, dama, gamão, Go e Onitama declaram DUEL (jogos antigos não viram multiplayer)", () => {
   /* Decisão de produto: os jogos que já estão no site não viram multiplayer.
-     Xadrez, dama, gamão e Go foram criados PARA o duelo; por isso são os únicos com contrato e com `duel` no catálogo. */
+     Xadrez, dama, gamão, Go e Onitama foram criados PARA o duelo; por isso são os únicos com contrato e com `duel` no catálogo. */
   const turn = { kind: "turn", times: [3, 10, 30, 60] };
   for (const g of Object.keys(GAMES)) {
-    if (g === "chess" || g === "dama" || g === "gamao" || g === "go") assert.deepEqual(duelOf(g), turn);
+    if (g === "onitama") assert.deepEqual(duelOf(g), { kind: "turn", times: [2, 5, 10, 15] });
+    else if (g === "chess" || g === "dama" || g === "gamao" || g === "go") assert.deepEqual(duelOf(g), turn);
     else assert.equal(duelOf(g), null, `${g} não deveria ser jogo de duelo`);
   }
-  assert.deepEqual(DUELS, { chess: turn, dama: turn, gamao: turn, go: turn });
+  assert.deepEqual(DUELS, { chess: turn, dama: turn, gamao: turn, go: turn, onitama: { kind: "turn", times: [2, 5, 10, 15] } });
 });
 
 test("catálogo e domínios concordam sobre quais jogos são de duelo", () => {
@@ -383,6 +386,7 @@ test("a Edge expõe as ações de duelo e valida o tabuleiro antes de finalizar"
     "dama_create", "dama_start", "dama_state", "dama_move", "dama_resign",
     "gamao_create", "gamao_start", "gamao_state", "gamao_move", "gamao_resign",
     "go_create", "go_ready", "go_start", "go_state", "go_move", "go_resign",
+    "onitama_create", "onitama_start", "onitama_state", "onitama_move", "onitama_resign",
   ]) {
     assert.match(entry, new RegExp(`action === "${a}"`), `${a} ausente na Edge`);
   }
@@ -473,6 +477,38 @@ test("Edge: cada jogo de duelo cria a sala com o estado inicial do PRÓPRIO dom�
   assert.equal(start.keys[0], dama.positionKey(start.state));
   // E o contrário é a armadilha: o tabuleiro de xadrez serializado como posição de Dama é rejeitado.
   assert.throws(() => dama.fromPosition(dama.toPosition(chess.newGame().state), "w"), /posição inválida: peça/);
+});
+
+test("Edge: onitama_create usa o domínio do Onitama, sorteia as cartas no servidor e o banco só recebe posição de Onitama", () => {
+  const entry = readFileSync(join(root, "supabase/functions/play/index.ts"), "utf8");
+  assert.match(entry, /import \{[^}]*newGame as newOnitamaGame[^}]*\} from "\.\/_shared\/onitama\/domain\.js"/, "o Onitama importa o newGame dele com alias");
+  assert.match(entry, /import \{[^}]*findMove as findOnitamaMove[^}]*\} from "\.\/_shared\/onitama\/domain\.js"/);
+
+  const create = entry.match(/action === "onitama_create"[\s\S]*?action === "gamao_create"/)?.[0];
+  assert.ok(create, "bloco onitama_create não encontrado");
+  assert.match(create, /newOnitamaGame\(dealOnitamaCards\(randomUnit\)\)/, "as 5 cartas saem do servidor (nunca do cliente)");
+  assert.match(create, /p_turn: start\.state\.turn/, "a vez inicial vem do selo da carta do lado");
+  assert.doesNotMatch(create, /[^\w.]newGame\(/, "onitama_create não pode chamar o newGame do xadrez");
+  assert.doesNotMatch(create, /body\?\.(position|cards|state)/, "o cliente não manda posição nem cartas");
+
+  const move = entry.match(/action === "onitama_move"[\s\S]*?action === "gamao_state"/)?.[0];
+  assert.ok(move, "bloco onitama_move não encontrado");
+  assert.match(move, /findOnitamaMove\(state, body\?\.move\)/, "onitama_move precisa validar o lance com o domínio");
+  assert.match(move, /rpc\("onitama_move", \{/);
+  assert.match(move, /p_position: toOnitamaPosition\(next\.state\)/);
+  assert.match(move, /meta\.game_id !== "onitama"/, "o lance só vale em sala de Onitama");
+  assert.match(entry, /action\.startsWith\("onitama_"\)/, "o roteador precisa encaminhar onitama_* ao handleDuel");
+  assert.match(entry, /action === "onitama_state" && data\?\.status === "waiting"\) await touchPresence/);
+
+  // O que a Edge grava precisa ser lido pelo cliente e aceito pelo banco.
+  const start = onitama.newGame(onitama.dealCards(() => 0.5));
+  const text = onitama.toPosition(start.state);
+  assert.doesNotThrow(() => onitama.fromPosition(text));
+  assert.match(text, /^[.mMsS]{5}(\/[.mMsS]{5}){4} [br] [a-z]+,[a-z]+ [a-z]+,[a-z]+ [a-z]+$/, "mesmo padrão que o banco exige em onitama_create");
+  assert.equal(start.keys[0], onitama.positionKey(start.state));
+  // E o contrário é a armadilha: posição de OUTRO jogo é rejeitada.
+  assert.throws(() => onitama.fromPosition(dama.toPosition(dama.newGame().state)), /posição inválida/);
+  assert.throws(() => onitama.fromPosition(chess.toFen(chess.newGame().state)), /posição inválida/);
 });
 
 test("miniaturas: todo jogo do catálogo tem as imagens do carrossel (claro e escuro) e um SVG de reserva válido", async () => {

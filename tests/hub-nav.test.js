@@ -72,12 +72,12 @@ test("hub: cada modo tem título e subtítulo próprios", () => {
   for (const mode of MODES) assert.ok(modeText(mode).sub.length > 20, `${mode} sem subtítulo`);
 });
 
-test("hub: xadrez, dama, gamão e Go são duelos — os jogos antigos continuam solo", () => {
+test("hub: xadrez, dama, gamão, Go e Onitama são duelos — os jogos antigos continuam solo", () => {
   const items = navItems(CATALOG);
   assert.equal(items[0].count, Object.keys(CATALOG).length);
-  assert.equal(items[2].count, 4, "xadrez, dama, gamão e Go declaram duel: true");
-  assert.deepEqual(filterGames(CATALOG, "duel").map(([id]) => id), ["chess", "dama", "gamao", "go"]);
-  assert.equal(filterGames(CATALOG, "solo").length, Object.keys(CATALOG).length - 4);
+  assert.equal(items[2].count, 5, "xadrez, dama, gamão, Go e Onitama declaram duel: true");
+  assert.deepEqual(filterGames(CATALOG, "duel").map(([id]) => id), ["chess", "dama", "gamao", "go", "onitama"]);
+  assert.equal(filterGames(CATALOG, "solo").length, Object.keys(CATALOG).length - 5);
 });
 
 test("hub: painel lateral é Solo fora dos duelos e um por jogo no carrossel", () => {
@@ -86,6 +86,7 @@ test("hub: painel lateral é Solo fora dos duelos e um por jogo no carrossel", (
     dama: { title: "Dama", duel: true },
     gamao: { title: "Gamão", duel: true },
     go: { title: "Go", duel: true },
+    onitama: { title: "Onitama", duel: true },
     zip: { title: "Zip" },
   };
   for (const mode of ["all", "solo"]) {
@@ -97,14 +98,15 @@ test("hub: painel lateral é Solo fora dos duelos e um por jogo no carrossel", (
   }
 
   const duel = rankingPanels(panels, "duel");
-  assert.deepEqual(duel.map(p => p.gameId), ["chess", "dama", "gamao", "go"]);
-  assert.deepEqual(duel.map(p => p.title), ["Ranking Geral Xadrez", "Ranking Geral Dama", "Ranking Geral Gamão", "Ranking Geral Go"]);
+  assert.deepEqual(duel.map(p => p.gameId), ["chess", "dama", "gamao", "go", "onitama"]);
+  assert.deepEqual(duel.map(p => p.title), ["Ranking Geral Xadrez", "Ranking Geral Dama", "Ranking Geral Gamão", "Ranking Geral Go", "Ranking Geral Onitama"]);
   assert.match(duel[0].sub, /Elo/, "o xadrez usa Elo");
   assert.match(duel[1].sub, /Elo/, "a dama usa o mesmo Elo, com ranking próprio");
   assert.match(duel[2].sub, /Elo/, "o gamão usa o mesmo Elo, com ranking próprio");
   assert.match(duel[3].sub, /Kyu/, "o Go usa Kyu/Dan");
   assert.match(duel[3].sub, /Dan/);
   assert.match(duel[3].sub, /handicap/i);
+  assert.match(duel[4].sub, /Elo/, "o Onitama usa o mesmo Elo, com ranking próprio");
   assert.equal(rankingPanels(panels, "duel")[0].gameId, "chess");
   assert.deepEqual(rankingPanels({}, "duel"), []);
   assert.equal(rankingPanels(CATALOG, "duel")[0].title, "Ranking Geral Xadrez");

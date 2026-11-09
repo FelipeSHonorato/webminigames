@@ -1,4 +1,4 @@
-/* Ilustrações da página "Como jogar": tabuleiros de Xadrez, Dama, Gamão e Go e dados, desenhados em SVG por código.
+/* Ilustrações da página "Como jogar": tabuleiros de Xadrez, Dama, Gamão, Go e Onitama (com cartas) e dados, desenhados em SVG por código.
    Módulo puro (só devolve strings): roda no navegador e nos testes do Node.
 
    Por que SVG gerado e não imagem: as figuras usam as mesmas cores e a mesma geometria dos jogos, escalam em
@@ -173,6 +173,74 @@ export function damaPosition(pieces) {
     rows.push(row);
   }
   return rows.join("/");
+}
+
+/* ---------------------------------- onitama ---------------------------------- */
+
+const ON_SQ = 56, ON_MARGIN = 22, ON_SIDE = ON_SQ * 5 + ON_MARGIN * 2;   // 324 × 324
+const ON_COLORS = { b: "#2f6db5", bEdge: "#10325a", r: "#c4412f", rEdge: "#5e1710", gold: "#f2c94c", light: "#eadfc8", dark: "#cdb994" };
+
+/** Centro de uma casa do tabuleiro 5×5 ("a1" = canto inferior esquerdo). */
+export function onitamaCenter(name) {
+  const m = /^([a-e])([1-5])$/.exec(name);
+  if (!m) throw new Error(`casa inválida: ${name}`);
+  return { x: ON_MARGIN + (m[1].charCodeAt(0) - 97) * ON_SQ + ON_SQ / 2, y: ON_MARGIN + (5 - +m[2]) * ON_SQ + ON_SQ / 2 };
+}
+
+function onitamaPiece(x, y, code, faded) {
+  const blue = code === code.toUpperCase(), master = code.toLowerCase() === "m";
+  const r = ON_SQ * (master ? 0.37 : 0.31);
+  return `<g${faded ? ' opacity=".4"' : ""}><circle cx="${x}" cy="${y}" r="${r}" fill="${blue ? ON_COLORS.b : ON_COLORS.r}" stroke="${master ? ON_COLORS.gold : blue ? ON_COLORS.bEdge : ON_COLORS.rEdge}" stroke-width="${master ? 3 : 1.8}"/>` +
+    `<circle cx="${n1(x - r * 0.3)}" cy="${n1(y - r * 0.34)}" r="${n1(r * 0.26)}" fill="#fff" opacity=".35"/>` +
+    (master ? `<circle cx="${x}" cy="${y}" r="${n1(r * 0.34)}" fill="${ON_COLORS.gold}"/>` : "") + "</g>";
+}
+
+/**
+ * Tabuleiro de Onitama (5×5) visto pelo azul (azul embaixo). `pieces`: { c1: "M", a1: "S", c5: "m" … }
+ * (maiúscula = azul, minúscula = vermelho; M/m = mestre, S/s = aluno). Os templos (c1 e c5) vêm marcados.
+ */
+export function onitamaBoard({ pieces = {}, label, faded = [], arrows = [], selects = [], dots = [], rings = [], crosses = [] }) {
+  let squares = "", coords = "", body = "", over = "";
+  for (let r = 0; r < 5; r++) for (let f = 0; f < 5; f++) {
+    squares += `<rect x="${ON_MARGIN + f * ON_SQ}" y="${ON_MARGIN + (4 - r) * ON_SQ}" width="${ON_SQ}" height="${ON_SQ}" fill="${(f + r) % 2 === 0 ? ON_COLORS.dark : ON_COLORS.light}"/>`;
+  }
+  for (const t of ["c1", "c5"]) {
+    const { x, y } = onitamaCenter(t);
+    squares += `<rect x="${x - ON_SQ / 2 + 4}" y="${y - ON_SQ / 2 + 4}" width="${ON_SQ - 8}" height="${ON_SQ - 8}" fill="none" stroke="${ON_COLORS.gold}" stroke-width="3" rx="3"/>`;
+  }
+  for (let i = 0; i < 5; i++) {
+    coords += `<text x="${ON_MARGIN + i * ON_SQ + ON_SQ / 2}" y="${ON_SIDE - 6}" text-anchor="middle" font-size="12" fill="currentColor" opacity=".7">${"abcde"[i]}</text>`;
+    coords += `<text x="10" y="${ON_MARGIN + (4 - i) * ON_SQ + ON_SQ / 2 + 4}" text-anchor="middle" font-size="12" fill="currentColor" opacity=".7">${i + 1}</text>`;
+  }
+  for (const s of selects) { const { x, y } = onitamaCenter(s); over += `<rect x="${x - ON_SQ / 2}" y="${y - ON_SQ / 2}" width="${ON_SQ}" height="${ON_SQ}" fill="${COLORS.sel}" opacity=".6"/>`; }
+  for (const [sq, code] of Object.entries(pieces)) { const { x, y } = onitamaCenter(sq); body += onitamaPiece(x, y, code, faded.includes(sq)); }
+  for (const s of dots) { const { x, y } = onitamaCenter(s); over += `<circle class="cj-dot" cx="${x}" cy="${y}" r="${ON_SQ * 0.17}" fill="${COLORS.good}" stroke="#fff" stroke-opacity=".85" stroke-width="1.6"/>`; }
+  for (const s of rings) { const { x, y } = onitamaCenter(s); over += `<circle class="cj-ring" cx="${x}" cy="${y}" r="${ON_SQ * 0.43}" fill="none" stroke="${COLORS.good}" stroke-width="4"/>`; }
+  for (const s of crosses) { const { x, y } = onitamaCenter(s); over += crossMark(x, y, 12); }
+  const arrowSvg = arrows.map(([from, to, kind = "good", curve = 0]) =>
+    arrow(onitamaCenter(from), onitamaCenter(to), { color: kind === "bad" ? COLORS.bad : kind === "sel" ? COLORS.sel : COLORS.good, curve })).join("");
+  return svgOpen("cj-board cj-onitama", label, ON_SIDE, ON_SIDE) +
+    `<g>${squares}</g><rect x="${ON_MARGIN - 1}" y="${ON_MARGIN - 1}" width="${ON_SQ * 5 + 2}" height="${ON_SQ * 5 + 2}" fill="none" stroke="#0a0f15" stroke-opacity=".5" stroke-width="2.5" rx="3"/>${coords}${over}${body}${arrowSvg}</svg>`;
+}
+
+/**
+ * Carta de movimento: grade 5×5 com a peça no centro e os destinos marcados.
+ * `moves`: [[dx, dy]] do ponto de vista de quem joga (dy > 0 = para frente).
+ */
+export function onitamaCardSvg(moves, { name, label = `Carta ${name}`, color = "b" } = {}) {
+  const C = 26, W = C * 5 + 4, H = W + 22;
+  const fill = color === "r" ? ON_COLORS.r : ON_COLORS.b;
+  let out = svgOpen("cj-card", label, W, H);
+  out += `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="9" fill="${COLORS.paper}" stroke="${fill}" stroke-width="3"/>`;
+  for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) {
+    out += `<rect x="${2 + c * C}" y="${8 + r * C}" width="${C - 1}" height="${C - 1}" fill="${ON_COLORS.light}"/>`;
+  }
+  out += `<circle cx="${2 + 2.5 * C - 0.5}" cy="${8 + 2.5 * C - 0.5}" r="${C * 0.3}" fill="${COLORS.ink}" opacity=".75"/>`;
+  for (const [dx, dy] of moves) {
+    out += `<rect x="${2 + (2 + dx) * C}" y="${8 + (2 - dy) * C}" width="${C - 1}" height="${C - 1}" fill="${fill}"/>`;
+  }
+  out += `<text x="${W / 2}" y="${H - 6}" text-anchor="middle" font-size="12" font-weight="700" fill="${COLORS.ink}">${esc(name)}</text>`;
+  return out + "</svg>";
 }
 
 /* ----------------------------------- gamão ----------------------------------- */

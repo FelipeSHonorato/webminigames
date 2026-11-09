@@ -390,6 +390,14 @@ export const Cloud = {
   damaMove(duel, move) { return invoke("dama_move", { duel, move }); },
   damaResign(duel) { return invoke("dama_resign", { duel }); },
 
+  /* ----- onitama 1×1 (duelo por turnos, ranking próprio; as cartas são sorteadas no servidor) -----
+     `color`: "b" (azul), "r" (vermelho) ou "random". O lance é só { from, to, card } ou { pass: true, card }. */
+  onitamaCreate(minutes, color, open = true) { return invoke("onitama_create", { minutes, color, open }); },
+  onitamaStart(duel) { return invoke("onitama_start", { duel }); },
+  onitamaState(duel) { return invoke("onitama_state", { duel }); },
+  onitamaMove(duel, move) { return invoke("onitama_move", { duel, move }); },
+  onitamaResign(duel) { return invoke("onitama_resign", { duel }); },
+
   /* ----- gamão 1×1 (duelo por turnos, ranking próprio) -----
      Mesmo fluxo do xadrez/dama, com o estado completo em jsonb. */
   gamaoCreate(minutes, color, open = true) { return invoke("gamao_create", { minutes, color, open }); },

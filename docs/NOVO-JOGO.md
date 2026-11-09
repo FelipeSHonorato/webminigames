@@ -505,13 +505,13 @@ carrossel não tinha essa reserva (agora tem, mas a reserva é só um paliativo:
 
 #### 3.2.14 Guia "Como jogar" do jogo
 
-Todo jogo de duelo tem uma aba em `como-jogar.html` (Xadrez, Dama, Gamão e Go são o modelo). A página é a mesma para
-todos: abas por hash (`#xadrez`, `#dama`, `#gamao`, `#go`), figuras em SVG e um passo a passo de como usar a tela.
+Todo jogo de duelo tem uma aba em `como-jogar.html` (Xadrez, Dama, Gamão, Go e Onitama são o modelo). A página é a mesma para
+todos: abas por hash (`#xadrez`, `#dama`, `#gamao`, `#go`, `#onitama`), figuras em SVG e um passo a passo de como usar a tela.
 
 | Arquivo | Papel |
 |---|---|
 | `js/como-jogar-art.js` | desenha as figuras: `chessBoard`, `damaBoard`, `gammonBoard`, `goBoard`, `diceSvg`, setas e marcas |
-| `js/como-jogar-data.js` | **conteúdo** (textos, figuras) + os **exemplos** exportados (`CHESS`, `DAMA`, `GAMMON`, `GO`) |
+| `js/como-jogar-data.js` | **conteúdo** (textos, figuras) + os **exemplos** exportados (`CHESS`, `DAMA`, `GAMMON`, `GO`, `ONITAMA`) |
 | `js/como-jogar.js`, `css/como-jogar.css`, `como-jogar.html` | abas, layout e tema (não mudam por jogo) |
 | `tests/como-jogar.test.js` | confere cada exemplo contra o **domínio do jogo** e a ligação com o resto do site |
 
@@ -648,6 +648,19 @@ como em `tests/*-session.test.js`, mas com um `cloud` que chama as RPCs de verda
 - [ ] Edge publicada com o commit atual (`functions deploy play`) e `npm test` verde.
 
 ---
+
+#### 3.2.15 Jogos com sorteio e cartas (o Onitama é o modelo)
+
+Quando o jogo tem **sorteio no início** (as 5 cartas do Onitama; os dados do Gamão), a regra é uma só: **quem sorteia é a Edge**, e o resultado entra no estado que o Postgres guarda.
+
+- O **domínio continua puro**: ele recebe um `rng` (`dealCards(rng)`), nunca chama `Math.random`/`Date.now`. Nos testes use `makeRng(seed)`; na Edge use `randomUnit` (fonte criptográfica); no modo local (hot-seat) da `ui.js` pode usar `Math.random`, porque o sorteio local não vale ranking.
+- O cliente **nunca manda estado nem cartas**: em `*_create` só chegam ritmo, lado e visibilidade. Escolhas "aleatórias" do usuário (ex.: lado `"random"`) também são resolvidas na Edge.
+- Quem **começa** também vem do estado sorteado (no Onitama, o selo da carta do lado). Grave a vez inicial no banco (`p_turn`) em vez de assumir `'w'`; o `*_state` e o relógio já tratam qualquer lado como o primeiro.
+- Se o jogo tem lados com **nomes próprios** (azul/vermelho), prefira colunas próprias (`blue_id`/`red_id`, `result in ('blue','red','draw')`) a reaproveitar `white/black`; lembre de ramificar `duel_seat`, `duel_leave` e `duel_rating_on_finish` por `game_id`.
+- Se a posição serializada tem **vários campos** (tabuleiro + vez + cartas), valide-a por regex no `*_create` e no `*_move`, como na lição 3.2.12-H.
+- **Passar a vez** quando não há lance é um lance como outro (`{ pass: true, card }`): ele precisa estar em `legalMoves` para a Edge e o cliente o tratarem igual.
+- Na chave de repetição inclua **tudo que muda as opções** (cartas, vez) e normalize o que não muda (a ordem das cartas na mão).
+- Imagens do jogo: **não copie a arte oficial** de jogos de mesa. Os ícones das cartas são SVG nosso (`onitamaCardSvg`), gerados do mesmo `CARDS` que o domínio usa.
 
 ## 4. Contrato da `ui.js`
 

@@ -86,6 +86,11 @@ const MOODS = {
     chords: [[0, 5, 7, 12], [-3, 2, 5, 9], [-5, 0, 4, 7], [-2, 3, 5, 10]],
     melody: 0.09, kick: 0.025, hat: 0.03, swing: 0.22,
   },
+  onitama: {
+    bpm: 66, root: 47, scale: [0, 2, 3, 7, 8], pad: "triangle", lead: "sine",
+    chords: [[0, 3, 7, 10], [-4, 0, 3, 7], [-2, 3, 7, 10], [-5, 0, 3, 8]],
+    melody: 0.12, kick: 0.035, hat: 0.04, swing: 0.16,
+  },
 };
 
 let ctx = null, master = null, bus = null, noise = null, timer = null, bar = 0, nextBar = 0;
