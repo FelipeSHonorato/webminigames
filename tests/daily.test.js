@@ -15,9 +15,11 @@ test("troféus: percentual de jogadores superados (e sozinho = 100%)", () => {
   assert.equal(betterThanPercent(1, NaN), null);
 });
 
-test("troféus: acima/abaixo da média (sozinho ou empatado = na média)", () => {
-  assert.equal(averageStatus(10, 20, 5), "above");
-  assert.equal(averageStatus(30, 20, 5), "below");
+test("troféus: tempo acima/abaixo da média (sozinho ou empatado = na média)", () => {
+  /* O rótulo compara o valor do tempo: 01:40 (100 s) contra média 01:37 (97 s) é "tempo acima da média". */
+  assert.equal(averageStatus(100, 97, 4), "slower");
+  assert.equal(averageStatus(10, 20, 5), "faster");
+  assert.equal(averageStatus(30, 20, 5), "slower");
   assert.equal(averageStatus(20, 20, 5), "even");
   assert.equal(averageStatus(20, 20, 1), "even");
   assert.equal(averageStatus(NaN, 20, 5), "even");
@@ -27,7 +29,7 @@ test("troféus: acima/abaixo da média (sozinho ou empatado = na média)", () =>
 test("troféus: normaliza os dados do servidor", () => {
   assert.deepEqual(
     scenarioTrophies({ seconds: 17, avgSeconds: 19, rank: 1, players: 4, points: 15, hints: 0, region: "sudeste", regionRank: 1, regionPlayers: 2 }),
-    { players: 4, rank: 1, percent: 75, average: "above", seconds: 17, avgSeconds: 19, words: 0, won: true, avgWords: null, points: 15, hints: 0, region: "sudeste", regionRank: 1, regionPlayers: 2 },
+    { players: 4, rank: 1, percent: 75, average: "faster", seconds: 17, avgSeconds: 19, words: 0, won: true, avgWords: null, points: 15, hints: 0, region: "sudeste", regionRank: 1, regionPlayers: 2 },
   );
   assert.equal(scenarioTrophies(null), null);
   assert.deepEqual(

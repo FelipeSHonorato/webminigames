@@ -44,7 +44,8 @@ const node = (tag, cls, text) => { const n = document.createElement(tag); if (cl
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const icon = (name, extra) => { const s = document.createElement("span"); s.className = extra ? `trophy-ico ${extra}` : "trophy-ico"; s.innerHTML = ICONS[name] ?? ""; return s; };
 
-const AVERAGE_TEXT = { above: "Acima da média", below: "Abaixo da média", even: "Na média" };
+/* O rótulo fala do TEMPO (não do desempenho): 01:40 contra uma média de 01:37 é "tempo acima da média". */
+const AVERAGE_TEXT = { faster: "Tempo abaixo da média", slower: "Tempo acima da média", even: "Tempo na média" };
 
 function trophyCard(name, main, sub, detail) {
   const c = node("div", "trophy-card");

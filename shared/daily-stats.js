@@ -8,11 +8,12 @@ export function betterThanPercent(rank, players) {
   return Math.max(0, Math.min(100, Math.round(((players - rank) * 100) / players)));
 }
 
-/** Compara o tempo do jogador com a média do dia: "above" (mais rápido), "below" (mais lento) ou "even" (na média). */
+/** Compara o tempo do jogador com a média do cenário: "faster" (tempo abaixo da média), "slower" (tempo
+    acima da média) ou "even" (na média). O rótulo segue o VALOR do tempo — menos segundos é mais rápido. */
 export function averageStatus(seconds, avgSeconds, players) {
   if (!Number.isFinite(seconds) || !Number.isFinite(avgSeconds) || !Number.isFinite(players) || players <= 1) return "even";
-  if (seconds < avgSeconds) return "above";
-  if (seconds > avgSeconds) return "below";
+  if (seconds > avgSeconds) return "slower";
+  if (seconds < avgSeconds) return "faster";
   return "even";
 }
 
