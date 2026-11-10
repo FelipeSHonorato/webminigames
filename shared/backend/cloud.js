@@ -1,4 +1,5 @@
 import { store, readJSON } from "../storage.js";
+import { Idle } from "../activity.js";
 import { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SDK } from "./config.js";
 import { PASSWORD_HINT } from "../password.js";
 
@@ -80,6 +81,7 @@ async function loadUser(user, gamesPromise = loadGames()) {
   S.uid = user.id;
   const session = sessionOf(user, snap.profile);
   writeSession(session);
+  Idle.touch();                                             // abrir a página (ou entrar) conta como atividade
   await flushOutbox();
   return session;
 }
@@ -197,11 +199,14 @@ export const Cloud = {
       `url`/`key` existem para os testes forçarem o modo local sem mexer em shared/backend/config.js. */
   async start({ client, url = SUPABASE_URL, key = SUPABASE_ANON_KEY } = {}) {
     if (S.active) return S;
-    if (!client && !isConfigured(url, key)) return null;
+    const idle = Idle.expired();                            // mais de um dia sem atividade: precisa entrar de novo
+    if (idle) { Idle.markExpired(); Idle.clearSession(); }
+    if (!client && !isConfigured(url, key)) return null;    // modo local: o espelho já foi limpo acima
     S.active = true;
     try {
       S.client = client ?? await makeClient();
-      const { data, error } = await S.client.auth.getSession();           // também conclui o retorno do login com Google
+      if (idle) { try { await S.client.auth.signOut({ scope: "local" }); } catch { /* nada guardado no navegador */ } }
+      const { data, error } = idle ? { data: { session: null }, error: null } : await S.client.auth.getSession();   // também conclui o retorno do login com Google
       if (error) throw error;
       const games = loadGames();
       if (data.session) await loadUser(data.session.user, games);
@@ -220,11 +225,19 @@ export const Cloud = {
   async signOut() {
     await Promise.allSettled([flushRuns(), flushOutbox()]);
     const c = S.client;
-    resetUser(); store.set(SESSION_KEY, "null");
+    resetUser(); store.set(SESSION_KEY, "null"); Idle.clear();
     await c?.auth.signOut();
   },
+  /** Sessão encerrada por inatividade (aba voltou depois de um dia): sai no navegador sem chamar o servidor. */
+  async expire() {
+    const c = S.client;
+    Idle.markExpired();
+    resetUser();
+    Idle.clearSession();
+    try { await c?.auth.signOut({ scope: "local" }); } catch { /* só limpa o que está no navegador */ }
+  },
   /** Entrar como anônimo: o anônimo é local, então a sessão da nuvem (se houver) é descartada neste navegador. */
-  async dropSession() { const c = S.client; resetUser(); await c?.auth.signOut({ scope: "local" }); },
+  async dropSession() { const c = S.client; resetUser(); Idle.clear(); await c?.auth.signOut({ scope: "local" }); },
   /** Exclui a própria conta no servidor: apaga a conta e, por cascata, todos os dados dela (LGPD). */
   async deleteAccount() {
     const uid = S.uid;
@@ -232,7 +245,7 @@ export const Cloud = {
     if (error) throw new Error("Não foi possível excluir a conta agora. Tente de novo.");
     const c = S.client;
     if (uid !== null) writeOutbox(readOutbox().filter(i => i.uid !== uid));   // vitórias pendentes desta conta não têm mais para onde ir
-    resetUser(); store.set(SESSION_KEY, "null");
+    resetUser(); store.set(SESSION_KEY, "null"); Idle.clear();
     try { await c?.auth.signOut({ scope: "local" }); } catch { /* a conta já não existe; só limpa a sessão local */ }
   },
 

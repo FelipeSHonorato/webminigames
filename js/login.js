@@ -107,6 +107,11 @@ if (wanted === "conta") setMode("register");
 else if (wanted === "entrar") setMode("login");
 else if (Auth.current()) location.replace("jogos.html");
 
+if (query.has("expirado")) {                        // requireSession manda ?expirado=1 quando a sessão passou de um dia sem atividade
+  $("info").textContent = "Sua sessão expirou depois de um dia sem atividade. Entre de novo para continuar.";
+  $("info").hidden = false;
+}
+
 // Voltou do Supabase com um erro (p. ex. link do e-mail expirado e a Site URL apontando para esta página): mensagem clara em vez de tela em branco.
 const back = readAuthRedirect(window.__authLink);
 if (back.kind === "error") $("error").textContent = ["otp_expired", "access_denied"].includes(back.code)

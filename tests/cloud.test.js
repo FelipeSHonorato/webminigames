@@ -10,6 +10,7 @@ import { GameSwitch } from "../shared/game-switch.js";
 import { Progress } from "../shared/progress.js";
 import { AdminLevel } from "../shared/admin-level.js";
 import { AdminCoins } from "../shared/admin-coins.js";
+import { Idle, IDLE_LIMIT_MS } from "../shared/activity.js";
 import { store } from "../shared/storage.js";
 
 const UID = "00000000-0000-4000-8000-00000000000a";
@@ -28,7 +29,7 @@ function fakeClient({ session = { user: { id: UID, email: "ana@t.com", app_metad
     calls,
     auth: {
       getSession: async () => ({ data: { session }, error: null }),
-      signOut: async () => ({ error: null }),
+      signOut: async opts => { calls.push(["signOut", opts]); return { error: null }; },
       onAuthStateChange() {},
       signInWithPassword: async args => { calls.push(["signInWithPassword", args]); return auth.signInWithPassword?.(args) ?? { data: { user: session?.user }, error: null }; },
       resetPasswordForEmail: async (email, opts) => { calls.push(["resetPasswordForEmail", email, opts]); return auth.resetPasswordForEmail?.(email, opts) ?? { data: {}, error: null }; },
@@ -48,7 +49,7 @@ function fakeClient({ session = { user: { id: UID, email: "ana@t.com", app_metad
     channel: (topic, options) => { calls.push(["channel", topic, options]); return { topic, options, on() { return this; }, subscribe() { calls.push(["subscribe", topic]); return this; }, unsubscribe() { calls.push(["unsubscribe", topic]); } }; },
   };
 }
-const boot = async (opts) => { Cloud._reset(); store.set("wmg.outbox", "[]"); store.set("wmg.session", "null"); const c = fakeClient(opts); await Cloud.start({ client: c }); return c; };
+const boot = async (opts) => { Cloud._reset(); store.set("wmg.outbox", "[]"); store.set("wmg.session", "null"); Idle.clear(); const c = fakeClient(opts); await Cloud.start({ client: c }); return c; };
 const winResult = { duplicate: false, wins: 4, score: { points: 17, wins: 4, updatedAt: 5 }, coins: { coins: 0, anchor: Date.now() } };
 
 test("sem Supabase configurado, a nuvem fica desligada (modo local)", async () => {
@@ -81,6 +82,21 @@ test("sem login na nuvem: sessão de conta antiga é descartada, anônimo é man
   Cloud._reset(); store.set("wmg.session", JSON.stringify({ id: "a-1", provider: "anonymous" }));
   await Cloud.start({ client: fakeClient({ session: null }) });
   assert.equal(JSON.parse(store.get("wmg.session")).id, "a-1");
+});
+
+test("um dia sem atividade: o boot encerra a sessão (inclusive a guardada pelo Supabase)", async () => {
+  Cloud._reset(); store.set("wmg.outbox", "[]");
+  store.set("wmg.session", JSON.stringify({ id: UID, provider: "password" }));
+  Idle.touch(Date.now() - IDLE_LIMIT_MS - 1000);
+  const c = fakeClient();
+  await Cloud.start({ client: c });
+  assert.equal(store.get("wmg.session"), "null");
+  assert.equal(Cloud.uid, null);
+  assert.deepEqual(c.calls.find(x => x[0] === "signOut"), ["signOut", { scope: "local" }]);
+  assert.equal(c.calls.some(x => x[1] === "my_snapshot"), false, "não carrega dados de uma sessão vencida");
+  assert.equal(Idle.expired(), false);
+  assert.equal(Idle.justExpired(), true);
+  Idle.clear();
 });
 
 test("anônimo no modo nuvem continua local: não toca no servidor", async () => {

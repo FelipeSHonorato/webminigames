@@ -1,4 +1,5 @@
 import { store, readJSON } from "../shared/storage.js";
+import { Idle } from "../shared/activity.js";
 import { REGIONS } from "../shared/regions.js";
 import { ADMIN_ID, ADMIN_EMAIL } from "../shared/roles.js";
 import { Cloud, authErrorMessage } from "../shared/backend/cloud.js";
@@ -52,7 +53,7 @@ function purgeLocalUser(uid) {
 
 export const Auth = {
   current: () => readJSON("wmg.session", null),
-  start(user) { store.set("wmg.session", JSON.stringify(user)); return user; },
+  start(user) { store.set("wmg.session", JSON.stringify(user)); Idle.touch(); return user; },
   validateEmail(email) { if (!EMAIL_RE.test(email)) throw new Error("Digite um e-mail válido."); },
   async register({ name, email, password, region }) {
     if (!name.trim()) throw new Error("Digite seu nome.");
@@ -172,6 +173,7 @@ export const Auth = {
     if (key) { delete all[key]; store.set("wmg.users", JSON.stringify(all)); }
     purgeLocalUser(s.id);
     store.set("wmg.session", "null");
+    Idle.clear();
   },
   /** Com Supabase: abre o login do Google e a página recarrega ao voltar (devolve null). Sem Supabase: SIMULAÇÃO, não fala com o Google. */
   async loginWithGoogle() {
@@ -190,6 +192,6 @@ export const Auth = {
   },
   async logout() {
     if (Cloud.active && Cloud.uid) await Cloud.signOut();    // envia o que faltar e encerra a sessão no Supabase
-    else store.set("wmg.session", "null");
+    else { store.set("wmg.session", "null"); Idle.clear(); }
   },
 };

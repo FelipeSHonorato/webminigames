@@ -1,9 +1,14 @@
 import { Cloud } from "./cloud.js";
+import { Idle } from "../activity.js";
 
 // Importado como PRIMEIRA linha de cada página (as de js/ e os ui.js dos jogos): o `await` abaixo faz o resto do módulo
 // esperar os dados da conta chegarem do Supabase, então os jogos continuam lendo coins, fase e nível de forma síncrona.
 // Sem Supabase configurado (shared/backend/config.js vazio), não faz nada.
 await Cloud.start();
+
+// Um dia sem atividade encerra a sessão (Cloud.start já cuidou do caso de abrir a página depois do prazo).
+// Aqui o prazo é renovado enquanto a pessoa usa a página; se a aba ficar parada mais de um dia e voltar, sai.
+Idle.track(() => { Cloud.expire().finally(() => location.reload()); });
 
 if (Cloud.degraded && typeof document !== "undefined") {
   const bar = document.createElement("div");
