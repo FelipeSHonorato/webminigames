@@ -398,6 +398,22 @@ export const Cloud = {
   onitamaMove(duel, move) { return invoke("onitama_move", { duel, move }); },
   onitamaResign(duel) { return invoke("onitama_resign", { duel }); },
 
+  /* ----- partidas com 2+ jogadores ("party"; ver shared/party.js e docs/NOVO-JOGO.md §6) -----
+     Salas, código e Realtime são os mesmos dos duelos; o `kind` da sala leva a Edge ao fluxo de vagas.
+     `options`: { minPlayers, maxPlayers, turnSeconds, open } — a Edge limita cada um ao contrato do jogo.
+     Entrar por código/lista pode usar `duelJoin`/`duelJoinRoom`: a Edge desvia sozinha as salas party. */
+  partyCreate(game, options = {}) { return invoke("party_create", { game, ...options }); },
+  partyJoin(code) { return invoke("party_join", { code }); },
+  partyJoinRoom(duel) { return invoke("party_join_open", { duel }); },
+  partyReady(duel, ready = true) { return invoke("party_ready", { duel, ready }); },
+  partyStart(duel) { return invoke("party_start", { duel }); },
+  partyState(duel) { return invoke("party_state", { duel }); },
+  partyMove(duel, move) { return invoke("party_move", { duel, move }); },
+  partyResign(duel) { return invoke("party_resign", { duel }); },
+  partyLeave(duel) { return invoke("party_leave", { duel }); },
+  partyKick(duel, target) { return invoke("party_kick", { duel, target }); },
+  partyCancel(duel) { return invoke("party_cancel", { duel }); },
+
   /* ----- gamão 1×1 (duelo por turnos, ranking próprio) -----
      Mesmo fluxo do xadrez/dama, com o estado completo em jsonb. */
   gamaoCreate(minutes, color, open = true) { return invoke("gamao_create", { minutes, color, open }); },

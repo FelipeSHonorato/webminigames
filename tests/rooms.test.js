@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { GAMES } from "../js/games.js";
 import {
   ALL, duelIds, cleanRooms, filterItems, roomsOf, filterFromHash, hashForFilter, filterText, openedAgo, durationLabel,
-  roomHref, ratingLabel, isOpenRoom, joinableRoom,
+  roomHref, ratingLabel, isOpenRoom, joinableRoom, slotsLabel,
 } from "../shared/rooms.js";
 
 const room = (id, gameId, createdAt, extra = {}) => ({ id, gameId, createdAt, maxSeconds: 600, mine: false, host: { nickname: "Ana", avatar: null }, ...extra });
@@ -124,4 +124,33 @@ test("ratingLabel mostra a pontuação do criador no formato do ranking de duelo
   assert.equal(ratingLabel({ host: {} }), "");
   assert.equal(ratingLabel({}), "");
   assert.equal(ratingLabel(null), "");
+});
+
+/* ---------- salas multijogador (2+) ---------- */
+const WITH_PARTY = { ...GAMES_FAKE, mesa: { title: "Mesa", party: true, path: "games/mesa/" } };
+
+test("Salas Online lista também os jogos multijogador (party: true), na ordem do catálogo", () => {
+  assert.deepEqual(duelIds(WITH_PARTY), ["chess", "dama", "mesa"]);
+  const raw = [room("a", "chess", "2026-10-31T10:00:00Z"), room("m", "mesa", "2026-10-31T12:00:00Z", { players: 2, maxPlayers: 4 })];
+  assert.deepEqual(cleanRooms(raw, WITH_PARTY).map(r => r.id), ["m", "a"]);
+  assert.deepEqual(cleanRooms(raw, GAMES_FAKE).map(r => r.id), ["a"], "sem o jogo no catálogo a sala party é descartada");
+  assert.deepEqual(filterItems(WITH_PARTY, cleanRooms(raw, WITH_PARTY)).map(i => `${i.id}:${i.count}`), ["all:2", "chess:1", "dama:0", "mesa:1"]);
+  assert.equal(filterFromHash("#mesa", WITH_PARTY), "mesa");
+  assert.equal(filterFromHash("#mesa", GAMES_FAKE), ALL);
+});
+
+test("sala party aberta de outro jogador é clicável; a minha reabre pelo id; sem Elo do criador", () => {
+  const open = room("m", "mesa", "2026-10-31T12:00:00Z", { players: 2, maxPlayers: 4, host: { nickname: "Ana", rating: null } });
+  assert.equal(joinableRoom(open, WITH_PARTY), true);
+  assert.equal(roomHref({ ...open, mine: true }, WITH_PARTY), "games/mesa/?duelo=m");
+  assert.equal(ratingLabel(open), "", "party não mostra Elo");
+});
+
+test("slotsLabel mostra as vagas só quando há mais de 2 (o 1×1 não muda)", () => {
+  assert.equal(slotsLabel({ players: 2, maxPlayers: 4 }), "2/4 jogadores");
+  assert.equal(slotsLabel({ players: 1, maxPlayers: 12 }), "1/12 jogadores");
+  assert.equal(slotsLabel({ players: 1, maxPlayers: 2 }), "", "duelo 1×1: sem chip de vagas");
+  assert.equal(slotsLabel({ maxPlayers: 4 }), "", "resposta antiga sem contagem");
+  assert.equal(slotsLabel({}), "");
+  assert.equal(slotsLabel(null), "");
 });

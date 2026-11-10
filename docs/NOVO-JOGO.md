@@ -115,6 +115,67 @@ tempo. O duelo **não** dá pontos, coins nem progressão solo. Sem dicas. Salas
 o cron `duel_cleanup` (a cada 5 min) é a rede de segurança para salas abandonadas. O ranking é **por jogo**
 (`duel_ratings`, seção 3.2.7), mesmo nos duelos de corrida.
 
+### 2.6 Partidas com 2 ou mais jogadores (multijogador, `party`)
+
+A estrutura para jogos de **3, 4, 6… jogadores** já existe; ainda **não há nenhum jogo** nela (como o duelo
+1×1 nasceu: o item **Multijogador** aparece na lateral do hub com contador 0 e o estado vazio explica o modo).
+Como no duelo, **só jogos criados para o modo** a usam: nenhum jogo antigo declara `PARTY`.
+
+**Decisão de arquitetura.** A sala continua sendo `duels` + `duel_players` (código, aberta/fechada, presença,
+Realtime `duel:<id>`, Salas Online, expiração em 15 min). A sala ganhou `kind = 'party'`,
+`min_players`..`max_players` (2..12) e cada jogador um **assento** (`duel_players.seat`). O estado do jogo vive
+em `party_games` (jsonb + `version` otimista + `turn_seat`). **Nenhuma função do 1×1 foi redefinida**: a Edge
+despacha pelo `kind` da sala para as funções `party_*`; só `duel_open_rooms` (vagas) e `duel_invites` (ignora
+party) foram ajustadas, e o gatilho de Elo não dispara em party. Fora do tipo party a sala continua 2×2 (CHECK).
+
+**Ciclo da sala**
+
+| Etapa | Regra |
+|---|---|
+| Criar | `partyCreate(game, { minPlayers, maxPlayers, turnSeconds, open })`; a Edge limita ao contrato `PARTY`. O criador ocupa o assento 1 e **já está pronto**. |
+| Entrar | por código (`duelJoin`/`partyJoin`) ou pela lista (`duelJoinRoom`/`partyJoinRoom`): a Edge desvia sozinha. Assento livre mais baixo, **sem estar pronto**; cada entrada estende a espera (+10 min). |
+| Largar | quando há ≥ `min` jogadores e **todos prontos**: **sala lotada → larga sozinha** (o último a marcar pronto dispara); senão o **criador clica em Iniciar** (`partyStart`). A Edge lê o elenco (`party_roster`), monta o estado no domínio (`partyStart`) e o Postgres confere que o elenco não mudou (`roster_changed`). Assentos viram 1..n sem buracos. Contagem de 4 s como no 1×1. |
+| Vez | `order: "turns"` (vez a vez, `turn_seat`; tempo por jogada opcional) ou `"free"` (todos ao mesmo tempo; versão otimista, o cliente refaz o lance em `stale`). Estourou o tempo: `onTimeout: "skip"` passa a vez, `"out"` elimina. O estouro é aplicado de forma preguiçosa a cada consulta/lance (recupera vários seguidos). |
+| Sair/desistir | na espera libera a vaga (**o criador sai → o comando passa ao próximo assento**; sala vazia cancela). Em jogo é **eliminação**: colocação = quantos ainda estavam na partida; sobrou um, ele vence. O criador pode expulsar (`partyKick`) e cancelar (`partyCancel`) na espera. |
+| Fim | o domínio devolve o **ranking** (grupos de assentos ativos, melhor primeiro; empate = mesmo grupo: `[[3],[1,2],[4]]` → 1º, 2º, 2º, 4º). O Postgres valida (cobre os ativos, sem repetir) e grava `placement`; `winner_id` só se o 1º lugar for um jogador único. |
+| Limpeza | espera expirada: `duel_cleanup` (já existente). Partida parada além de `maxSeconds`: cron `party_cleanup` (5 min) → `cancelled/abandoned`. |
+
+**Contrato do `domain.js`** (validado por `partyContract`, em `shared/party.js` e na cópia `_shared/party.js`):
+
+```js
+export const PARTY = {
+  minPlayers: 3, maxPlayers: 6,
+  order: "turns",            // "turns" | "free"
+  turnSeconds: 60,           // null = sem limite; turnOptions: [30, 60, 120] = escolhas do criador (opcional)
+  onTimeout: "skip",         // "skip" | "out"
+  maxSeconds: 1800,          // 30..3600; sem lance por esse tempo a limpeza cancela
+};
+export function partyStart({ seats, rng }) { /* sorteios aqui */ return { state, turn }; }
+export function partyMove(state, seat, input, { seats, out }) { /* null = ilegal */ return { state, turn, ranking, move, reason }; }
+export function partyView(state, seat, { seats, out }) { /* só o que ESTE assento pode ver */ return { ... }; }
+```
+
+O `state` é **JSON puro** (sem Map/Set/Date) e **nunca sai do servidor**: a Edge devolve `view` (a visão do
+assento) e só depois da largada. Informação escondida (mãos, cartas viradas) mora no `state` e é filtrada em
+`partyView`. `partyMove` devolve `null` para lance ilegal (a Edge responde 422 `invalid_move`); `turn` é o
+próximo assento **ativo**; `ranking` só quando acabou. `runPartyMove` confere o que o domínio devolveu (vez
+inexistente, ranking incompleto → `bad_domain_result`, erro do jogo, não do jogador).
+
+**Passos para o primeiro jogo party** (o que falta; a estrutura não escolheu jogo nenhum):
+1. `games/<id>/domain.js` com `PARTY` + `partyStart/partyMove/partyView`, e a cópia idêntica em `_shared/<id>/domain.js`
+   (+ import e entrada em `GAMES` do `_shared/board.js`; `partyOf(id)` passa a existir).
+2. Catálogo (`js/games.js`): `party: true`, **sem** `duel` e sem `key`; entrada na migração (`insert into public.games`).
+3. `ui.js` com `createPartySession()` (`shared/party-session.js`) + `mountPartyUi()` (`shared/party-ui.js`, `css/party.css`):
+   `session.on("start", () => desenhar(session.view))`, `session.on("move", ...)`, `session.canPlay()`,
+   `session.move(input)`, `session.msToTurnEnd()`. Retomar sala: `Cloud.duelMine(game)` → `session.attach(id)`.
+4. Testes: domínio (regras, `partyView` sem vazamento, ranking) + paridade da cópia da Edge. O fluxo da sala,
+   da vez e do ranking já é coberto por `tests/party*.test.js` e `supabase/tests/database/03_party.test.sql`.
+
+**Ainda fora (de propósito, para decidir com o primeiro jogo):** ranking/Elo multijogador (o gatilho de Elo
+ignora party; `placement` já fica gravado em `duel_players` para calcular depois), convite no aviso global
+(`duel_invites` só cobre 1×1; o criador acompanha pelo lobby), espectadores, reentrada depois de eliminado,
+chat e criação pelo pop-up "Criar Sala" do hub (`duel-hub.js` ainda lista só jogos de duelo).
+
 ---
 
 ## 3. Contrato do `domain.js`
@@ -1107,6 +1168,7 @@ seção **3.2** (catálogo → domínio → migração/tabela → Edge → sess�
 | criar um duelo por turnos | seção 3.2; modelo em `games/chess/` (`domain.js`, `ui.js`) + `shared/chess-session.js` |
 | ranking de duelo (Elo) | `duel_ratings` + `duel_ranking()` (migração `20261039000000_duel_ratings.sql`) |
 | sala, convite e código | `duels` + `duel_seat`/`duel_ready` + `shared/duel-invites.js` (migrações `20261035000000_*` a `20261046000000_*`) |
+| jogo para 2+ jogadores | seção 2.6; `shared/party.js` (contrato) + `party-session.js` + `party-ui.js` + migração `20261053000000_multiplayer_party.sql` + `handleParty` em `index.ts` |
 | relógio e lance do Xadrez | `chess_games` + `chess_move`/`chess_state` (migração `20261038000000_chess_duel.sql`) |
 | mudar o tempo por dica | `daily_hint_seconds()` (migração nova) |
 | mudar o teto de acúmulo | `daily_backlog_days()` / `daily_backlog_start()` (migração nova) |

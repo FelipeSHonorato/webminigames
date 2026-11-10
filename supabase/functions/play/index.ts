@@ -5,7 +5,8 @@
 // Deploy:  supabase functions deploy play
 // Segredo: supabase secrets set SUPABASE_SERVICE_ROLE_KEY=...   (URL e ANON_KEY são injetadas automaticamente)
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { publicView, validate, hint, hasHints, snapshot, validateSnapshot, validatePartial, countWords, hintSnapshot, duelOf, GAMES as BOARD_GAMES, SOLO_GAMES } from "./_shared/board.js";
+import { publicView, validate, hint, hasHints, snapshot, validateSnapshot, validatePartial, countWords, hintSnapshot, duelOf, partyOf, GAMES as BOARD_GAMES, SOLO_GAMES } from "./_shared/board.js";
+import { runPartyMove, seatsOf } from "./_shared/party.js";
 import { canMate, findMove, fromFen, newGame, playMove, positionKey, squareName, toFen } from "./_shared/chess/domain.js";
 import { findMove as findDamaMove, fromPosition, newGame as newDamaGame, playMove as playDamaMove, positionKey as damaPositionKey, toPosition } from "./_shared/dama/domain.js";
 import { autoRoll as autoRollGamao, findMove as findGamaoMove, newGame as newGamaoGame, playMove as playGamaoMove, positionKey as gamaoPositionKey, revive as reviveGamao, rollOpening as rollGamaoOpening, serialize as serializeGamao } from "./_shared/gamao/domain.js";
@@ -94,6 +95,7 @@ const duelStatus = (msg: string) =>
     : msg === "duel_not_found" ? 404
       : msg === "too_many_open" || msg === "duel_full" || msg === "bad_status"
         || msg === "expired" || msg === "not_started" || msg === "not_your_turn"
+        || msg === "roster_changed" || msg === "not_ready"
         || msg === "stale" || msg === "closed_room" || msg === "opponent_away" ? 409
         : msg === "invalid_move" ? 422
         : 400;
@@ -176,10 +178,173 @@ const DUEL_ACTIONS = new Set([
   "gamao_create", "gamao_start", "gamao_state", "gamao_move", "gamao_resign",
   "go_create", "go_ready", "go_start", "go_state", "go_move", "go_resign",
   "onitama_create", "onitama_start", "onitama_state", "onitama_move", "onitama_resign",
+  "party_create", "party_join", "party_join_open", "party_ready", "party_start", "party_state", "party_move",
+  "party_resign", "party_leave", "party_kick", "party_cancel",
 ]);
+
+/* ------------------------------------------------------------------------------------------------
+   Partidas com 2+ jogadores (`duels.kind = 'party'`). O Postgres guarda assentos, vez, versão e ranking;
+   o DOMÍNIO do jogo (`PARTY` + partyStart/partyMove/partyView) decide o que é lance válido e quem ganhou.
+   O estado do jogo nunca vai ao navegador: ele recebe só `view`, a visão do próprio assento.
+   ------------------------------------------------------------------------------------------------ */
+const partyRoom = async (svc: any, duelId: string) => {
+  const { data, error } = await svc.from("party_games").select("state, version, turn_seat").eq("duel_id", duelId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+const partySeats = async (svc: any, duelId: string) => {
+  const { data, error } = await svc.from("duel_players").select("user_id, seat, out_at").eq("duel_id", duelId).order("seat");
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+  return { rows, seats: rows.map((r: any) => r.seat), out: rows.filter((r: any) => r.out_at).map((r: any) => r.seat) };
+};
+
+/** Junta a visão do jogador à sala. Só depois da largada (a contagem não adianta mão/cartas a ninguém). */
+const withPartyView = async (svc: any, room: any, rowState?: any) => {
+  if (!room?.mySeat || (room.status !== "running" && room.status !== "finished")) return room;
+  if (room.status === "running" && room.startsAt && Date.parse(room.serverNow) < Date.parse(room.startsAt)) return room;
+  const party = partyOf(room.gameId);
+  if (!party) return room;
+  const row = rowState ?? await partyRoom(svc, room.id);
+  if (!row?.state) return room;
+  const seats = room.players.map((p: any) => p.seat);
+  const out = room.players.filter((p: any) => p.out).map((p: any) => p.seat);
+  return { ...room, view: party.domain.partyView(row.state, room.mySeat, { seats, out }) };
+};
+
+/** Larga a partida: lê o elenco, monta o estado inicial no domínio e entrega ao Postgres (que confere o elenco). */
+const launchParty = async (svc: any, uid: string, duelId: string) => {
+  const { data: info, error: re } = await svc.rpc("party_roster", { p_duel: duelId });
+  if (re) return { error: re.message };
+  const party = partyOf(info.gameId);
+  if (!party) return { error: "not_party_game" };
+  if (info.status !== "waiting") return { error: "bad_status" };
+  const n = info.roster.length;
+  if (n < party.minPlayers || n > party.maxPlayers) return { error: "bad_players" };
+  const start = party.domain.partyStart({ seats: seatsOf(n), rng: randomUnit });
+  const { data, error } = await svc.rpc("party_launch", {
+    p_uid: uid, p_duel: duelId, p_roster: info.roster, p_state: start.state, p_turn: party.order === "turns" ? start.turn : null,
+  });
+  return error ? { error: error.message } : { data };
+};
+
+async function handleParty(svc: any, uid: string, action: string, body: any) {
+  const fail = (msg: string) => json({ error: msg }, duelStatus(msg));
+
+  if (action === "party_create") {
+    const game = typeof body?.game === "string" ? body.game : "";
+    const party = partyOf(game);
+    if (!party) return json({ error: "not_party_game" }, 400);
+    /* O criador escolhe as vagas dentro do que o jogo permite; o resto vem do contrato do domínio. */
+    const pick = (v: unknown, lo: number, hi: number, dflt: number) => (Number.isInteger(v) && (v as number) >= lo && (v as number) <= hi ? (v as number) : dflt);
+    const min = pick(body?.minPlayers, party.minPlayers, party.maxPlayers, party.minPlayers);
+    const max = pick(body?.maxPlayers, min, party.maxPlayers, party.maxPlayers);
+    const turnSeconds = party.order === "turns" && party.turnOptions.includes(body?.turnSeconds) ? body.turnSeconds : party.turnSeconds;
+    const { data, error } = await svc.rpc("party_create", {
+      p_uid: uid, p_game: game, p_min: min, p_max: max, p_open: body?.open !== false,
+      p_order: party.order, p_turn_seconds: turnSeconds, p_on_timeout: party.onTimeout, p_max_seconds: party.maxSeconds,
+    });
+    if (error) return fail(error.message);
+    return json(data);
+  }
+
+  if (action === "party_join") {
+    const code = typeof body?.code === "string" ? body.code.trim().toUpperCase() : "";
+    if (!isDuelCode(code)) return json({ error: "bad_code" }, 400);
+    const { data, error } = await svc.rpc("party_join", { p_uid: uid, p_code: code });
+    if (error) return fail(error.message);
+    return json(data);
+  }
+
+  if (action === "party_join_open") {
+    if (!isUuid(body?.duel)) return json({ error: "bad_duel" }, 400);
+    const { data, error } = await svc.rpc("party_join_open", { p_uid: uid, p_duel: body.duel });
+    if (error) return fail(error.message);
+    return json(data);
+  }
+
+  const duelId = body?.duel;
+  if (!isUuid(duelId)) return json({ error: "bad_duel" }, 400);
+
+  if (action === "party_ready") {
+    const { data, error } = await svc.rpc("party_ready", { p_uid: uid, p_duel: duelId, p_ready: body?.ready !== false });
+    if (error) return fail(error.message);
+    /* Sala lotada e todos prontos: largada automática (qualquer jogador dispara). Perder a corrida para outro
+       disparo (`bad_status`) ou para uma saída (`roster_changed`) não é erro: devolve o estado atual. */
+    if (data?.canLaunch && data?.full) {
+      const launched = await launchParty(svc, uid, duelId);
+      if (launched.data) return json(await withPartyView(svc, launched.data));
+      if (!["bad_status", "roster_changed", "not_ready"].includes(launched.error!)) return fail(launched.error!);
+      const { data: now } = await svc.rpc("party_state", { p_uid: uid, p_duel: duelId });
+      return json(await withPartyView(svc, now ?? data));
+    }
+    return json(data);
+  }
+
+  if (action === "party_start") {
+    const launched = await launchParty(svc, uid, duelId);
+    if (launched.error) return fail(launched.error);
+    return json(await withPartyView(svc, launched.data));
+  }
+
+  if (action === "party_state") {
+    const { data, error } = await svc.rpc("party_state", { p_uid: uid, p_duel: duelId });
+    if (error) return fail(error.message);
+    return json(await withPartyView(svc, data));
+  }
+
+  if (action === "party_move") {
+    const meta = await duelMeta(svc, duelId);
+    if (!meta) return json({ error: "duel_not_found" }, 404);
+    if (meta.kind !== "party") return json({ error: "not_party_duel" }, 400);
+    if (meta.status !== "running") return json({ error: "bad_status" }, 409);
+    const party = partyOf(meta.game_id);
+    if (!party) return json({ error: "not_party_game" }, 400);
+
+    const row = await partyRoom(svc, duelId);
+    if (!row?.state) return json({ error: "duel_not_found" }, 404);
+    const { rows, seats, out } = await partySeats(svc, duelId);
+    const mine = rows.find((r: any) => r.user_id === uid && !r.out_at);
+    if (!mine) return json({ error: "not_member" }, 403);
+    if (party.order === "turns" && row.turn_seat !== mine.seat) return json({ error: "not_your_turn" }, 409);
+
+    let run;
+    try {
+      run = runPartyMove(party.domain, row.state, mine.seat, body?.move, { seats, out });
+    } catch (e) {
+      const msg = (e as Error).message;
+      if (msg === "invalid_move") return json({ error: "invalid_move" }, 422);
+      return json({ error: msg }, 500);   // domínio devolveu algo que o banco recusaria: bug do jogo, não do jogador
+    }
+
+    const { data, error } = await svc.rpc("party_move", {
+      p_uid: uid, p_duel: duelId, p_version: row.version, p_state: run.state, p_turn: run.turn,
+      p_move: run.move, p_ranking: run.ranking, p_reason: run.reason,
+    });
+    if (error) return fail(error.message);
+    return json(await withPartyView(svc, data, { state: run.state }));
+  }
+
+  if (action === "party_resign" || action === "party_leave" || action === "party_cancel") {
+    const { data, error } = await svc.rpc(action, { p_uid: uid, p_duel: duelId });
+    if (error) return fail(error.message);
+    return json(await withPartyView(svc, data));
+  }
+
+  if (action === "party_kick") {
+    if (!isUuid(body?.target)) return json({ error: "bad_target" }, 400);
+    const { data, error } = await svc.rpc("party_kick", { p_uid: uid, p_duel: duelId, p_target: body.target });
+    if (error) return fail(error.message);
+    return json(data);
+  }
+
+  return json({ error: "unknown_action" }, 400);
+}
 
 async function handleDuel(svc: any, uid: string, action: string, body: any) {
   if (!DUEL_ACTIONS.has(action)) return json({ error: "unknown_action" }, 400);
+  if (action.startsWith("party_")) return await handleParty(svc, uid, action, body);
 
   /* Criar sala de xadrez: ritmo e cor vêm do cliente, mas o servidor valida contra o contrato DUEL.
      O estado inicial (FEN + chave de repetição) vem do MESMO domínio testado no Node. */
@@ -310,6 +475,9 @@ async function handleDuel(svc: any, uid: string, action: string, body: any) {
   if (action === "duel_join") {
     const code = typeof body?.code === "string" ? body.code.trim().toUpperCase() : "";
     if (!isDuelCode(code)) return json({ error: "bad_code" }, 400);
+    /* Sala party (2+ jogadores) entra pelo próprio fluxo: o `kind` da sala decide. */
+    const { data: found } = await svc.from("duels").select("kind").eq("code", code).maybeSingle();
+    if (found?.kind === "party") return await handleParty(svc, uid, "party_join", body);
     const { data, error } = await svc.rpc("duel_join", { p_uid: uid, p_code: code });
     if (error) return json({ error: error.message }, duelStatus(error.message));
     return json(data);
@@ -327,6 +495,8 @@ async function handleDuel(svc: any, uid: string, action: string, body: any) {
   if (action === "duel_join_open") {
     const room = body?.duel;
     if (!isUuid(room)) return json({ error: "bad_duel" }, 400);
+    const { data: found } = await svc.from("duels").select("kind").eq("id", room).maybeSingle();
+    if (found?.kind === "party") return await handleParty(svc, uid, "party_join_open", body);
     const { data, error } = await svc.rpc("duel_join_open", { p_uid: uid, p_duel: room });
     if (error) return json({ error: error.message }, duelStatus(error.message));
     return json(data);
@@ -352,6 +522,16 @@ async function handleDuel(svc: any, uid: string, action: string, body: any) {
 
   const duelId = body?.duel;
   if (!isUuid(duelId)) return json({ error: "bad_duel" }, 400);
+
+  /* Ações genéricas numa sala party (ex.: o hub abre uma sala pelo id): o `kind` leva ao fluxo de 2+ jogadores,
+     antes de qualquer regra de jogo de 1×1 (Go etc.). */
+  const PARTY_OF_DUEL: Record<string, string> = {
+    duel_ready: "party_ready", duel_start: "party_state", duel_state: "party_state", duel_leave: "party_leave", duel_decline: "party_cancel",
+  };
+  if (PARTY_OF_DUEL[action]) {
+    const meta = await duelMeta(svc, duelId);
+    if (meta?.kind === "party") return await handleParty(svc, uid, PARTY_OF_DUEL[action], body);
+  }
 
   /* Estado / largada / desistência do xadrez: o Postgres é a autoridade dos relógios e do resultado. */
   if (action === "chess_state" || action === "chess_start" || action === "chess_resign") {
@@ -664,7 +844,7 @@ Deno.serve(async (req) => {
     }
 
     /* As ações de turnos começam com `chess_`/`dama_`/`gamao_`/`go_`/`onitama_`: sem isto elas caíam na checagem de jogo solo e voltavam `unknown_game`. */
-    if (typeof action === "string" && (action.startsWith("duel_") || action.startsWith("chess_") || action.startsWith("dama_") || action.startsWith("gamao_") || action.startsWith("go_") || action.startsWith("onitama_"))) {
+    if (typeof action === "string" && (action.startsWith("duel_") || action.startsWith("chess_") || action.startsWith("dama_") || action.startsWith("gamao_") || action.startsWith("go_") || action.startsWith("onitama_") || action.startsWith("party_"))) {
       return await handleDuel(svc, uid, action, body);
     }
 

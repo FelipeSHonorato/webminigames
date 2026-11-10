@@ -19,17 +19,24 @@ const user = requireSession("index.html");
 
 /* Ícones da lateral (estáticos, sem dados do usuário). */
 const NAV_ICONS = {
+  party: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="7.5" r="2.6"/><circle cx="5.6" cy="10.2" r="2.1"/><circle cx="18.4" cy="10.2" r="2.1"/><path d="M7.6 19.5c.3-2.8 2.1-4.3 4.4-4.3s4.1 1.5 4.4 4.3"/><path d="M1.8 18.3c.3-2.2 1.7-3.4 3.8-3.4"/><path d="M22.2 18.3c-.3-2.2-1.7-3.4-3.8-3.4"/></svg>`,
   all: `<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>`,
   solo: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 20c.6-3.4 3.2-5.2 6.5-5.2s5.9 1.8 6.5 5.2"/></svg>`,
   duel: `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"/><circle cx="16.5" cy="9.5" r="2.6"/><path d="M2.8 19.5c.5-3 2.5-4.6 5.2-4.6s4.7 1.6 5.2 4.6"/><path d="M14.4 19.5c.4-2.3 1.9-3.6 4-3.6 1.3 0 2.4.5 3.2 1.4"/></svg>`,
 };
 
-/* Modo atual (Todos / Solo / Duelos) e a entrada de duelos montada, se houver. */
+/* Modo atual (Todos / Solo / Duelos / Multijogador) e a entrada de duelos montada, se houver. */
 let mode = normalizeMode(modeFromHash(location.hash));
 let duelEntry = null;
 
 const winsOf = (game, uid) => Progress.wins(game.key, uid);
 const PROVIDER_NOTE = { password: "", google: "", "google-demo": "Google (simulação)", anonymous: "Anônimo: o progresso fica só neste navegador" };
+
+/* Estado vazio de cada modo (sem nenhum jogo ainda): a direção fica visível antes do primeiro jogo. */
+const EMPTY_TEXT = {
+  duel: "Nenhum jogo de duelo por enquanto. O primeiro jogo criado para o 1×1 aparece aqui — com sala por código, largada sincronizada e vencedor decidido no servidor.",
+  party: "Nenhum jogo multijogador por enquanto. O primeiro jogo para 2 ou mais jogadores aparece aqui — com sala por código, vagas, largada quando todos estiverem prontos e ranking final da partida.",
+};
 
 /* Ações logo abaixo de "Duelos 1×1": "Criar Sala" abre o pop-up do duelEntry; "Salas Online" é link. */
 const DUEL_ACTIONS = `<div class="hub-nav-sub">` +
@@ -68,8 +75,9 @@ function setMode(next, { updateHash = true } = {}) {
   });
   applyVisibility();
   $("games").dataset.hubMode = mode;   // no modo Duelos o selo 1×1 é redundante (todos os cards são do modo)
-  const duels = navItems(GAMES)[2].count;
-  $("hubEmpty").hidden = !(mode === "duel" && duels === 0);
+  const counts = Object.fromEntries(navItems(GAMES).map(item => [item.mode, item.count]));
+  $("hubEmpty").textContent = mode === "party" ? EMPTY_TEXT.party : EMPTY_TEXT.duel;
+  $("hubEmpty").hidden = !((mode === "duel" && counts.duel === 0) || (mode === "party" && counts.party === 0));
   if (updateHash) {
     try { history.replaceState(null, "", hashFor(mode) || location.pathname + location.search); } catch { /* sem History API */ }
   }
@@ -132,10 +140,12 @@ function renderHub() {
     if (playable) btn.href = g.path; else btn.setAttribute("aria-disabled", "true");
     const level = solo
       ? `<div class="lvl"><span>${LEVEL_NAMES[lv]}</span><div class="bar"><i style="width:${last ? 100 : (into / WINS_PER_LEVEL) * 100}%"></i></div><span>${last ? wins + " vitórias" : into + "/" + WINS_PER_LEVEL}</span></div>`
-      : `<div class="lvl"><span>Duelo 1×1</span><span>Sem pontos</span></div>`;
-    const badge = g.duel
-      ? `<span class="badge-duel">1×1</span>`
-      : `<span class="badge-solo">Solo</span>`;
+      : `<div class="lvl"><span>${g.party ? "Multijogador" : "Duelo 1×1"}</span><span>Sem pontos</span></div>`;
+    const badge = g.party
+      ? `<span class="badge-duel">2+</span>`
+      : g.duel
+        ? `<span class="badge-duel">1×1</span>`
+        : `<span class="badge-solo">Solo</span>`;
     btn.innerHTML = `${thumb(id, g)}<h3>${g.title}</h3><p>${g.desc}</p>${level}
       <div class="game-foot">${badge}<span class="play">${playable ? "Jogar" : "Indisponível"}</span></div>`;
     const title = btn.querySelector("h3");

@@ -2,13 +2,13 @@
    Só funções puras — limpeza da lista, filtro por jogo, hash e textos. O DOM fica em `js/salas.js`.
    O filtro lateral é um item "Todos" + um item por jogo de duelo do catálogo (`duel: true`), o mesmo
    critério do hub (`shared/hub-nav.js`), então um jogo novo de duelo aparece aqui sem mexer nesta página. */
-import { filterGames } from "./hub-nav.js";
+import { hasRooms } from "./hub-nav.js";
 import { rankLabel } from "../games/go/domain.js";
 
 export const ALL = "all";
 
 /** Ids dos jogos de duelo do catálogo, na ordem do catálogo. */
-export const duelIds = (games = {}) => filterGames(games, "duel").map(([id]) => id);
+export const duelIds = (games = {}) => Object.entries(games).filter(([, game]) => hasRooms(game)).map(([id]) => id);   // duelo 1×1 e multijogador
 
 /** Salas válidas: só de jogos de duelo que o catálogo conhece, da mais nova para a mais antiga. */
 export function cleanRooms(raw, games = {}) {
@@ -91,4 +91,11 @@ export function ratingLabel(room) {
   const rating = Number(room?.host?.rating);
   if (!Number.isFinite(rating) || rating <= 0) return "";
   return room?.gameId === "go" ? rankLabel(rating) : `${Math.round(rating)} Elo`;
+}
+
+/** Vagas da sala ("2/4 jogadores"). Só salas com mais de 2 vagas (multijogador); o duelo 1×1 não mostra. */
+export function slotsLabel(room) {
+  const max = Number(room?.maxPlayers), n = Number(room?.players);
+  if (!Number.isFinite(max) || max <= 2 || !Number.isFinite(n)) return "";
+  return `${n}/${max} jogadores`;
 }

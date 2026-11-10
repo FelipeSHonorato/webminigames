@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   MODES, DEFAULT_MODE, isDuel, normalizeMode,
-  navItems, filterGames, modeFromHash, hashFor, modeText, rankingPanels,
+  navItems, filterGames, modeFromHash, hashFor, modeText, rankingPanels, isParty, hasRooms,
 } from "../shared/hub-nav.js";
 import { GAMES as CATALOG } from "../js/games.js";
 
@@ -19,11 +19,13 @@ test("hub: a lateral conta todos, solo e duelos", () => {
     { mode: "all", label: "Todos", count: 4 },
     { mode: "solo", label: "Solo", count: 2 },
     { mode: "duel", label: "Duelos 1×1", count: 2 },
+    { mode: "party", label: "Multijogador", count: 0 },
   ]);
   assert.deepEqual(navItems({}), [
     { mode: "all", label: "Todos", count: 0 },
     { mode: "solo", label: "Solo", count: 0 },
     { mode: "duel", label: "Duelos 1×1", count: 0 },
+    { mode: "party", label: "Multijogador", count: 0 },
   ]);
 });
 
@@ -58,9 +60,10 @@ test("hub: #solo e #duelos levam e trazem o modo", () => {
 
 test("hub: modo inválido cai em Todos", () => {
   assert.equal(DEFAULT_MODE, "all");
-  assert.deepEqual(MODES, ["all", "solo", "duel"]);
+  assert.deepEqual(MODES, ["all", "solo", "duel", "party"]);
   for (const mode of MODES) assert.equal(normalizeMode(mode), mode);
   assert.equal(normalizeMode("multi"), "all");
+  assert.equal(normalizeMode("party"), "party");
   assert.equal(normalizeMode(undefined), "all");
 });
 
@@ -110,4 +113,43 @@ test("hub: painel lateral é Solo fora dos duelos e um por jogo no carrossel", (
   assert.equal(rankingPanels(panels, "duel")[0].gameId, "chess");
   assert.deepEqual(rankingPanels({}, "duel"), []);
   assert.equal(rankingPanels(CATALOG, "duel")[0].title, "Ranking Geral Xadrez");
+});
+
+/* ---------- Multijogador (2+ jogadores) ---------- */
+const WITH_PARTY = { ...GAMES, mesaA: { path: "games/mesaA/", party: true }, mesaB: { path: "games/mesaB/", party: true } };
+
+test("hub: só `party: true` conta como multijogador e não se mistura com duelo nem solo", () => {
+  assert.equal(isParty({ party: true }), true);
+  assert.equal(isParty({ party: "true" }), false, "string não vale: o catálogo usa booleano");
+  assert.equal(isParty({}), false);
+  assert.equal(isParty(null), false);
+  assert.equal(hasRooms({ duel: true }), true);
+  assert.equal(hasRooms({ party: true }), true);
+  assert.equal(hasRooms({}), false);
+  assert.deepEqual(navItems(WITH_PARTY), [
+    { mode: "all", label: "Todos", count: 6 },
+    { mode: "solo", label: "Solo", count: 2 },
+    { mode: "duel", label: "Duelos 1×1", count: 2 },
+    { mode: "party", label: "Multijogador", count: 2 },
+  ]);
+  const ids = mode => filterGames(WITH_PARTY, mode).map(([id]) => id);
+  assert.deepEqual(ids("party"), ["mesaA", "mesaB"]);
+  assert.deepEqual(ids("solo"), ["zip", "sudoku"], "jogo multijogador não aparece em Solo");
+  assert.deepEqual(ids("duel"), ["dueloA", "dueloB"], "nem em Duelos");
+  assert.equal(ids("all").length, 6);
+});
+
+test("hub: sem nenhum jogo multijogador o item continua na lateral com 0 (a direção fica visível)", () => {
+  const item = navItems(GAMES).find(i => i.mode === "party");
+  assert.deepEqual(item, { mode: "party", label: "Multijogador", count: 0 });
+  assert.deepEqual(filterGames(GAMES, "party"), []);
+});
+
+test("hub: #multijogador leva e traz o modo; textos próprios", () => {
+  assert.equal(modeFromHash("#multijogador"), "party");
+  assert.equal(modeFromHash("#PARTY"), "party");
+  assert.equal(hashFor("party"), "#multijogador");
+  assert.equal(modeText("party").title, "Multijogador");
+  assert.ok(modeText("party").sub.length > 20);
+  assert.match(modeText("all").sub, /multijogador/);
 });

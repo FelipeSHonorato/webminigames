@@ -1,0 +1,52 @@
+/* Painel da partida com 2+ jogadores (shared/party-ui.js): lobby com vagas, contagem, faixa da vez e classificação.
+   O tabuleiro/mão é do jogo. Cores vêm das variáveis do tema/jogo, com reserva para não quebrar em página nova. */
+.party{box-sizing:border-box;width:100%;max-width:100%;margin:0 0 12px;padding:12px;border:1px solid var(--grid,var(--line));border-radius:14px;background:var(--cell,var(--surface));color:var(--fg)}
+.party [hidden]{display:none}
+.party-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.party-tag{font-size:.72rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.party-status{font-size:.8rem;color:var(--muted)}
+
+.party-lobby{display:grid;gap:8px;justify-items:center;text-align:center}
+.party-label{margin:0;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.party-code{margin:0;max-width:100%;font-size:clamp(1.5rem,8vw,2.1rem);font-weight:900;letter-spacing:.16em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.party-slots{margin:0;font-size:.85rem;font-weight:700;color:var(--muted)}
+.party-hint{margin:2px 0 0;font-size:.8rem;line-height:1.4;color:var(--muted)}
+
+.party-seats,.party-standings,.party-roster{display:grid;gap:6px;width:100%;margin:0;padding:0;list-style:none;text-align:left}
+.party-seat{display:grid;grid-template-columns:36px minmax(0,1fr) auto auto;align-items:center;gap:8px;min-width:0;padding:6px 8px;border:1px solid var(--grid,var(--line));border-radius:10px}
+.party-seat.me{border-color:var(--accent)}
+.party-seat.free{border-style:dashed;color:var(--muted)}
+.party-seat.out,.party-roster-item.out{opacity:.55}
+.party-avatar{display:grid;place-items:center;width:36px;height:36px}
+.party-avatar .avatar{width:36px;height:36px;border-radius:50%}
+.party-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.88rem;font-weight:700}
+.party-tags{font-size:.74rem;font-weight:700;color:var(--muted);white-space:nowrap}
+.party-kick{flex:0 0 auto!important;padding:4px 8px!important;font-size:.74rem}
+
+.party-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;width:100%}
+.party-btn{flex:1 1 140px;min-width:0;max-width:100%;padding:10px 12px;border:2px solid var(--grid,var(--line));border-radius:10px;background:var(--btn,var(--surface));color:var(--fg);font:inherit;font-weight:700;cursor:pointer}
+.party-btn:hover:not(:disabled){border-color:var(--accent)}
+.party-btn:disabled{opacity:.55;cursor:default}
+.party-primary{border-color:var(--accent);background:var(--accent);color:var(--accent-fg,var(--bg))}
+
+.party-count{margin:14px 0;text-align:center;font-size:clamp(1.3rem,6vw,1.8rem);font-weight:900;color:var(--accent)}
+.party-banner{margin:0 0 8px;text-align:center;font-size:1rem;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums}
+.party-roster{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:8px}
+.party-roster-item{display:flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--grid,var(--line));border-radius:999px}
+.party-roster-item.turn{border-color:var(--accent);background:var(--accent);color:var(--accent-fg,var(--bg))}
+.party-roster-item.turn .party-tags{color:inherit}
+
+.party-result{display:grid;gap:8px;justify-items:center;text-align:center;padding:6px 0}
+.party-result-title{font-size:1.1rem}
+.party-standing{display:grid;grid-template-columns:44px minmax(0,1fr);align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--grid,var(--line));border-radius:10px}
+.party-standing.me{border-color:var(--accent)}
+.party-place{font-weight:900;color:var(--accent)}
+.party-note{margin:8px 0 0;font-size:.8rem;font-weight:700;text-align:center;color:var(--accent)}
+
+@media (max-width:360px){
+  .party{padding:10px}
+  .party-btn{flex:1 1 100%}
+  .party-seat{grid-template-columns:30px minmax(0,1fr) auto}
+  .party-seat .party-kick{grid-column:1 / -1}
+  .party-avatar,.party-avatar .avatar{width:30px;height:30px}
+}

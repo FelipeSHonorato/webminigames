@@ -1,13 +1,20 @@
-/* Menu lateral do hub (jogos.html): Todos / Solo / Duelos 1×1.
+/* Menu lateral do hub (jogos.html): Todos / Solo / Duelos 1×1 / Multijogador (2+).
    Só funções puras — contagem, filtro, hash e textos. O DOM fica em `js/hub.js`.
    Um jogo entra em "Duelos" quando o catálogo marca `duel: true`, o mesmo contrato que a Edge
-   confere no `DUEL` do domínio (`tests/edge.test.js` garante a paridade). */
+   confere no `DUEL` do domínio (`tests/edge.test.js` garante a paridade). Entra em "Multijogador" quando marca
+   `party: true` (2+ jogadores; contrato `PARTY` do domínio). Um jogo é de UM modo só: `duel` e `party` não se misturam. */
 
-export const MODES = ["all", "solo", "duel"];
+export const MODES = ["all", "solo", "duel", "party"];
 export const DEFAULT_MODE = "all";
 
 /** `duel: true` no catálogo = jogo criado para o 1×1 (nenhum jogo antigo é convertido). */
 export const isDuel = game => game?.duel === true;
+
+/** `party: true` no catálogo = jogo criado para 2 ou mais jogadores (contrato `PARTY` no domínio). */
+export const isParty = game => game?.party === true;
+
+/** Jogo com sala online (Salas Online, código de convite): duelo 1×1 ou multijogador. */
+export const hasRooms = game => isDuel(game) || isParty(game);
 
 /** Modo válido; qualquer outra coisa cai em "Todos". */
 export const normalizeMode = mode => (MODES.includes(mode) ? mode : DEFAULT_MODE);
@@ -16,10 +23,12 @@ export const normalizeMode = mode => (MODES.includes(mode) ? mode : DEFAULT_MODE
 export function navItems(games = {}) {
   const all = Object.values(games);
   const duels = all.filter(isDuel).length;
+  const parties = all.filter(isParty).length;
   return [
     { mode: "all", label: "Todos", count: all.length },
-    { mode: "solo", label: "Solo", count: all.length - duels },
+    { mode: "solo", label: "Solo", count: all.length - duels - parties },
     { mode: "duel", label: "Duelos 1×1", count: duels },
+    { mode: "party", label: "Multijogador", count: parties },
   ];
 }
 
@@ -27,15 +36,17 @@ export function navItems(games = {}) {
 export function filterGames(games = {}, mode = DEFAULT_MODE) {
   const entries = Object.entries(games);
   if (mode === "duel") return entries.filter(([, game]) => isDuel(game));
-  if (mode === "solo") return entries.filter(([, game]) => !isDuel(game));
+  if (mode === "party") return entries.filter(([, game]) => isParty(game));
+  if (mode === "solo") return entries.filter(([, game]) => !hasRooms(game));
   return entries;
 }
 
-/** Modo a partir do endereço (`#solo`, `#duelos`); qualquer outro valor cai em "Todos". */
+/** Modo a partir do endereço (`#solo`, `#duelos`, `#multijogador`); qualquer outro valor cai em "Todos". */
 export function modeFromHash(hash = "") {
   const value = String(hash).replace(/^#/, "").toLowerCase();
   if (value === "solo") return "solo";
   if (value === "duelos" || value === "duel") return "duel";
+  if (value === "multijogador" || value === "party") return "party";
   return DEFAULT_MODE;
 }
 
@@ -43,6 +54,7 @@ export function modeFromHash(hash = "") {
 export function hashFor(mode) {
   if (mode === "solo") return "#solo";
   if (mode === "duel") return "#duelos";
+  if (mode === "party") return "#multijogador";
   return "";
 }
 
@@ -75,8 +87,14 @@ export function modeText(mode) {
       sub: "Jogos com duelos jogador x jogador. Jogue com um adversário valendo pontuação no ranking ou somente por diversão.",
     };
   }
+  if (mode === "party") {
+    return {
+      title: "Multijogador",
+      sub: "Jogos para 2 ou mais jogadores na mesma sala. Crie uma sala, chame os amigos pelo código e comece quando todos estiverem prontos.",
+    };
+  }
   return {
     title: "Todos os jogos",
-    sub: "Solo e duelos no mesmo lugar. Cada jogo tem seu nível, seus tickets e seu ranking.",
+    sub: "Solo, duelos e multijogador no mesmo lugar. Cada jogo tem seu nível, seus tickets e seu ranking.",
   };
 }

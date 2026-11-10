@@ -3,6 +3,7 @@
    Usa as CÓPIAS dos domínios em _shared/<jogo>/domain.js, que precisam ficar idênticas às de games/<jogo>
    (o teste tests/edge.test.js compara as duas e falha se divergirem). */
 import { makeRng } from "./rng.js";
+import { partyContract } from "./party.js";
 import * as arrows from "./arrows/domain.js";
 import * as canos from "./canos/domain.js";
 import * as chess from "./chess/domain.js";
@@ -47,6 +48,17 @@ export const duelContract = domain => {
 export const duelOf = game => duelContract(GAMES[game]);
 export const DUELS = Object.fromEntries(
   Object.entries(GAMES).filter(([, domain]) => duelContract(domain)).map(([id]) => [id, duelContract(GAMES[id])]),
+);
+/* Contrato de partida com 2+ jogadores (ver _shared/party.js). Só jogos criados PARA esse modo exportam `PARTY`
+   (+ partyStart/partyMove/partyView) no próprio domínio; a Edge lê daqui, sem lista fixa.
+   Fora do SOLO_GAMES de propósito: jogo party não gera puzzle por seed. */
+export const partyOf = game => {
+  const domain = GAMES[game];
+  const contract = partyContract(domain);
+  return contract ? { ...contract, domain } : null;
+};
+export const PARTIES = Object.fromEntries(
+  Object.entries(GAMES).filter(([, domain]) => partyContract(domain)).map(([id]) => [id, partyContract(GAMES[id])]),
 );
 export const GENS = { arrows: arrows.GEN, canos: canos.GEN, cruzadas: cruzadas.GEN, queens: queens.GEN, tango: tango.GEN, texttwist: texttwist.GEN, sopa: sopa.GEN, patches: 1, sudoku: 1, zip: 1 };
 

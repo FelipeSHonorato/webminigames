@@ -525,3 +525,55 @@ test("miniaturas: todo jogo do catálogo tem as imagens do carrossel (claro e es
   assert.match(landing, /thumb-fallback/, "o carrossel da página inicial precisa do SVG de reserva, como o hub");
   assert.match(landing, /addEventListener\("error"/, "o carrossel precisa trocar pela reserva quando a imagem falha");
 });
+
+/* ---------- partidas com 2+ jogadores (party) ---------- */
+test("Edge: a cópia de shared/party.js é idêntica (a Edge e o navegador precisam dizer a mesma coisa)", () => {
+  assert.equal(read("supabase/functions/play/_shared/party.js"), read("shared/party.js"));
+  assert.doesNotMatch(read("shared/party.js"), /^import /m, "party.js é puro: sem imports, para a cópia ser idêntica");
+});
+
+test("Edge: nenhum jogo existente declara PARTY (converter jogo antigo mudaria as regras dele)", async () => {
+  const { PARTIES, partyOf } = await import("../supabase/functions/play/_shared/board.js");
+  assert.deepEqual(Object.keys(PARTIES), [], "nenhum jogo party ainda: a estrutura vem antes do primeiro jogo");
+  assert.equal(partyOf("chess"), null);
+  assert.equal(partyOf("inexistente"), null);
+  const { SOLO_GAMES } = await import("../supabase/functions/play/_shared/board.js");
+  for (const id of Object.keys(PARTIES)) assert.equal(id in SOLO_GAMES, false, `${id}: jogo party não é solo`);
+});
+
+test("Edge: ações party roteadas por `kind`, o estado do jogo nunca vai ao navegador e o 1×1 segue o mesmo caminho", () => {
+  const entry = read("supabase/functions/play/index.ts");
+  const set = entry.match(/const DUEL_ACTIONS = new Set\(\[([\s\S]*?)\]\)/)?.[1] ?? "";
+  for (const a of ["party_create", "party_join", "party_join_open", "party_ready", "party_start", "party_state", "party_move", "party_resign", "party_leave", "party_kick", "party_cancel"]) {
+    assert.ok(set.includes(`"${a}"`), `${a} fora de DUEL_ACTIONS`);
+  }
+  assert.match(entry, /action\.startsWith\("party_"\)\)\) \{\s*return await handleDuel/, "o prefixo party_ chega ao handleDuel (sem cair em unknown_game)");
+  assert.match(entry, /if \(action\.startsWith\("party_"\)\) return await handleParty\(svc, uid, action, body\)/);
+
+  // entrar por código/lista numa sala party desvia sem mexer na chamada do 1×1
+  assert.match(entry, /found\?\.kind === "party"\) return await handleParty\(svc, uid, "party_join", body\)/);
+  assert.match(entry, /found\?\.kind === "party"\) return await handleParty\(svc, uid, "party_join_open", body\)/);
+  assert.match(entry, /rpc\("duel_join", \{ p_uid: uid, p_code: code \}\)/, "o duel_join do 1×1 continua igual");
+  assert.match(entry, /rpc\("duel_join_open", \{ p_uid: uid, p_duel: room \}\)/, "o duel_join_open do 1×1 continua igual");
+
+  // ações genéricas numa sala party vão para party_* ANTES do override do Go
+  const generic = entry.indexOf("PARTY_OF_DUEL[action]");
+  const goReady = entry.indexOf('/* Go tem um "pronto" próprio');
+  assert.ok(generic > 0 && goReady > generic, "o desvio por kind precisa vir antes do duel_ready do Go");
+  assert.match(entry, /duel_ready: "party_ready", duel_start: "party_state", duel_state: "party_state", duel_leave: "party_leave", duel_decline: "party_cancel"/);
+
+  // lance: o domínio valida (runPartyMove), o Postgres confere versão/vez; o estado só sai como `view`
+  const move = entry.match(/if \(action === "party_move"\) \{[\s\S]*?\n  \}\n\n  if \(action === "party_resign"/)?.[0];
+  assert.ok(move, "bloco party_move não encontrado");
+  assert.match(move, /runPartyMove\(party\.domain, row\.state, mine\.seat, body\?\.move, \{ seats, out \}\)/);
+  assert.match(move, /p_version: row\.version/, "compare-and-set pela versão lida");
+  assert.match(move, /"invalid_move"[\s\S]*?422/, "lance ilegal é 422");
+  const view = entry.match(/const withPartyView = [\s\S]*?\n\};/)?.[0] ?? "";
+  assert.match(view, /partyView\(row\.state, room\.mySeat/, "só a visão do assento");
+  assert.match(view, /Date\.parse\(room\.serverNow\) < Date\.parse\(room\.startsAt\)/, "nada de visão durante a contagem");
+  assert.doesNotMatch(entry, /json\([^)]*row\.state/, "o estado do jogo nunca é devolvido cru");
+  // largada: o elenco lido é o que o Postgres confere
+  assert.match(entry, /rpc\("party_roster"/);
+  assert.match(entry, /p_roster: info\.roster/);
+  assert.match(entry, /launched\.error!\)/, "perder a corrida da largada automática não é erro");
+});

@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql", "20261044000000_duel_invite_flow.sql", "20261045000000_duel_resume_presence.sql", "20261046000000_duel_invite_when_ready.sql", "20261047000000_dama_duel.sql", "20261048000000_duel_ready_fix.sql", "20261049000000_dama_valida_posicao.sql", "20261050000000_gamao_duel.sql", "20261051000000_go_duel.sql", "20261052000000_onitama_duel.sql"];
+const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql", "20261044000000_duel_invite_flow.sql", "20261045000000_duel_resume_presence.sql", "20261046000000_duel_invite_when_ready.sql", "20261047000000_dama_duel.sql", "20261048000000_duel_ready_fix.sql", "20261049000000_dama_valida_posicao.sql", "20261050000000_gamao_duel.sql", "20261051000000_go_duel.sql", "20261052000000_onitama_duel.sql", "20261053000000_multiplayer_party.sql"];
 const migration = f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
 const migrations = migrationNames.map(migration);
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
@@ -52,7 +52,7 @@ test("SQL: os jogos cadastrados são os de js/games.js, na mesma ordem e com o m
   assert.deepEqual(rows, Object.entries(GAMES).map(([id, g], i) => [id, g.title, i + 1]));
   for (const [id, g] of Object.entries(GAMES)) {
     if (g.key) assert.equal(g.key, `${id}.wins`, `${id}: a chave de vitórias vira o id do jogo`);
-    else assert.equal(g.duel, true, `${id}: jogo sem chave precisa ser só de duelo`);
+    else assert.ok(g.duel === true || g.party === true, `${id}: jogo sem chave precisa ser só de duelo ou multijogador`);
   }
 });
 
@@ -713,4 +713,54 @@ test("SQL: migração 49 recusa posição que não seja de Dama e cancela salas 
   assert.match(code, /d\.status in \('waiting', 'running'\)/, "só mexe em salas ativas");
   assert.match(code, /grant execute on function public\.dama_create\(uuid, int, text, text, text, boolean\) to service_role/);
   assert.doesNotMatch(code, /to (anon|authenticated)/);
+});
+
+test("SQL: partidas 2+ jogadores — tabela fechada, funções só da Edge e o 1×1 intocado", () => {
+  const party = migration("20261053000000_multiplayer_party.sql");
+  assert.match(party, /create table public\.party_games \(/);
+  assert.match(party, /alter table public\.party_games enable row level security;/);
+  assert.match(party, /revoke all on public\.party_games from anon, authenticated;/);
+
+  // O 1×1 continua 2×2: só o tipo party aceita outros limites, e o Elo não dispara em party.
+  assert.match(party, /check \(min_players >= 2 and max_players >= min_players and max_players <= 12\s+and \(kind = 'party' or \(min_players = 2 and max_players = 2\)\)\)/);
+  assert.match(party, /check \(kind in \('race', 'turn', 'party'\)\)/);
+  assert.match(party, /for each row when \(new\.kind <> 'party'\)\s+execute function public\.duel_rating_on_finish\(\)/);
+
+  // Nenhuma função do fluxo 1×1 é redefinida (só as duas de LEITURA que assumiam 2 jogadores).
+  const defined = [...party.matchAll(/create or replace function public\.(\w+)\(/g)].map(m => m[1]);
+  const oneVsOne = defined.filter(f => f.startsWith("duel_") || /^(chess|dama|gamao|go|onitama)_/.test(f));
+  assert.deepEqual(oneVsOne.sort(), ["duel_gen_code", "duel_invites", "duel_open_rooms"], "party não pode redefinir duel_create/join/seat/ready/leave/state/finish");
+  // Regressão: o alfabeto tem 31 letras e o sorteio usava 32 — ~17% dos códigos saíam com menos de 6 caracteres.
+  const gen = party.match(/create or replace function public\.duel_gen_code[\s\S]*?\$\$;/)[0];
+  assert.match(gen, /floor\(random\(\) \* length\(alphabet\)\)/, "o sorteio usa o tamanho real do alfabeto");
+  assert.doesNotMatch(gen, /random\(\) \* 32/);
+
+  // Toda função security definer fixa o search_path.
+  for (const block of party.match(/create or replace function [\s\S]*?\$\$;/g)) {
+    if (block.startsWith("create or replace function public.duel_gen_code")) {
+      assert.match(block, /set search_path = public/, "o gerador (função pura, sem security definer) também fixa o search_path");
+    } else {
+      assert.match(block, /security definer set search_path = public/, block.slice(0, 70));
+    }
+  }
+
+  // Funções chamadas pela Edge: revoke do navegador + grant só ao service_role.
+  for (const f of [
+    "party_json\\(uuid, uuid\\)", "party_create\\(uuid, text, int, int, boolean, text, int, text, int\\)", "party_join\\(uuid, text\\)",
+    "party_join_open\\(uuid, uuid\\)", "party_ready\\(uuid, uuid, boolean\\)", "party_roster\\(uuid\\)",
+    "party_launch\\(uuid, uuid, jsonb, jsonb, int\\)", "party_state\\(uuid, uuid\\)",
+    "party_move\\(uuid, uuid, int, jsonb, int, jsonb, jsonb, text\\)", "party_leave\\(uuid, uuid\\)", "party_resign\\(uuid, uuid\\)",
+    "party_kick\\(uuid, uuid, uuid\\)", "party_cancel\\(uuid, uuid\\)", "party_cleanup\\(\\)", "duel_open_rooms\\(uuid, int\\)", "duel_invites\\(uuid\\)",
+  ]) {
+    assert.match(party, new RegExp(`revoke all on function public\\.${f}\\s+from public, anon, authenticated`), `${f} acessível ao navegador`);
+    assert.match(party, new RegExp(`grant execute on function public\\.${f}\\s+to service_role`), `${f} deveria ser da Edge`);
+  }
+  // Auxiliares internos: ninguém de fora executa e nem a Edge precisa (só outras funções do dono chamam).
+  for (const f of ["party_next_seat\\(uuid, smallint\\)", "party_finish\\(uuid, jsonb, text\\)", "party_eliminate\\(uuid, uuid, text\\)", "party_apply_timeout\\(uuid\\)", "party_seat\\(uuid, public\\.duels\\)"]) {
+    assert.match(party, new RegExp(`revoke all on function public\\.${f}\\s+from public, anon, authenticated`), `${f} acessível ao navegador`);
+    assert.doesNotMatch(party, new RegExp(`grant execute on function public\\.${f}`), `${f} é interna`);
+  }
+  // O JSON da sala nunca devolve o estado do jogo (a Edge entrega só a visão do assento).
+  const json = party.match(/create or replace function public\.party_json[\s\S]*?\$\$;/)[0];
+  assert.doesNotMatch(json, /v_g\.state|'state'/, "party_json não pode expor party_games.state");
 });

@@ -51,7 +51,8 @@ export const GAMES = {
     preview: `<svg viewBox="0 0 160 100" aria-hidden="true"><g fill="currentColor" opacity=".1"><rect x="6" y="8" width="22" height="22" rx="5"/><rect x="32" y="8" width="22" height="22" rx="5"/><rect x="58" y="8" width="22" height="22" rx="5"/><rect x="84" y="8" width="22" height="22" rx="5"/><rect x="110" y="8" width="22" height="22" rx="5"/><rect x="136" y="8" width="22" height="22" rx="5"/></g><g font-size="13" font-weight="700" fill="currentColor" text-anchor="middle" dominant-baseline="central"><text x="17" y="19">C</text><text x="43" y="19">A</text><text x="69" y="19">N</text><text x="95" y="19">T</text><text x="121" y="19">A</text><text x="147" y="19">R</text></g><g stroke="#2cc4b6" stroke-width="5" stroke-linecap="round"><path d="M8 46h34M50 46h58M8 60h24M40 60h70M8 74h44M60 74h52"/></g></svg>`,
   },
   /* Xadrez é o primeiro jogo SÓ de duelo: sem `key` (não tem vitórias/níveis/coins solo)
-     e com `duel: true`, o mesmo contrato que a Edge confere no DUEL do domínio. */
+     e com `duel: true`, o mesmo contrato que a Edge confere no DUEL do domínio.
+     Jogo para 2+ jogadores: `party: true` (e SEM `duel`), com o contrato PARTY no domain.js — ver docs/NOVO-JOGO.md §6. */
   chess: {
     title: "Xadrez", duel: true, path: "games/chess/",
     desc: "O clássico com regras de torneio: cada jogador tem o próprio relógio, que corre só no seu turno.",

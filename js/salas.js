@@ -10,7 +10,7 @@ import { rankLabel } from "../games/go/domain.js";
 import { rankingPanels } from "../shared/hub-nav.js";
 import {
   ALL, cleanRooms, filterItems, roomsOf, filterFromHash, hashForFilter, filterText, openedAgo, durationLabel,
-  roomHref, ratingLabel, isOpenRoom, joinableRoom,
+  roomHref, ratingLabel, isOpenRoom, joinableRoom, slotsLabel,
 } from "../shared/rooms.js";
 
 const $ = id => document.getElementById(id);
@@ -80,7 +80,7 @@ function roomNode(room) {
     meta.append(chip);
   }
   const time = durationLabel(room);
-  const rest = [time && `Tempo: ${time}`, openedAgo(room.createdAt) && `aberta ${openedAgo(room.createdAt)}`].filter(Boolean);
+  const rest = [slotsLabel(room), time && `Tempo: ${time}`, openedAgo(room.createdAt) && `aberta ${openedAgo(room.createdAt)}`].filter(Boolean);
   if (rest.length) meta.append(` · ${rest.join(" · ")}`);
 
   const body = el("div", "room-body");
@@ -88,7 +88,7 @@ function roomNode(room) {
   const href = roomHref(room, GAMES);
   const joinable = joinableRoom(room, GAMES);
   li.append(avatar, body, el("span", "room-state",
-    href ? "Ver código da sala" : joinable ? "Entrar na sala" : "Aguardando desafiante"));
+    href ? "Ver código da sala" : joinable ? "Entrar na sala" : game.party ? "Aguardando jogadores" : "Aguardando desafiante"));
   if (href) {
     /* Sua sala: o card inteiro leva de volta à tela do código (a página do jogo reabre a sala pelo id). */
     const open = el("a", "room-open");
