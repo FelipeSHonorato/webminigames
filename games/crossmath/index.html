@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CrossMath</title>
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/email-logo.png" type="image/png" sizes="96x96">
+<link rel="apple-touch-icon" href="../../assets/email-logo.png">
+<script src="../../shared/theme-init.js"></script>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../css/gamebar.css">
+<link rel="stylesheet" href="../../css/ranking-list.css">
+<link rel="stylesheet" href="../../css/ranking.css">
+<link rel="stylesheet" href="../../css/userbar.css">
+<link rel="stylesheet" href="../../css/coins.css">
+<link rel="stylesheet" href="../../css/daily.css">
+<link rel="stylesheet" href="../../css/tutorial.css">
+<link rel="stylesheet" href="tutorial.css">
+</head>
+<body>
+<nav class="sitebar"><a href="../../jogos.html">← Jogos</a><div class="gametitle"><strong>CrossMath</strong><span id="coinBadge"></span></div><div id="userbar"></div></nav>
+<main>
+  <header><div class="head-title"><h1>CrossMath</h1><button id="howto" class="howto" type="button" aria-haspopup="dialog"><span class="howto-icon" aria-hidden="true">?</span><span class="howto-label">Como jogar</span></button></div><span id="timer" aria-label="Tempo">00:00</span></header>
+  <div id="level"><div class="level-title"><b id="levelName"></b><button id="levelHelp" class="level-help" type="button" aria-haspopup="dialog" aria-label="Como funcionam as dificuldades e os níveis"><span class="howto-icon" aria-hidden="true">?</span></button></div><div class="bar"><i id="barFill"></i></div><span id="levelCount"></span></div>
+  <div class="layout">
+    <section class="boardwrap">
+      <svg id="board" role="application" aria-label="Tabuleiro do CrossMath"></svg>
+      <div id="msg" role="status"></div>
+      <div id="daily" class="daily" hidden></div>
+    </section>
+    <aside class="side">
+      <div id="phase"></div>
+      <div class="bankbox">
+        <div class="bank-title">Números do banco</div>
+        <div id="bank" class="bank" role="group" aria-label="Números disponíveis"></div>
+      </div>
+      <ul class="legend">
+        <li><i class="sw hole"></i>Casas tracejadas: buracos para preencher</li>
+        <li><i class="sw given"></i>Casas escuras: números fixos</li>
+        <li><i class="sw op">+</i>As contas são lidas da esquerda para a direita</li>
+        <li><i class="sw bad"></i>Vermelho: equação que não fecha</li>
+      </ul>
+      <div class="actions">
+        <button id="reset">Reiniciar</button>
+        <button id="next">Nova fase</button>
+      </div>
+    </aside>
+  </div>
+</main>
+<script src="../../shared/file-warning.js"></script>
+<script type="module" src="./ui.js"></script>
+</body>
+</html>

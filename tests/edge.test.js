@@ -12,6 +12,7 @@ import { GAMES as CATALOG } from "../js/games.js";
 import * as arrows from "../games/arrows/domain.js";
 import * as canos from "../games/canos/domain.js";
 import * as chess from "../games/chess/domain.js";
+import * as crossmath from "../games/crossmath/domain.js";
 import * as cruzadas from "../games/cruzadas/domain.js";
 import * as dama from "../games/dama/domain.js";
 import * as onitama from "../games/onitama/domain.js";
@@ -31,7 +32,7 @@ const normPoints = s => s.replace(/"(?:\.\.\/)+(?:shared\/)?points\.js"/g, '"POI
 
 /* ---------- paridade entre games/ e a cópia usada pela Edge Function ---------- */
 test("cópias dos domínios na Edge Function batem com games/ (paridade)", () => {
-  for (const g of ["arrows", "canos", "chess", "cruzadas", "dama", "gamao", "go", "onitama", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]) {
+  for (const g of ["arrows", "canos", "chess", "crossmath", "cruzadas", "dama", "gamao", "go", "onitama", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]) {
     assert.equal(normPoints(read(`supabase/functions/play/_shared/${g}/domain.js`)), normPoints(read(`games/${g}/domain.js`)), `domain de ${g} divergiu`);
   }
   for (const g of ["cruzadas", "sopa", "texttwist"]) {
@@ -43,7 +44,7 @@ test("cópias dos domínios na Edge Function batem com games/ (paridade)", () =>
 
 /* ---------- o puzzle público NUNCA carrega a solução ---------- */
 test("visão pública não vaza a solução (jogos fortes)", () => {
-  for (const g of ["sudoku", "arrows", "canos", "patches", "queens", "tango", "texttwist", "zip"]) {
+  for (const g of ["sudoku", "arrows", "canos", "patches", "queens", "tango", "texttwist", "zip", "crossmath"]) {
     const view = JSON.stringify(publicView(g, 12345, 0));
     assert.ok(!view.includes("solution"), `${g} vazou a solução`);
     assert.ok(!view.includes("\"path\""), `${g} vazou o caminho`);
@@ -55,6 +56,9 @@ test("visão pública não vaza a solução (jogos fortes)", () => {
   const twistView = publicView("texttwist", 12345, 0);
   assert.ok(Array.isArray(twistView.letters) && twistView.letters.length === twistView.n, "texttwist manda as letras");
   assert.ok(!JSON.stringify(twistView).includes("\"words\""), "texttwist não manda a lista de palavras");
+  const crossView = publicView("crossmath", 12345, 0);
+  assert.ok(Array.isArray(crossView.cells) && Array.isArray(crossView.nums) && Array.isArray(crossView.bank), "crossmath manda grade, casas e banco");
+  assert.ok(Array.isArray(crossView.eqs) && crossView.eqs.length >= 5, "crossmath manda as equações");
   const canosView = publicView("canos", 12345, 0);
   assert.ok(Array.isArray(canosView.inlets) && canosView.inlets.length >= 1);
   assert.ok(Array.isArray(canosView.outlets) && canosView.outlets.length >= 1);
@@ -155,6 +159,19 @@ test("texttwist: contagem do pódio ignora palavras repetidas", () => {
   assert.equal(countWords("sudoku", { words: short }), 0);
 });
 
+test("crossmath: o estado com os números do banco é aceito; faltando ou trocado é recusado", () => {
+  const seed = 938, lvl = 1;
+  const p = crossmath.generatePuzzle(makeRng(seed), crossmath.LEVELS[lvl]);
+  assert.equal(validate("crossmath", seed, lvl, { nums: p.solution }), true);
+  assert.equal(validate("crossmath", seed, lvl, {}), false);
+  assert.equal(validate("crossmath", seed, lvl, { nums: p.solution.slice(0, -1) }), false);
+  assert.equal(validate("crossmath", seed, lvl, { nums: p.solution.map((v, k) => (k === 0 ? 0 : v)) }), false, "zero não é número do banco");
+  const given = p.nums.findIndex(cell => p.cells[cell].v != null);
+  const altered = p.solution.slice();
+  altered[given] = altered[given] === 1 ? 2 : 1;
+  assert.equal(validate("crossmath", seed, lvl, { nums: altered }), false, "dado fixo não pode ser trocado");
+});
+
 test("patches: a partição solução é aceita; um retângulo fora do lugar é recusado", () => {
   const seed = 333, lvl = 0;
   const p = patches.generatePuzzle(makeRng(seed), patches.LEVELS[lvl]);
@@ -210,7 +227,7 @@ test("puzzles diferentes têm a mesma seed mas níveis diferentes mudam a dificu
 
 test("snapshot diário: o puzzle completo valida e a visão pública continua sem a solução", () => {
   const cases = [
-    ["sudoku", 801], ["arrows", 802], ["canos", 803], ["patches", 804], ["zip", 805], ["sopa", 806], ["cruzadas", 807], ["queens", 808], ["tango", 809], ["texttwist", 810],
+    ["sudoku", 801], ["arrows", 802], ["canos", 803], ["patches", 804], ["zip", 805], ["sopa", 806], ["cruzadas", 807], ["queens", 808], ["tango", 809], ["texttwist", 810], ["crossmath", 811],
   ];
   for (const [game, seed] of cases) {
     const snap = snapshot(game, seed, 0);
@@ -270,11 +287,16 @@ test("snapshot diário: o puzzle completo valida e a visão pública continua se
   const twistKey = twistP.words.find(w => w.length === twistP.n);
   assert.equal(validateSnapshot("texttwist", twistSnap.fullPuzzle, { words: [twistKey] }), true);
   assert.equal(validateSnapshot("texttwist", twistSnap.fullPuzzle, { words: [] }), false);
+
+  const crossSnap = snapshot("crossmath", 811, 0);
+  const crossP = crossmath.generatePuzzle(makeRng(811), crossmath.LEVELS[0]);
+  assert.equal(validateSnapshot("crossmath", crossSnap.fullPuzzle, { nums: crossP.solution }), true);
+  assert.equal(validateSnapshot("crossmath", crossSnap.fullPuzzle, { nums: [] }), false);
 });
 
-test("GAMES agrupa os quinze domínios e SOLO_GAMES deixa xadrez, dama, gamão, Go e Onitama de fora", () => {
-  assert.deepEqual(Object.keys(GAMES).sort(), ["arrows", "canos", "chess", "cruzadas", "dama", "gamao", "go", "onitama", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
-  assert.deepEqual(Object.keys(SOLO_GAMES).sort(), ["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
+test("GAMES agrupa os dezesseis domínios e SOLO_GAMES deixa xadrez, dama, gamão, Go e Onitama de fora", () => {
+  assert.deepEqual(Object.keys(GAMES).sort(), ["arrows", "canos", "chess", "crossmath", "cruzadas", "dama", "gamao", "go", "onitama", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
+  assert.deepEqual(Object.keys(SOLO_GAMES).sort(), ["arrows", "canos", "crossmath", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
   assert.equal(typeof chess.generatePuzzle, "undefined", "xadrez não gera fase: só duelo");
   assert.equal(typeof dama.generatePuzzle, "undefined", "dama não gera fase: só duelo");
   assert.equal(typeof gamao.generatePuzzle, "undefined", "gamão não gera fase: só duelo");

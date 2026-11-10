@@ -1,0 +1,81 @@
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#e9eef3;--fg:#14213d;--accent:#0f766e;--muted:#5b6b7e;--btn:#fff;--line:#c3ced9;
+/* Tokens usados por css/ranking.css, ranking-list.css e gamebar.css */
+--cell:#fff;--grid:#cfd8e1;
+--given:#eef2f7;--chip:#e9eef3;--bad:#d64545;--badfg:#b3261e}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1621;--fg:#e8eef5;--accent:#2cc4b6;--muted:#8da0b5;--btn:#17222f;--line:#2e4156;
+--cell:#17222f;--grid:#2a3a4c;--given:#1f2c3b;--chip:#0e1621;--bad:#ff6b6b;--badfg:#ff8a80}}
+:root[data-theme="dark"]{--bg:#0e1621;--fg:#e8eef5;--accent:#2cc4b6;--muted:#8da0b5;--btn:#17222f;--line:#2e4156;
+--cell:#17222f;--grid:#2a3a4c;--given:#1f2c3b;--chip:#0e1621;--bad:#ff6b6b;--badfg:#ff8a80}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif}
+main{max-width:940px;margin:0 auto;padding:20px 16px 28px}
+header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+h1{margin:0;font-size:2rem;letter-spacing:-.02em}
+#timer{font-variant-numeric:tabular-nums;color:var(--muted);font-size:1.2rem;font-weight:700}
+#level{display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:.95rem}
+#level .level-title{display:flex;align-items:center;gap:6px;min-width:5em}
+#level .bar{flex:1;height:8px;border-radius:4px;background:var(--grid);overflow:hidden}
+#level .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+#level span{color:var(--muted);font-variant-numeric:tabular-nums}
+
+.layout{display:flex;gap:24px;align-items:flex-start;flex-wrap:wrap}
+.boardwrap{flex:1 1 380px;max-width:660px;min-width:0}
+.side{flex:1 1 230px;min-width:210px}
+
+/* Tabuleiro em SVG: cada casa vira um retângulo; as casas fora de qualquer equação somem. */
+#board{display:block;width:100%;user-select:none;-webkit-user-select:none;touch-action:manipulation;cursor:pointer;
+  border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,.10);outline:none;background:var(--bg)}
+#board:focus-visible{box-shadow:0 2px 12px rgba(0,0,0,.10),0 0 0 3px var(--accent)}
+#board.won{box-shadow:0 2px 12px rgba(0,0,0,.10),0 0 0 3px var(--accent)}
+#board.locked{cursor:default}
+.cm-cell rect{fill:var(--cell);stroke:var(--grid);stroke-width:2.5;transition:fill .12s,stroke .12s}
+.cm-cell text{font-size:44px;font-weight:800;fill:var(--fg);text-anchor:middle;dominant-baseline:central;font-family:inherit}
+.cm-cell.given rect{fill:var(--given)}
+.cm-cell.given text{fill:var(--fg)}
+.cm-cell.hole rect{fill:var(--btn);stroke:var(--line);stroke-dasharray:9 7}
+.cm-cell.hole.filled rect{stroke:var(--accent);stroke-dasharray:none;stroke-width:3.5}
+.cm-cell.hole.filled text{fill:var(--accent)}
+.cm-cell.op rect,.cm-cell.eq rect{fill:var(--chip);stroke:var(--line)}
+.cm-cell.op text,.cm-cell.eq text{fill:var(--muted);font-size:38px}
+.cm-cell .dot{fill:var(--line)}
+.cm-cell.bad rect{stroke:var(--bad);stroke-width:6;stroke-dasharray:none}
+.cm-cell.bad text{fill:var(--badfg)}
+.cm-cell.cur rect{stroke:var(--accent);stroke-width:6;stroke-dasharray:none}
+.ghost{fill:var(--grid);opacity:.28}
+
+#msg{min-height:1.6em;margin:12px 0 0;text-align:center;font-weight:700;color:var(--accent)}
+#msg.err{color:var(--bad)}
+#phase{padding:12px 14px;margin-bottom:12px;border-radius:10px;background:var(--btn);border:2px solid var(--line);font-weight:700;line-height:1.3}
+.bankbox{margin:0 0 14px;padding:12px 12px 10px;border-radius:10px;background:var(--btn);border:2px solid var(--line)}
+.bank-title{margin:0 0 8px;font-size:.82rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:var(--muted)}
+.bank{display:flex;flex-wrap:wrap;gap:6px;min-height:44px}
+.chip{flex:0 0 auto;width:auto;min-width:44px;height:44px;padding:0 8px;border-radius:10px;font:inherit;font-weight:800;
+  font-size:1.05rem;line-height:1;color:var(--fg);background:var(--cell);border:2px solid var(--line);cursor:pointer}
+.chip:hover:not(:disabled){border-color:var(--accent)}
+.chip:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.chip.sel{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip.used{opacity:.32;cursor:not-allowed;border-style:dashed;text-decoration:line-through}
+.legend{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:7px;font-size:.9rem;color:var(--muted)}
+.legend .sw{display:inline-block;width:15px;height:15px;vertical-align:-3px;margin-right:7px;border-radius:4px}
+.legend .sw.hole{background:var(--btn);border:2px dashed var(--line)}
+.legend .sw.given{background:var(--given);border:2px solid var(--grid)}
+.legend .sw.op{display:inline-grid;place-items:center;width:17px;height:17px;background:var(--chip);border:1px solid var(--line);
+  color:var(--muted);font-size:.7rem;font-weight:800;line-height:1;vertical-align:-4px}
+.legend .sw.bad{background:var(--bad)}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px}
+button{flex:1;padding:12px 8px;font:inherit;color:var(--fg);background:var(--btn);border:2px solid var(--line);border-radius:8px;cursor:pointer}
+.actions button{min-width:96px}
+button:hover{border-color:var(--accent)}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button:disabled,button:disabled:hover{opacity:.45;cursor:not-allowed;border-color:var(--line)}
+
+@media (max-width:720px){
+  main{padding:10px 14px 20px}
+  h1{font-size:1.5rem}
+  #timer{font-size:1.05rem}
+  .layout{display:block}
+  .boardwrap{max-width:none}
+  .side{margin-top:14px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

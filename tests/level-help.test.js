@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { levelHelpRows, mountLevelHelp } from "../shared/level-help.js";
 import { LEVEL_NAMES, WINS_PER_LEVEL } from "../shared/progress.js";
 
-const GAMES = ["arrows", "canos", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"];
+const GAMES = ["arrows", "canos", "crossmath", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"];
 const gameFile = (game, name) => readFileSync(new URL(`../games/${game}/${name}`, import.meta.url), "utf8");
 
 test("ajuda de níveis: lista os quatro níveis com o que muda em cada um", () => {

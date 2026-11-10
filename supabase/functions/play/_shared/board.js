@@ -7,6 +7,7 @@ import { partyContract } from "./party.js";
 import * as arrows from "./arrows/domain.js";
 import * as canos from "./canos/domain.js";
 import * as chess from "./chess/domain.js";
+import * as crossmath from "./crossmath/domain.js";
 import * as cruzadas from "./cruzadas/domain.js";
 import * as dama from "./dama/domain.js";
 import * as gamao from "./gamao/domain.js";
@@ -20,7 +21,7 @@ import * as tango from "./tango/domain.js";
 import * as texttwist from "./texttwist/domain.js";
 import * as zip from "./zip/domain.js";
 
-export const GAMES = { arrows, canos, chess, cruzadas, dama, gamao, go, onitama, patches, queens, sopa, sudoku, tango, texttwist, zip };
+export const GAMES = { arrows, canos, chess, crossmath, cruzadas, dama, gamao, go, onitama, patches, queens, sopa, sudoku, tango, texttwist, zip };
 
 /* Jogos solo (fase + desafio diário): todos os que geram puzzle a partir de uma seed.
    Xadrez, Dama, Gamão, Go e Onitama são só duelo e ficam de fora — `daily_generate`/`open` nunca devem chamá-los. */
@@ -60,7 +61,7 @@ export const partyOf = game => {
 export const PARTIES = Object.fromEntries(
   Object.entries(GAMES).filter(([, domain]) => partyContract(domain)).map(([id]) => [id, partyContract(GAMES[id])]),
 );
-export const GENS = { arrows: arrows.GEN, canos: canos.GEN, cruzadas: cruzadas.GEN, queens: queens.GEN, tango: tango.GEN, texttwist: texttwist.GEN, sopa: sopa.GEN, patches: 1, sudoku: 1, zip: 1 };
+export const GENS = { arrows: arrows.GEN, canos: canos.GEN, crossmath: crossmath.GEN, cruzadas: cruzadas.GEN, queens: queens.GEN, tango: tango.GEN, texttwist: texttwist.GEN, sopa: sopa.GEN, patches: 1, sudoku: 1, zip: 1 };
 
 const build = (game, seed, level) => GAMES[game].generatePuzzle(makeRng(seed), GAMES[game].LEVELS[level]);
 
@@ -76,6 +77,8 @@ const viewOf = (game, p) => {
     case "queens":   return { n, regions: p.regions };
     /* Tango: dados e sinais — a grade é a solução. */
     case "tango":    return { n, givens: p.givens, marks: p.marks };
+    /* CrossMath: só a grade com as casas (dadas e buracos), o banco e as equações — a solução não vai junto. */
+    case "crossmath": return { w: p.w, h: p.h, max: p.max, cells: p.cells, nums: p.nums, eqs: p.eqs, bank: p.bank };
     /* Text Twist: só as letras; as palavras saem do dicionário, que é público. */
     case "texttwist": return { n, letters: p.letters };
     case "zip":      return { n, total: n * n, waypoints: [...p.waypoints], walls: [...p.walls], max: p.max };
@@ -101,6 +104,7 @@ function serialize(game, p) {
     case "patches":  return { n: p.n ?? patches.N, clues: p.clues, solution: p.solution };
     case "queens":   return { n: p.n, regions: p.regions, solution: p.solution };
     case "tango":    return { n: p.n, givens: p.givens, marks: p.marks, solution: p.solution };
+  case "crossmath": return { w: p.w, h: p.h, max: p.max, cells: p.cells, nums: p.nums, eqs: p.eqs, bank: p.bank, solution: p.solution };
     case "texttwist": return { n: p.n, letters: p.letters, words: p.words };
     case "sudoku":   return { n: sudoku.SIZE, cells: p.cells, solution: p.solution, givens: p.givens };
     case "sopa":     return { n: p.n, grid: p.grid, words: p.words };
@@ -121,7 +125,8 @@ function revive(game, s) {
     case "sopa":
     case "cruzadas":
     case "tango":
-    case "texttwist": return s;
+    case "texttwist":
+    case "crossmath": return s;
     default: throw new Error("unknown_game");
   }
 }
@@ -148,6 +153,8 @@ export function validatePuzzle(game, p, data) {
       return ints(data?.queens, p.n, 0, p.n * p.n - 1) && queens.isSolved(p, data.queens);
     case "tango":
       return ints(data?.grid, p.n * p.n, 0, 1) && tango.isSolved(p, data.grid);
+    case "crossmath":
+      return crossmath.isSolved(p, data);
     case "texttwist": {
       const list = data?.words;
       if (!Array.isArray(list) || !list.length || list.length > 400) return false;

@@ -7,6 +7,7 @@ import { ZIP_TUTORIAL } from "../games/zip/tutorial.js";
 import { TEXTTWIST_TUTORIAL } from "../games/texttwist/tutorial.js";
 import { ARROWS_TUTORIAL } from "../games/arrows/tutorial.js";
 import { CANOS_TUTORIAL } from "../games/canos/tutorial.js";
+import { CROSSMATH_TUTORIAL } from "../games/crossmath/tutorial.js";
 import { CRUZADAS_TUTORIAL } from "../games/cruzadas/tutorial.js";
 import { PATCHES_TUTORIAL } from "../games/patches/tutorial.js";
 import { QUEENS_TUTORIAL } from "../games/queens/tutorial.js";
@@ -57,6 +58,7 @@ for (const [name, tutorial] of [
   ["Text Twist", TEXTTWIST_TUTORIAL],
   ["Fuga das Setas", ARROWS_TUTORIAL],
   ["Conexão de Canos", CANOS_TUTORIAL],
+  ["CrossMath", CROSSMATH_TUTORIAL],
   ["Palavras Cruzadas", CRUZADAS_TUTORIAL],
   ["Patches", PATCHES_TUTORIAL],
   ["Queens", QUEENS_TUTORIAL],

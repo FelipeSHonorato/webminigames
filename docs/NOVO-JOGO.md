@@ -1172,5 +1172,5 @@ seção **3.2** (catálogo → domínio → migração/tabela → Edge → sess�
 | relógio e lance do Xadrez | `chess_games` + `chess_move`/`chess_state` (migração `20261038000000_chess_duel.sql`) |
 | mudar o tempo por dica | `daily_hint_seconds()` (migração nova) |
 | mudar o teto de acúmulo | `daily_backlog_days()` / `daily_backlog_start()` (migração nova) |
-| criar o tutorial animado | `shared/tutorial.js` + `css/tutorial.css` (seção 5.1); modelos em qualquer um dos dez jogos (o Zip é o piloto) |
+| criar o tutorial animado | `shared/tutorial.js` + `css/tutorial.css` (seção 5.1); modelos em qualquer um dos onze jogos (o Zip é o piloto) |
 | explicar dificuldades e níveis | `shared/level-help.js` (`mountLevelHelp`) + `css/tutorial.css` (seção 5.1) |
