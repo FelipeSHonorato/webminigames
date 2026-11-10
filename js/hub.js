@@ -38,7 +38,7 @@ const EMPTY_TEXT = {
   party: "Nenhum jogo multijogador por enquanto. O primeiro jogo para 2 ou mais jogadores aparece aqui — com sala por código, vagas, largada quando todos estiverem prontos e ranking final da partida.",
 };
 
-/* Ações logo abaixo de "Duelos 1×1": "Criar Sala" abre o pop-up do duelEntry; "Salas Online" é link. */
+/* Ações de sala logo abaixo de "Multijogador": "Criar Sala" abre o pop-up do duelEntry; "Salas Online" é link. */
 const DUEL_ACTIONS = `<div class="hub-nav-sub">` +
   `<button class="hub-nav-sub-btn primary" type="button" id="btnCriarSala" data-action="create-room" aria-haspopup="dialog">Criar Sala</button>` +
   `<a class="hub-nav-sub-btn" id="btnSalasOnline" href="salas-online.html">Salas Online</a></div>`;
@@ -49,8 +49,8 @@ function renderNav() {
     navItems(GAMES).map(item =>
       `<button class="hub-nav-item" type="button" data-mode="${item.mode}">${NAV_ICONS[item.mode]}` +
       `<span>${item.label}</span><span class="hub-nav-count">${item.count}</span></button>` +
-      (item.mode === "duel" ? DUEL_ACTIONS : "")).join("") +
-    `</div><p class="hub-nav-note">O duelo usa o <b>mesmo cenário</b> para os dois. Sem dicas, sem pontos — só o tempo.</p>`;
+      (item.mode === "party" ? DUEL_ACTIONS : "")).join("") +
+    `</div>`;
 }
 
 /** Mostra só os cards do modo (os skeletons também têm `data-game-id`, então seguem a mesma regra). */
