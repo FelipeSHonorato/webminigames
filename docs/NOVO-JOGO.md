@@ -132,7 +132,7 @@ party) foram ajustadas, e o gatilho de Elo não dispara em party. Fora do tipo p
 
 | Etapa | Regra |
 |---|---|
-| Criar | `partyCreate(game, { minPlayers, maxPlayers, turnSeconds, open })`; a Edge limita ao contrato `PARTY`. O criador ocupa o assento 1 e **já está pronto**. |
+| Criar | `partyCreate(game, { minPlayers, maxPlayers, turnSeconds, open })`; a Edge limita ao contrato `PARTY`. O criador ocupa o assento 1 e **já está pronto**. Para exigir uma mesa de tamanho fixo, mande `minPlayers = maxPlayers` (o **UNO** faz isso com a quantidade escolhida: 2, 3 ou 4). |
 | Entrar | por código (`duelJoin`/`partyJoin`) ou pela lista (`duelJoinRoom`/`partyJoinRoom`): a Edge desvia sozinha. Assento livre mais baixo, **sem estar pronto**; cada entrada estende a espera (+10 min). |
 | Largar | quando há ≥ `min` jogadores e **todos prontos**: **sala lotada → larga sozinha** (o último a marcar pronto dispara); senão o **criador clica em Iniciar** (`partyStart`). A Edge lê o elenco (`party_roster`), monta o estado no domínio (`partyStart`) e o Postgres confere que o elenco não mudou (`roster_changed`). Assentos viram 1..n sem buracos. Contagem de 4 s como no 1×1. |
 | Vez | `order: "turns"` (vez a vez, `turn_seat`; tempo por jogada opcional) ou `"free"` (todos ao mesmo tempo; versão otimista, o cliente refaz o lance em `stale`). Estourou o tempo: `onTimeout: "skip"` passa a vez, `"out"` elimina. O estouro é aplicado de forma preguiçosa a cada consulta/lance (recupera vários seguidos). |

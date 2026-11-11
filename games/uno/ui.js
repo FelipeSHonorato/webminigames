@@ -763,8 +763,10 @@ async function createOnlineRoom() {
   els.createRoom.disabled = true;
   try {
     startOnline();
+    /* A quantidade escolhida é o tamanho exato da mesa: a sala só larga com todos os
+       assentos ocupados e todos prontos (min = max). */
     await online.create(GAME_ID, {
-      minPlayers: PARTY.minPlayers,
+      minPlayers: settings.players,
       maxPlayers: settings.players,
       turnSeconds: settings.seconds,
       open: settings.open,

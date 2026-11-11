@@ -193,6 +193,27 @@ test("lobbyStatus: faltam jogadores, falta ficar pronto, criador inicia, sala ch
   assert.equal(lobbyStatus(room({ status: "running" }, three)).canLaunch, false, "só na espera");
 });
 
+test("lobbyStatus: sala com tamanho exato (min = max) só larga com todos prontos", () => {
+  const exact = over => room({ minPlayers: 3, maxPlayers: 3, ...over });
+  const ana = { user_id: "a", nickname: "Ana", seat: 1, ready: true, host: true, is_me: true };
+  const bob = { user_id: "b", nickname: "Bob", seat: 2, ready: true };
+  const cid = { user_id: "c", nickname: "Cid", seat: 3, ready: true };
+
+  let s = lobbyStatus(exact({ players: [ana, bob] }));
+  assert.equal(s.missing, 1, "falta 1 dos 3 assentos");
+  assert.equal(s.canStart, false, "não inicia com menos jogadores que o escolhido");
+  assert.equal(s.autoStart, false);
+
+  s = lobbyStatus(exact({ players: [ana, bob, { ...cid, ready: false }] }));
+  assert.equal(s.missing, 0, "assentos completos");
+  assert.equal(s.canStart, false, "não inicia enquanto todos não estiverem prontos");
+  assert.equal(s.autoStart, false);
+
+  s = lobbyStatus(exact({ players: [ana, bob, cid] }));
+  assert.equal(s.canStart, true, "3 de 3 prontos: o criador pode iniciar");
+  assert.equal(s.autoStart, true, "mesa cheia e pronta: largada automática");
+});
+
 test("lobbyHint: diz o que falta, no singular e no plural", () => {
   assert.equal(lobbyHint(room()), "Falta 1 jogador para poder começar.");
   assert.equal(lobbyHint(room({ minPlayers: 4 })), "Faltam 2 jogadores para poder começar.");
