@@ -40,6 +40,7 @@
         <strong id="shownName"></strong><span id="shownMeta"></span>
         <div class="row">
           <button class="btn small" id="changePhoto" type="button">Alterar foto</button>
+          <button class="btn small" id="useAvatar" type="button" aria-haspopup="dialog">Usar avatar</button>
           <button class="btn small" id="removePhoto" type="button" hidden>Remover foto</button>
         </div>
         <input id="file" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
@@ -91,6 +92,18 @@
     </section>
   </div>
 </main>
+
+<dialog id="avatarDialog" class="modal avatar-modal" aria-labelledby="avatarTitle">
+  <form method="dialog">
+    <h2 id="avatarTitle">Escolha seu avatar</h2>
+    <p>Toque em um avatar para usá-lo no lugar da foto.</p>
+    <div class="avatar-grid" id="avatarGrid" role="group" aria-labelledby="avatarTitle" aria-busy="true"></div>
+    <p class="fmsg" id="avatarMsg" role="status"></p>
+    <div class="modal-actions">
+      <button class="btn small" id="avatarCancel" type="submit">Cancelar</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="deleteDialog" class="modal" aria-labelledby="deleteTitle">
   <form id="deleteForm" novalidate>

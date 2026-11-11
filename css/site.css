@@ -196,6 +196,14 @@ div.game.off:hover{border-color:var(--line)}
 .modal .fmsg{margin:0 0 12px;min-height:1.3em;font-size:.9rem;color:var(--accent)}
 .modal .fmsg.err{color:var(--err)}
 .modal-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+/* Escolher avatar (perfil): grade de imagens da pasta assets/avatars */
+.avatar-modal{max-width:520px}
+.avatar-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:10px;max-height:min(52vh,360px);overflow:auto;margin:0 0 14px;padding:4px}
+.avatar-grid:empty{display:none}
+.avatar-opt{display:block;padding:0;border:3px solid var(--line);border-radius:50%;background:var(--bg);overflow:hidden;aspect-ratio:1}
+.avatar-opt:hover:not(:disabled){border-color:var(--accent)}
+.avatar-opt:disabled{opacity:.6;cursor:wait}
+.avatar-opt img{display:block;width:100%;height:100%;object-fit:cover}
 
 /* Página de confirmação do e-mail (link enviado pelo Supabase) */
 .confirm{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:24px}

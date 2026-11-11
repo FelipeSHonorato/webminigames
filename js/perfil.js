@@ -3,7 +3,7 @@ import { mountPasswordRules } from "./password-rules.js";
 import { requireSession } from "../shared/session.js";
 import { Profile, Activity } from "../shared/profile.js";
 import { Scores } from "../shared/scores.js";
-import { fileToAvatar, avatarNode } from "../shared/avatar.js";
+import { fileToAvatar, avatarNode, listPresetAvatars, presetToAvatar } from "../shared/avatar.js";
 import { REGIONS, regionName } from "../shared/regions.js";
 import { GAMES } from "./games.js";
 import { GameSwitch } from "../shared/game-switch.js";
@@ -26,6 +26,42 @@ function renderIdentity() {
   $("nickname").value = p.nickname ?? "";
   $("region").value = session.region ?? "";
   mountUserBar($("userbar"));                    // a barra superior acompanha foto e apelido
+}
+
+/* Avatares prontos (pasta assets/avatars): a lista é lida uma vez e o popup só monta os botões. */
+let presets = null;
+async function openAvatarPicker() {
+  const dialog = $("avatarDialog"), grid = $("avatarGrid");
+  say($("avatarMsg"), "");
+  dialog.showModal();
+  if (!presets) {
+    grid.setAttribute("aria-busy", "true");
+    say($("avatarMsg"), "Carregando avatares…");
+    try { presets = await listPresetAvatars(); say($("avatarMsg"), ""); }
+    catch (err) { say($("avatarMsg"), err.message, true); grid.setAttribute("aria-busy", "false"); return; }
+    grid.replaceChildren(...presets.map((a, i) => {
+      const btn = document.createElement("button"), img = new Image();
+      btn.type = "button"; btn.className = "avatar-opt"; btn.dataset.url = a.url;
+      btn.setAttribute("aria-label", `Usar o avatar ${i + 1}`);
+      img.src = a.url; img.alt = ""; img.loading = "lazy"; img.decoding = "async";
+      btn.append(img);
+      return btn;
+    }));
+    if (!presets.length) say($("avatarMsg"), "Ainda não há avatares disponíveis.");
+  }
+  grid.setAttribute("aria-busy", "false");
+  grid.querySelector(".avatar-opt")?.focus();
+}
+async function chooseAvatar(btn) {
+  const grid = $("avatarGrid");
+  grid.querySelectorAll(".avatar-opt").forEach(b => { b.disabled = true; });
+  say($("avatarMsg"), "Salvando…");
+  try {
+    await Profile.setAvatar(session.id, await presetToAvatar(btn.dataset.url));
+    $("avatarDialog").close();
+    say($("photoMsg"), "Avatar atualizado."); renderIdentity();
+  } catch (err) { say($("avatarMsg"), err.message, true); }
+  finally { grid.querySelectorAll(".avatar-opt").forEach(b => { b.disabled = false; }); }
 }
 
 function renderGames() {
@@ -65,6 +101,8 @@ function init() {
     try { await Profile.setAvatar(session.id, await fileToAvatar(file)); say($("photoMsg"), "Foto atualizada."); renderIdentity(); }
     catch (err) { say($("photoMsg"), err.message, true); }
   };
+  $("useAvatar").onclick = openAvatarPicker;
+  $("avatarGrid").onclick = e => { const btn = e.target.closest(".avatar-opt"); if (btn && !btn.disabled) chooseAvatar(btn); };
   $("removePhoto").onclick = async () => {
     try { await Profile.setAvatar(session.id, null); say($("photoMsg"), "Foto removida."); renderIdentity(); }
     catch (err) { say($("photoMsg"), err.message, true); }

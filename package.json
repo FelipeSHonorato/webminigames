@@ -5,10 +5,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "npx --yes serve .",
+    "start": "node scripts/gen-avatars.mjs && npx --yes serve .",
+    "avatars": "node scripts/gen-avatars.mjs",
+    "pretest": "node scripts/gen-avatars.mjs",
     "test": "node --test",
     "test:db": "supabase test db"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "license": "MIT"
 }
