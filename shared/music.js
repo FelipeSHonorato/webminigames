@@ -96,6 +96,11 @@ const MOODS = {
     chords: [[0, 4, 7, 11], [-3, 0, 4, 7], [-7, -3, 0, 4], [-5, -1, 2, 5]],
     melody: 0.14, kick: 0.04, hat: 0.05, swing: 0.12,
   },
+  uno: {
+    bpm: 92, root: 49, scale: [0, 2, 4, 7, 9], pad: "triangle", lead: "triangle",
+    chords: [[0, 4, 7, 11], [-3, 0, 4, 9], [-7, -3, 0, 4], [-5, -1, 2, 7]],
+    melody: 0.20, kick: 0.06, hat: 0.08, swing: 0.06,
+  },
 };
 
 let ctx = null, master = null, bus = null, noise = null, timer = null, bar = 0, nextBar = 0;

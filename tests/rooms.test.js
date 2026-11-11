@@ -15,8 +15,9 @@ const GAMES_FAKE = {
 
 test("os jogos de duelo vêm do catálogo (duel: true), na ordem do catálogo", () => {
   assert.deepEqual(duelIds(GAMES_FAKE), ["chess", "dama"]);
-  assert.deepEqual(duelIds(GAMES), Object.entries(GAMES).filter(([, g]) => g.duel).map(([id]) => id));
+  assert.deepEqual(duelIds(GAMES), Object.entries(GAMES).filter(([, g]) => g.duel || g.party).map(([id]) => id));
   assert.ok(duelIds(GAMES).includes("chess"));
+  assert.ok(duelIds(GAMES).includes("uno"), "jogo de partida também tem salas online");
   assert.deepEqual(duelIds({}), []);
 });
 

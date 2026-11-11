@@ -19,9 +19,10 @@ import * as sopa from "./sopa/domain.js";
 import * as sudoku from "./sudoku/domain.js";
 import * as tango from "./tango/domain.js";
 import * as texttwist from "./texttwist/domain.js";
+import * as uno from "./uno/domain.js";
 import * as zip from "./zip/domain.js";
 
-export const GAMES = { arrows, canos, chess, crossmath, cruzadas, dama, gamao, go, onitama, patches, queens, sopa, sudoku, tango, texttwist, zip };
+export const GAMES = { arrows, canos, chess, crossmath, cruzadas, dama, gamao, go, onitama, patches, queens, sopa, sudoku, tango, texttwist, uno, zip };
 
 /* Jogos solo (fase + desafio diário): todos os que geram puzzle a partir de uma seed.
    Xadrez, Dama, Gamão, Go e Onitama são só duelo e ficam de fora — `daily_generate`/`open` nunca devem chamá-los. */

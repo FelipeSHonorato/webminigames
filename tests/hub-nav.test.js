@@ -75,12 +75,14 @@ test("hub: cada modo tem título e subtítulo próprios", () => {
   for (const mode of MODES) assert.ok(modeText(mode).sub.length > 20, `${mode} sem subtítulo`);
 });
 
-test("hub: xadrez, dama, gamão, Go e Onitama são duelos — os jogos antigos continuam solo", () => {
+test("hub: xadrez, dama, gamão, Go e Onitama são duelos, UNO é multijogador e os jogos antigos continuam solo", () => {
   const items = navItems(CATALOG);
   assert.equal(items[0].count, Object.keys(CATALOG).length);
   assert.equal(items[2].count, 5, "xadrez, dama, gamão, Go e Onitama declaram duel: true");
+  assert.equal(items[3].count, 1, "UNO declara party: true");
   assert.deepEqual(filterGames(CATALOG, "duel").map(([id]) => id), ["chess", "dama", "gamao", "go", "onitama"]);
-  assert.equal(filterGames(CATALOG, "solo").length, Object.keys(CATALOG).length - 5);
+  assert.deepEqual(filterGames(CATALOG, "party").map(([id]) => id), ["uno"]);
+  assert.equal(filterGames(CATALOG, "solo").length, Object.keys(CATALOG).length - 6);
 });
 
 test("hub: painel lateral é Solo fora dos duelos e um por jogo no carrossel", () => {

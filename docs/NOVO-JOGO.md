@@ -117,9 +117,9 @@ o cron `duel_cleanup` (a cada 5 min) é a rede de segurança para salas abandona
 
 ### 2.6 Partidas com 2 ou mais jogadores (multijogador, `party`)
 
-A estrutura para jogos de **3, 4, 6… jogadores** já existe; ainda **não há nenhum jogo** nela (como o duelo
-1×1 nasceu: o item **Multijogador** aparece na lateral do hub com contador 0 e o estado vazio explica o modo).
-Como no duelo, **só jogos criados para o modo** a usam: nenhum jogo antigo declara `PARTY`.
+A estrutura para jogos de **3, 4, 6… jogadores** existe e o **UNO** (`games/uno/`) é a primeira partida: 2 a 4
+jogadores, por turnos, com tempo por jogada. Como no duelo, **só jogos criados para o modo** a usam: nenhum jogo
+antigo declara `PARTY`.
 
 **Decisão de arquitetura.** A sala continua sendo `duels` + `duel_players` (código, aberta/fechada, presença,
 Realtime `duel:<id>`, Salas Online, expiração em 15 min). A sala ganhou `kind = 'party'`,
@@ -161,7 +161,7 @@ assento) e só depois da largada. Informação escondida (mãos, cartas viradas)
 próximo assento **ativo**; `ranking` só quando acabou. `runPartyMove` confere o que o domínio devolveu (vez
 inexistente, ranking incompleto → `bad_domain_result`, erro do jogo, não do jogador).
 
-**Passos para o primeiro jogo party** (o que falta; a estrutura não escolheu jogo nenhum):
+**Checklist de um jogo party** (o UNO é a referência pronta):
 1. `games/<id>/domain.js` com `PARTY` + `partyStart/partyMove/partyView`, e a cópia idêntica em `_shared/<id>/domain.js`
    (+ import e entrada em `GAMES` do `_shared/board.js`; `partyOf(id)` passa a existir).
 2. Catálogo (`js/games.js`): `party: true`, **sem** `duel` e sem `key`; entrada na migração (`insert into public.games`).
@@ -171,10 +171,10 @@ inexistente, ranking incompleto → `bad_domain_result`, erro do jogo, não do j
 4. Testes: domínio (regras, `partyView` sem vazamento, ranking) + paridade da cópia da Edge. O fluxo da sala,
    da vez e do ranking já é coberto por `tests/party*.test.js` e `supabase/tests/database/03_party.test.sql`.
 
-**Ainda fora (de propósito, para decidir com o primeiro jogo):** ranking/Elo multijogador (o gatilho de Elo
+**Ainda fora (de propósito, para decidir com o próximo jogo):** ranking/Elo multijogador (o gatilho de Elo
 ignora party; `placement` já fica gravado em `duel_players` para calcular depois), convite no aviso global
 (`duel_invites` só cobre 1×1; o criador acompanha pelo lobby), espectadores, reentrada depois de eliminado,
-chat e criação pelo pop-up "Criar Sala" do hub (`duel-hub.js` ainda lista só jogos de duelo).
+chat e criação pelo pop-up "Criar Sala" do hub (`duel-hub.js` lista jogos de duelo, não de party).
 
 ---
 

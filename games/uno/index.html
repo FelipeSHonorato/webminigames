@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>UNO 2–4 jogadores</title>
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/email-logo.png" type="image/png" sizes="96x96">
+<link rel="apple-touch-icon" href="../../assets/email-logo.png">
+<script src="../../shared/theme-init.js"></script>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../css/gamebar.css">
+<link rel="stylesheet" href="../../css/party.css">
+<link rel="stylesheet" href="../../css/userbar.css">
+</head>
+<body>
+<nav class="sitebar"><a href="../../jogos.html">← Jogos</a><div class="gametitle"><strong>UNO</strong><span class="mode-tag">2–4 jogadores</span></div><div id="userbar"></div></nav>
+
+<main>
+  <section id="setup" class="setup" aria-labelledby="setupTitle">
+    <header class="setup-head">
+      <p class="eyebrow">Multijogador</p>
+      <h1 id="setupTitle">UNO</h1>
+      <p class="lead">O clássico jogo de cartas para 2 a 4 jogadores. Combine pela cor ou pelo número, use bloqueios, inversões e coringas, e seja o primeiro a ficar sem cartas.</p>
+    </header>
+
+    <div id="duelNotice" class="notice" role="status" hidden></div>
+
+    <fieldset class="pick">
+      <legend>Jogadores</legend>
+      <div id="playerOptions" class="option-grid three" role="radiogroup" aria-label="Quantidade de jogadores">
+        <button type="button" class="option-card" data-players="2" aria-pressed="false"><b>2</b><small>Duelo</small></button>
+        <button type="button" class="option-card" data-players="3" aria-pressed="false"><b>3</b><small>Mesa cheia</small></button>
+        <button type="button" class="option-card" data-players="4" aria-pressed="true"><b>4</b><small>Mesa cheia</small></button>
+      </div>
+    </fieldset>
+
+    <fieldset class="pick">
+      <legend>Tempo por jogada</legend>
+      <div id="timeOptions" class="option-grid three" role="radiogroup" aria-label="Tempo por jogada">
+        <button type="button" class="option-card" data-seconds="30" aria-pressed="false"><b>30s</b><small>Rápido</small></button>
+        <button type="button" class="option-card" data-seconds="45" aria-pressed="true"><b>45s</b><small>Padrão</small></button>
+        <button type="button" class="option-card" data-seconds="60" aria-pressed="false"><b>60s</b><small>Tranquilo</small></button>
+      </div>
+    </fieldset>
+
+    <fieldset class="pick">
+      <legend>Sala online</legend>
+      <div id="roomOptions" class="option-grid two" role="radiogroup" aria-label="Visibilidade da sala online">
+        <button type="button" class="option-card" data-open="true" aria-pressed="true"><b>Aberta</b><small>Qualquer jogador entra pela lista de salas</small></button>
+        <button type="button" class="option-card" data-open="false" aria-pressed="false"><b>Fechada</b><small>Só entra quem tiver o código do convite</small></button>
+      </div>
+    </fieldset>
+
+    <div class="setup-actions">
+      <button id="startLocal" class="primary" type="button">Jogar no mesmo dispositivo</button>
+      <button id="createRoom" class="secondary" type="button">Criar sala online</button>
+    </div>
+
+    <p class="setup-note">Cada jogador recebe 7 cartas. Jogue uma carta da mesma cor ou do mesmo valor da mesa. Sem carta jogável, compre uma: se ela servir, você pode jogá-la ou passar. Bloqueio pula o próximo, inverter muda o sentido e +2/+4 fazem o próximo comprar e perder a vez. O +4 só pode ser usado quando você não tem carta da cor atual. Quem ficar sem cartas vence; os demais são classificados por quantidade de cartas.</p>
+  </section>
+
+  <div id="partyHost" class="party-host" hidden></div>
+
+  <section id="game" class="game" aria-label="Partida de UNO" hidden>
+    <div class="game-head">
+      <div class="game-title">
+        <p class="eyebrow">Mesa de UNO</p>
+        <h1>UNO</h1>
+      </div>
+      <p id="status" class="status" role="status">Sua vez</p>
+    </div>
+
+    <div class="table-grid">
+      <div class="slot slot-left"><div id="leftPlayer" class="opponent-host"></div></div>
+      <div class="slot slot-top"><div id="topPlayer" class="opponent-host"></div></div>
+      <div class="slot slot-right"><div id="rightPlayer" class="opponent-host"></div></div>
+
+      <div class="slot slot-center">
+        <div class="table-center">
+          <div class="table-meta">
+            <span id="dirBadge" class="dir-badge" title="Sentido do jogo">↻</span>
+            <span class="meta-sep">·</span>
+            <span id="deckCount" class="deck-count">0 no monte</span>
+            <span id="turnTimer" class="turn-timer" aria-label="Tempo da jogada">—</span>
+          </div>
+
+          <div class="piles">
+            <button id="deckPile" class="pile deck-pile" type="button" aria-label="Comprar carta">
+              <img src="./cards/costa_cartas.png" alt="">
+              <span class="pile-label">COMPRAR</span>
+            </button>
+            <div class="pile discard-pile" aria-label="Carta da mesa">
+              <img id="topCardImg" src="./cards/costa_cartas.png" alt="">
+            </div>
+          </div>
+
+          <p class="color-current"><span id="colorDot" class="color-dot" aria-hidden="true"></span> Cor: <b id="colorName">—</b></p>
+
+          <div class="table-actions">
+            <button id="drawBtn" class="primary" type="button">Comprar carta</button>
+            <button id="passBtn" class="secondary" type="button" disabled>Passar</button>
+          </div>
+          <p id="hint" class="table-hint" role="status"></p>
+        </div>
+      </div>
+
+      <div class="slot slot-bottom"><div id="bottomPlayer" class="opponent-host"></div></div>
+    </div>
+
+    <div class="hand-area">
+      <p id="handLabel" class="hand-label">Sua mão</p>
+      <div id="hand" class="hand" role="group" aria-label="Sua mão"></div>
+    </div>
+  </section>
+</main>
+
+<div id="gate" class="overlay gate" hidden>
+  <div class="overlay-card" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
+    <p class="eyebrow">Passar o dispositivo</p>
+    <h2 id="gateTitle">Vez de Jogador 1</h2>
+    <p id="gateText" class="overlay-text">Passe o aparelho para o próximo jogador. Só ele deve olhar a mão.</p>
+    <button id="gateBtn" class="primary" type="button">Sou o próximo jogador</button>
+  </div>
+</div>
+
+<div id="colorPick" class="overlay picker" hidden>
+  <div class="overlay-card" role="dialog" aria-modal="true" aria-labelledby="colorPickTitle">
+    <h2 id="colorPickTitle">Escolha a cor</h2>
+    <p class="overlay-text">O próximo jogador precisa jogar uma carta da cor escolhida (ou outro curinga).</p>
+    <div class="color-choices" role="group" aria-label="Cores do curinga">
+      <button type="button" class="color-choice r" data-color="r"><span aria-hidden="true"></span>Vermelho</button>
+      <button type="button" class="color-choice y" data-color="y"><span aria-hidden="true"></span>Amarelo</button>
+      <button type="button" class="color-choice g" data-color="g"><span aria-hidden="true"></span>Verde</button>
+      <button type="button" class="color-choice b" data-color="b"><span aria-hidden="true"></span>Azul</button>
+    </div>
+    <button id="cancelColor" class="secondary" type="button">Cancelar</button>
+  </div>
+</div>
+
+<div id="result" class="overlay result" hidden>
+  <div class="overlay-card result-card" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+    <span id="resultIcon" class="result-icon" aria-hidden="true">UNO!</span>
+    <h2 id="resultTitle">Partida encerrada</h2>
+    <p id="resultText" class="overlay-text"></p>
+    <ol id="resultList" class="result-list" aria-label="Classificação final"></ol>
+    <div class="result-actions">
+      <button id="rematch" class="primary" type="button">Revanche</button>
+      <button id="backSetup" class="secondary" type="button">Trocar jogadores</button>
+    </div>
+  </div>
+</div>
+
+<script src="../../shared/file-warning.js"></script>
+<script type="module" src="./ui.js"></script>
+</body>
+</html>
