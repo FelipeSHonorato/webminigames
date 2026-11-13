@@ -56,7 +56,10 @@ input:focus,select:focus{border-color:var(--accent)}
 .hub{display:grid;grid-template-columns:200px minmax(0,1fr) 340px;gap:24px;align-items:start;max-width:1320px;margin:0 auto;padding:32px 20px}
 .hub h2{font-size:1.7rem}
 .hub .sub{color:var(--muted);margin:6px 0 24px}
-.games{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}
+/* Até 3 cards por linha. `auto-fill` (e não `auto-fit`) mantém as colunas vazias: um card sozinho (ex.: só o UNO no filtro
+   Party) ocupa 1/3 da linha, do mesmo tamanho de quando há três, em vez de esticar pela linha toda. O `max()` do mínimo
+   (1/3 da largura descontando os 2 vãos, com 1px de folga p/ arredondamento) impede uma 4ª coluna em telas largas; em telas estreitas vale o mínimo de 200px. */
+.games{display:grid;grid-template-columns:repeat(auto-fill,minmax(max(200px,calc((100% - 33px) / 3)),1fr));gap:16px}
 a.game{text-decoration:none;color:inherit}
 .game{display:flex;flex-direction:column;gap:12px;text-align:left;padding:16px;background:var(--surface);border:2px solid var(--line);border-radius:16px}
 .game:hover{border-color:var(--accent)}
