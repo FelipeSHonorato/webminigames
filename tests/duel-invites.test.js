@@ -40,13 +40,21 @@ function fakeCloud(state = {}) {
   return { cloud, calls, state };
 }
 
+/** `localStorage` de mentira: sobrevive entre "páginas" dentro do teste. */
+class MemoryStorage {
+  constructor() { this.map = new Map(); }
+  getItem(key) { return this.map.has(key) ? this.map.get(key) : null; }
+  setItem(key, value) { this.map.set(key, String(value)); }
+  removeItem(key) { this.map.delete(key); }
+}
+
 function setup(state = {}, opts = {}) {
   const f = fakeCloud(state);
   const views = [], navigated = [];
   const controller = createInviteController({
     cloud: f.cloud, games: GAMES, pollMs: 0, base: opts.base ?? "",
     navigate: url => navigated.push(url), onChange: v => views.push(v),
-    handleInPage: opts.handleInPage, loadGames: opts.loadGames,
+    handleInPage: opts.handleInPage, loadGames: opts.loadGames, storage: opts.storage,
   });
   return { ...f, controller, views, navigated };
 }
@@ -323,6 +331,42 @@ test("recado de desistência e convite convivem: um não esconde o outro", async
   assert.equal(t.controller.noticeCard.notice.kind, "host_left");
   assert.equal(t.views.at(-1).invite.id, ID);
   assert.equal(t.views.at(-1).noticeCard.notice.nickname, "Ana");
+});
+
+test("'Entendi' vale para as próximas páginas: o mesmo recado não volta ao navegar", async () => {
+  const storage = new MemoryStorage();
+  const at = "2026-11-12T12:00:00Z";
+  const event = invite({ kind: "party", maxPlayers: 4, notice: { kind: "host_left", userId: "u1", nickname: "Ana", at } });
+
+  const current = setup({ invites: [event] }, { storage });
+  await current.controller.check();
+  assert.equal(current.controller.noticeCard?.notice.kind, "host_left");
+  current.controller.dismissEvent();
+  assert.equal(current.controller.noticeCard, null, "fecha na página atual");
+
+  // O servidor ainda devolve o mesmo evento por 60 s; numa página nova o card continua fechado.
+  const nextPage = setup({ invites: [event] }, { storage });
+  await nextPage.controller.check();
+  assert.equal(nextPage.controller.noticeCard, null, "a dispensa é lembrada no navegador");
+
+  // Outro evento (novo `at`) e outra conta continuam vendo o recado.
+  const newer = invite({ kind: "party", maxPlayers: 4, notice: { kind: "left", userId: "u9", nickname: "Bia", at: "2026-11-12T12:00:30Z" } });
+  const afterNew = setup({ invites: [newer] }, { storage });
+  await afterNew.controller.check();
+  assert.equal(afterNew.controller.noticeCard?.notice.nickname, "Bia", "evento novo aparece normalmente");
+
+  const otherUser = setup({ invites: [event], cloud: { uid: "u2" } }, { storage });
+  await otherUser.controller.check();
+  assert.equal(otherUser.controller.noticeCard?.notice.kind, "host_left", "a dispensa é por conta");
+});
+
+test("sem localStorage (Node/modo privado), o recado funciona e só pode voltar na próxima página", async () => {
+  const event = invite({ kind: "party", maxPlayers: 4, notice: { kind: "left", userId: "u9", nickname: "Bia", at: "2026-11-12T12:01:00Z" } });
+  const t = setup({ invites: [event] }, { storage: null });
+  await t.controller.check();
+  assert.equal(t.controller.noticeCard?.notice.nickname, "Bia");
+  t.controller.dismissEvent();
+  assert.equal(t.controller.noticeCard, null);
 });
 
 /* ---------- polling ---------- */

@@ -40,6 +40,7 @@ const bankEl = document.getElementById("bank");
 const phaseEl = document.getElementById("phase"), resetBtn = document.getElementById("reset"), nextBtn = document.getElementById("next");
 const levelName = document.getElementById("levelName"), levelCount = document.getElementById("levelCount"), barFill = document.getElementById("barFill");
 const dailyEl = document.getElementById("daily");
+const hintPct = document.getElementById("hintPct"), hintPow = document.getElementById("hintPow");
 
 function setMessage(text, isError = false) { msgEl.textContent = text; msgEl.classList.toggle("err", isError); }
 
@@ -85,7 +86,7 @@ function renderLevel() {
   levelCount.textContent = last ? `${wins} vitórias` : `${into}/${WINS_PER_LEVEL}`;
   barFill.style.width = (last ? 100 : (into / WINS_PER_LEVEL) * 100) + "%";
 }
-const LEVEL_HELP_DETAILS = LEVELS.map(l => `Grade até ${l.w}×${l.h} · ${l.ops.join(" ")} · até ${l.blanks} buracos`);
+const LEVEL_HELP_DETAILS = LEVELS.map(l => `Grade até ${l.w}×${l.h} · ${l.ops.join(" ")} · números até ${l.max} · até ${l.blanks} buracos`);
 mountLevelHelp({ trigger: "levelHelp", getLevel: () => levelOf(wins), details: LEVEL_HELP_DETAILS });
 
 /* ----- Fase ----- */
@@ -132,10 +133,13 @@ function renderBoard(bad) {
     if (bad.has(i)) cls.push("bad");
     if (i === cursor && isPlayable(i)) cls.push("cur");
     const label = cell.t === "n" ? (values.get(i) ?? "") : cell.t === "o" ? cell.v : "=";
+    if (cell.t === "n" && String(label).length >= 3) cls.push("tiny");   // 100 não cabe no corpo normal da casa
+    /* O "^" como texto fica colado no alto da casa; desenhado, fica centrado. */
+    const glyph = label === "" ? `<circle class="dot" cx="50" cy="50" r="4"/>`
+      : label === "^" ? `<path class="pow" d="M31 61 L50 39 L69 61"/>`
+      : `<text x="50" y="54">${label}</text>`;
     parts.push(`<g class="${cls.join(" ")}" data-i="${i}" transform="translate(${c * 100} ${r * 100})">`
-      + `<rect x="7" y="7" width="86" height="86" rx="14"/>`
-      + (label === "" ? `<circle class="dot" cx="50" cy="50" r="4"/>` : `<text x="50" y="54">${label}</text>`)
-      + `</g>`);
+      + `<rect x="7" y="7" width="86" height="86" rx="14"/>${glyph}</g>`);
   }
   boardEl.innerHTML = parts.join("");
 }
@@ -159,6 +163,8 @@ function paint() {
   const bad = wrongCells(puzzle, stateOfBoard());
   renderBoard(bad);
   renderBank();
+  const hasOp = op => puzzle.cells.some(c => c?.t === "o" && c.v === op);
+  hintPct.hidden = !hasOp("%"); hintPow.hidden = !hasOp("^");   // a dica de uma conta só aparece quando ela está na grade
   boardEl.classList.toggle("won", phase === "won");
   boardEl.classList.toggle("locked", phase === "locked" || phase === "placeholder");
   const filled = puzzle.nums.filter(cell => values.has(cell)).length;

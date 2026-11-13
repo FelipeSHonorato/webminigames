@@ -7,7 +7,8 @@
      • sala de 2: o mesmo aviso do 1×1;
      • sala de 3+: quando ela lota e todos ficam prontos, avisa quem ainda não abriu o jogo; "Entrar na
        sala" leva direto para a mesa, que só começa a contagem quando todos estão dentro;
-     • desistência na espera: um card avisa quem ficou e a sala continua aberta.
+     • desistência na espera: um card avisa quem ficou e a sala continua aberta. O "Entendi" é lembrado
+       no navegador (por conta), para o mesmo recado não voltar ao trocar de página.
    A lógica fica em `createInviteController` (sem DOM, testada no Node); o pop-up é só a casca visual.
    A Edge + o Postgres continuam a autoridade: aqui só perguntamos (`duel_invites`) e pedimos
    (`duel_decline` para 1×1, `party_leave` para salas party). */
@@ -18,6 +19,42 @@ import { durationLabel } from "./rooms.js";
 export const INVITE_POLL_MS = 4000;           // aba visível
 export const INVITE_POLL_HIDDEN_MS = 30000;   // aba em segundo plano: o navegador já desacelera, e a Edge agradece
 export const NOTICE_MS = 4000;
+
+/* O servidor repete o recado de desistência por até 60 s. O "Entendi" é do jogador, não da página:
+   guardamos no navegador (por conta) as chaves já dispensadas, para o card não voltar ao navegar. */
+const DISMISSED_KEY = "wmg:party-notices-dismissed";
+const DISMISSED_TTL_MS = 10 * 60 * 1000;      // bem mais que os 60 s do servidor; só para não crescer sem limite
+const DISMISSED_LIMIT = 20;
+
+/** `localStorage` pode faltar (Node/modo privado/quota): sem ele o recado só reaparece na próxima página. */
+function browserStorage() {
+  try { return typeof localStorage === "undefined" ? null : localStorage; } catch { return null; }
+}
+
+/** Recados dispensados desta conta que ainda estão na validade. */
+function dismissedNotices(storage, uid, nowMs = Date.now()) {
+  if (!storage || !uid) return {};
+  try {
+    const all = JSON.parse(storage.getItem(DISMISSED_KEY) ?? "{}");
+    const mine = all && typeof all === "object" && !Array.isArray(all) ? all[uid] : null;
+    if (!mine || typeof mine !== "object") return {};
+    return Object.fromEntries(Object.entries(mine)
+      .filter(([, at]) => Number(at) + DISMISSED_TTL_MS > nowMs));
+  } catch { return {}; }                      // storage corrompido: melhor mostrar de novo do que quebrar
+}
+
+function rememberDismissed(storage, uid, key, nowMs = Date.now()) {
+  if (!storage || !uid || !key) return;
+  try {
+    const all = JSON.parse(storage.getItem(DISMISSED_KEY) ?? "{}");
+    const next = all && typeof all === "object" && !Array.isArray(all) ? all : {};
+    const mine = dismissedNotices(storage, uid, nowMs);
+    mine[key] = nowMs;
+    next[uid] = Object.fromEntries(Object.entries(mine)
+      .sort((a, b) => a[1] - b[1]).slice(-DISMISSED_LIMIT));
+    storage.setItem(DISMISSED_KEY, JSON.stringify(next));
+  } catch { /* sem storage: o recado pode reaparecer na próxima página, mas nada quebra */ }
+}
 
 /** Evento disparado no `window` quando o criador clica em "Entrar na sala". A página do jogo que já está com
     a sala aberta chama `preventDefault()` e aceita ali mesmo; sem ouvinte, o site navega até o jogo. */
@@ -98,11 +135,12 @@ export function createInviteController({
   navigate = url => { location.assign(url); }, handleInPage = () => false, onChange = () => {},
   pollMs = INVITE_POLL_MS, hiddenMs = INVITE_POLL_HIDDEN_MS,
   isHidden = () => typeof document !== "undefined" && document.hidden,
+  storage = browserStorage(),
 } = {}) {
   let invite = null, event = null, notice = "", busy = false, inflight = false, stopped = false, timer = null;
   let epoch = 0;                    // muda a cada aceitar/desistir: respostas de consultas antigas são descartadas
   let catalog = games;
-  const seenEvents = new Set();     // recados de desistência já mostrados (o polling devolve o mesmo por 60 s)
+  const seenEvents = new Set();     // recados já mostrados nesta página; os de outras páginas ficam no storage
 
   const view = () => ({ invite, noticeCard: event, notice, busy, games: catalog ?? {} });
   const emit = () => onChange(view());
@@ -125,7 +163,11 @@ export function createInviteController({
       else if (invite) notice = MESSAGES.gone;                     // sumiu sem o criador agir: o desafiante saiu ou expirou
       invite = next;
       if (!event) {
-        const fresh = cleanInvites(rawEvents, catalog ?? {}).find(e => !seenEvents.has(noticeKey(e)));
+        const dismissed = dismissedNotices(storage, cloud?.uid);   // "Entendi" de outra página
+        const fresh = cleanInvites(rawEvents, catalog ?? {}).find(e => {
+          const key = noticeKey(e);
+          return !seenEvents.has(key) && !(key in dismissed);
+        });
         if (fresh) { seenEvents.add(noticeKey(fresh)); event = fresh; }
       }
     } catch { /* rede ou erro passageiro: mantém o que está na tela e tenta no próximo ciclo */ }
@@ -173,7 +215,15 @@ export function createInviteController({
   }
 
   function dismissNotice() { if (notice) { notice = ""; emit(); } }
-  function dismissEvent() { if (event) { event = null; emit(); } }
+  /** "Entendi": fecha agora e lembra a escolha nas próximas páginas (o servidor ainda repete o evento por 60 s). */
+  function dismissEvent() {
+    if (!event) return;
+    const key = noticeKey(event);
+    seenEvents.add(key);
+    rememberDismissed(storage, cloud?.uid, key);
+    event = null;
+    emit();
+  }
 
   function schedule() {
     clearTimeout(timer); timer = null;

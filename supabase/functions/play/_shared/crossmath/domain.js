@@ -1,9 +1,16 @@
 /* Regras, solver e gerador do CrossMath: código puro, sem DOM (testável no Node e reutilizado pela Edge).
 
    Regras: uma grade de equações cruzadas. Cada equação é lida DA ESQUERDA PARA A DIREITA (e de cima para
-   baixo, nas verticais), no formato `a op b = r` (5 casas) ou `a op b op c = r` (7 casas). Operadores: +, −,
-   × e ÷ (a divisão precisa ser exata). Algumas casas de número já vêm preenchidas; as demais são buracos,
-   preenchidos com os números do banco (cada número do banco é usado uma vez).
+   baixo, nas verticais), no formato `a op b = r` (5 casas) ou `a op b op c = r` (7 casas). Algumas casas de
+   número já vêm preenchidas; as demais são buracos, preenchidos com os números do banco (cada número do banco
+   é usado uma vez).
+
+   Operadores (cada nível herda os do anterior e ganha um novo):
+     Fácil   + −
+     Médio   + − × ÷   (a divisão precisa ser exata)
+     Difícil + − × ÷ % (a % b = a × b ÷ 100, só se der inteiro: 50 % 20 = 10, "20% de 50" ou "50% de 20")
+     Genius  + − × ÷ % ^ (a ^ b = a elevado a b: 2 ^ 5 = 32)
+   Como as demais, % e ^ são lidas da esquerda para a direita, sem precedência.
 
    Geração:
      1. sorteia um cruzamento de equações (uma primeira na horizontal/vertical e outras perpendiculares a
@@ -15,15 +22,19 @@
    `isSolved` é a única regra de vitória — a mesma na tela e no servidor. Ela só precisa das casas, das
    equações e do banco, que estão na visão pública; o navegador sabe sozinho que venceu. */
 
+/* `max` é o teto de qualquer casa; `pick` é até onde o sorteio vai buscar operandos novos (a aritmética comum
+   continua leve). `ops` são os operadores permitidos no nível (só esses aparecem) e toda fase traz pelo menos
+   uma conta de cada um dos "fortes" (× ÷ % ^). `intro` são os que o nível estreia: pesam o dobro no sorteio.
+   `strong` é a chance de uma equação trazer uma conta além de + e −. */
 export const LEVELS = [
-  { name: "Fácil",   w: 6,  h: 6,  max: 9,  lengths: [5],    ops: ["+", "−"],                  eqs: 6,  minEqs: 5, blanks: 6,  maxBlanksPerEq: 2, tryLimit: 80, nodeLimit: 60000,  layoutTries: 80 },
-  { name: "Médio",   w: 7,  h: 7,  max: 12, lengths: [5],    ops: ["+", "−", "×"],             eqs: 7,  minEqs: 6, blanks: 8,  maxBlanksPerEq: 2, tryLimit: 80, nodeLimit: 80000,  layoutTries: 100 },
-  { name: "Difícil", w: 8,  h: 8,  max: 16, lengths: [5, 7], ops: ["+", "−", "×", "÷"],        eqs: 8,  minEqs: 7, blanks: 9,  maxBlanksPerEq: 2, tryLimit: 70, nodeLimit: 100000, layoutTries: 140 },
-  { name: "Genius",  w: 10, h: 10, max: 20, lengths: [5, 7], ops: ["+", "−", "×", "÷"],        eqs: 10, minEqs: 9, blanks: 12, maxBlanksPerEq: 2, tryLimit: 70, nodeLimit: 140000, layoutTries: 220 },
+  { name: "Fácil",   w: 6,  h: 6,  max: 9,   pick: 9,  lengths: [5],    ops: ["+", "−"],                     intro: [], strong: 0,           eqs: 6,  minEqs: 5, blanks: 6,  maxBlanksPerEq: 2, tryLimit: 80, nodeLimit: 60000,  layoutTries: 80 },
+  { name: "Médio",   w: 7,  h: 7,  max: 12,  pick: 12, lengths: [5],    ops: ["+", "−", "×", "÷"],           intro: ["×", "÷"], strong: 0.35,   eqs: 7,  minEqs: 6, blanks: 8,  maxBlanksPerEq: 2, tryLimit: 80, nodeLimit: 80000,  layoutTries: 100 },
+  { name: "Difícil", w: 8,  h: 8,  max: 50,  pick: 16, lengths: [5, 7], ops: ["+", "−", "×", "÷", "%"],      intro: ["%"], strong: 0.55,        eqs: 8,  minEqs: 7, blanks: 9,  maxBlanksPerEq: 2, tryLimit: 70, nodeLimit: 100000, layoutTries: 140 },
+  { name: "Genius",  w: 10, h: 10, max: 100, pick: 20, lengths: [5, 7], ops: ["+", "−", "×", "÷", "%", "^"], intro: ["^"], strong: 0.65,        eqs: 10, minEqs: 9, blanks: 12, maxBlanksPerEq: 2, tryLimit: 70, nodeLimit: 140000, layoutTries: 220 },
 ];
 
 /** Versão do gerador: gravada na fase salva. AUMENTE ao mudar o sorteio. */
-export const GEN = 1;
+export const GEN = 2;
 export const STORE_KEY = "crossmath.wins";
 export const MIN_BLANKS = 4;
 
@@ -38,6 +49,33 @@ const numberCellsOf = eq => eq.filter((_, k) => k % 2 === 0); // posições pare
 
 /* ============================== regras ============================== */
 
+/** Potência inteira exata; `null` se não for um inteiro seguro (evita estouro e perda de precisão). */
+function ipow(base, exp) {
+  if (!Number.isInteger(exp) || exp < 0) return null;
+  if (base === 0 || base === 1) return exp === 0 ? 1 : base;
+  if (base === -1) return exp % 2 === 0 ? 1 : -1;
+  let r = 1;
+  for (let i = 0; i < exp; i++) {            // |base| ≥ 2: estoura (e sai) em até ~53 voltas
+    r *= base;
+    if (!Number.isSafeInteger(r)) return null;
+  }
+  return r;
+}
+
+/** Aplica `acc op b`. Devolve `null` quando a conta não dá um inteiro (divisão/percentual inexatos, estouro). */
+export function applyOp(acc, op, b) {
+  if (!Number.isInteger(acc) || !Number.isInteger(b)) return null;
+  switch (op) {
+    case "+": return acc + b;
+    case "−": return acc - b;
+    case "×": return acc * b;
+    case "÷": return !b || acc % b !== 0 ? null : acc / b;
+    case "%": return (acc * b) % 100 !== 0 ? null : (acc * b) / 100;   // a % b = a × b ÷ 100 (simétrico)
+    case "^": return ipow(acc, b);
+    default: return null;
+  }
+}
+
 /** Avalia a equação (números e operadores em ordem, da esquerda para a direita). Devolve `null` se inválida. */
 function evaluate(cells, eq, valueOf) {
   const nums = numberCellsOf(eq);
@@ -48,11 +86,8 @@ function evaluate(cells, eq, valueOf) {
     const op = cells[eq[2 * k - 1]]?.v;
     const b = valueOf(operands[k]);
     if (!Number.isInteger(b)) return null;
-    if (op === "+") acc += b;
-    else if (op === "−") acc -= b;
-    else if (op === "×") acc *= b;
-    else if (op === "÷") { if (!b || acc % b !== 0) return null; acc /= b; }
-    else return null;
+    acc = applyOp(acc, op, b);
+    if (acc == null) return null;
   }
   return acc;
 }
@@ -235,33 +270,69 @@ export function isUnique(p, nodeLimit = 300000) {
 
 /* ============================== gerador ============================== */
 
-/** Escolhe os operadores: base +/−, com no máximo um ×/÷ nas equações longas. */
+/** Maior expoente sorteado (2 a 6): 2^6 = 64 e 3^4 = 81 cabem no teto do Genius. */
+const EXP_MAX = 6;
+
+/** Escolhe os operadores: base +/−, com no máximo uma conta "forte" (×, ÷, %, ^) por equação.
+    Os operadores que o nível estreia (`level.intro`) pesam o dobro no sorteio. */
 function chooseOps(rng, level, count) {
   const ops = [];
   for (let i = 0; i < count; i++) ops.push(level.ops[rng() < 0.5 ? 0 : 1] ?? "+");
-  if (level.ops.length > 2) {
-    const fancy = [];
-    for (let i = 2; i < level.ops.length; i++) fancy.push(level.ops[i]);
-    const slots = count <= 1 ? 1 : 1; // no máximo uma operação "forte" por equação
-    for (let s = 0; s < slots; s++) if (rng() < 0.35) ops[randInt(rng, 0, count - 1)] = fancy[randInt(rng, 0, fancy.length - 1)];
+  const fancy = level.ops.slice(2);
+  if (fancy.length && rng() < level.strong) {
+    const bag = fancy.flatMap(op => (level.intro.includes(op) ? [op, op] : [op]));
+    ops[randInt(rng, 0, count - 1)] = bag[randInt(rng, 0, bag.length - 1)];
   }
   return ops;
 }
 
+/** Conta com graça: sem × ou ÷ por 1, sem 1 ^ b nem a ^ 1 e sem percentual de 100 (que devolve o próprio número).
+    Vale para todo operando — inclusive os já fixados por cruzamentos —, só no gerador: o jogador pode, na
+    solução dele, encaixar qualquer conta correta. */
+export function isNice(op, a, b) {
+  switch (op) {
+    case "×": return a >= 2 && b >= 2;
+    case "÷": return b >= 2;
+    case "%": return a >= 1 && a <= 99 && b >= 1 && b <= 99;
+    case "^": return a >= 2 && b >= 2 && b <= EXP_MAX;
+    default: return true;
+  }
+}
+
+/** Operandos que podem seguir `acc op _`: só o que a conta aceita (exata e com graça). Na última conta da
+    equação o resultado também precisa caber em 1..max (e bater com `fixed`). */
+function operandChoices(level, acc, op, last, fixed) {
+  const hi = op === "^" ? Math.min(EXP_MAX, level.max) : op === "%" ? Math.min(99, level.max) : level.pick;
+  const out = [];
+  for (let v = 1; v <= hi; v++) {
+    if (!isNice(op, acc, v)) continue;
+    const r = applyOp(acc, op, v);
+    if (r == null) continue;
+    if (last && (r < 1 || r > level.max || (fixed != null && r !== fixed))) continue;
+    out.push(v);
+  }
+  return out;
+}
+
 /** Valores de uma equação nova: sorteia as parcelas e calcula o resultado. `fixed` exige um resultado. */
 function fillValues(rng, level, existing, ops, fixed = null) {
-  const numbers = existing.length + 1; // operandos + resultado
-  for (let attempt = 0; attempt < 400; attempt++) {
-    const values = [];
-    for (let k = 0; k < numbers - 1; k++) values.push(existing[k] ?? randInt(rng, 1, level.max));
+  const operands = existing.length; // operandos (o resultado vem depois)
+  /* O sorteio já é guiado pela conta; sem nada a sortear (tudo fixo pelos cruzamentos) uma tentativa basta. */
+  const attempts = existing.every(v => v != null) ? 1 : 60;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const values = [existing[0] ?? randInt(rng, 1, level.pick)];
     let acc = values[0];
-    for (let k = 1; k < values.length; k++) {
-      const op = ops[k - 1], b = values[k];
-      if (op === "+") acc += b;
-      else if (op === "−") acc -= b;
-      else if (op === "×") acc *= b;
-      else if (op === "÷") { if (!b || acc % b !== 0) { acc = null; break; } acc /= b; }
-      else { acc = null; break; }
+    for (let k = 1; k < operands && acc != null; k++) {
+      const op = ops[k - 1], last = k === operands - 1;
+      let b = existing[k];
+      if (b != null && !isNice(op, acc, b)) { acc = null; break; }   // operando fixo por cruzamento também vale
+      if (b == null) {
+        const choices = operandChoices(level, acc, op, last, fixed);
+        if (!choices.length) { acc = null; break; }
+        b = choices[randInt(rng, 0, choices.length - 1)];
+      }
+      values.push(b);
+      acc = applyOp(acc, op, b);
     }
     if (acc == null || acc < 1 || acc > level.max) continue;
     if (fixed != null && acc !== fixed) continue;
@@ -463,12 +534,23 @@ function selectBlanks(rng, p, level) {
   return chosen.length;
 }
 
+/** Layout recortado que traz pelo menos uma conta de cada operador forte do nível. Sortear layouts é barato;
+    o que custa é o solver, então a exigência é resolvida aqui, antes de tirar números. */
+function layoutWithStrongOps(rng, level) {
+  const strong = level.ops.slice(2);
+  for (let i = 0; i < 60; i++) {
+    const p = buildLayout(rng, level);
+    if (!p || !crop(p)) continue;
+    if (strong.every(op => p.cells.some(c => c?.t === "o" && c.v === op))) return p;
+  }
+  return null;
+}
+
 /** Fase nova: `{ w, h, max, cells, nums, eqs, bank, solution }`. */
 export function generatePuzzle(rng, level) {
   for (let attempt = 0; attempt < level.tryLimit; attempt++) {
-    const p = buildLayout(rng, level);
+    const p = layoutWithStrongOps(rng, level);
     if (!p) continue;
-    if (!crop(p)) continue;
     p.max = level.max;
     p.nums = [];
     for (let i = 0; i < p.cells.length; i++) if (isNumber(p.cells[i])) p.nums.push(i);
@@ -485,15 +567,30 @@ export function generatePuzzle(rng, level) {
   return fallback(rng, level);
 }
 
+/** Equação de segurança com o resultado em branco (sempre única), no operador mais novo do nível:
+    [a, b, r] de cada operador. Só roda se o gerador esgotar as tentativas. */
+const FALLBACK = {
+  "%": [[20, 50, 10], [40, 50, 20], [50, 10, 5], [20, 25, 5], [40, 25, 10]],
+  "^": [[2, 3, 8], [2, 4, 16], [3, 2, 9], [2, 5, 32], [3, 3, 27], [4, 2, 16], [5, 2, 25]],
+  "÷": [[6, 2, 3], [8, 2, 4], [9, 3, 3], [12, 4, 3], [10, 2, 5]],
+};
+
 /** Rede de segurança: uma equação simples com o resultado em branco (sempre única). */
 function fallback(rng, level) {
   const w = 5, h = 3;
   const cells = new Array(w * h).fill(null);
-  const a = randInt(rng, 1, Math.min(5, level.max - 1));
-  const b = randInt(rng, 1, Math.max(1, level.max - a));
-  const op = "+";
+  const op = level.intro.at(-1) ?? "+";
+  let a, b, r;
+  if (FALLBACK[op]) {
+    const options = FALLBACK[op].filter(([, , res]) => res <= level.max);
+    [a, b, r] = options[randInt(rng, 0, options.length - 1)];
+  } else {
+    a = randInt(rng, 1, Math.min(5, level.max - 1));
+    b = randInt(rng, 1, Math.max(1, level.max - a));
+    r = a + b;
+  }
   const eq = [0, 1, 2, 3, 4].map(k => 1 * w + k); // linha do meio
-  [a, op, b, "=", a + b].forEach((v, k) => {
+  [a, op, b, "=", r].forEach((v, k) => {
     if (k === 1) cells[eq[k]] = { t: "o", v };
     else if (k === 3) cells[eq[k]] = { t: "e" };
     else cells[eq[k]] = { t: "n", v };
@@ -503,6 +600,6 @@ function fallback(rng, level) {
   p.solutionByCell = new Map(p.nums.map(cell => [cell, cells[cell].v]));
   p.solution = p.nums.map(cell => cells[cell].v);
   p.cells[eq[4]].v = null;
-  p.bank = [a + b];
+  p.bank = [r];
   return p;
 }

@@ -19,7 +19,7 @@ export const CROSSMATH_TUTORIAL = {
     },
     {
       title: "Da esquerda para a direita",
-      text: "As contas são lidas na ordem em que aparecem, sem preferência por × ou ÷. Primeiro 8 − 3 = 5; depois 5 + 1 = 6.",
+      text: "As contas são lidas na ordem em que aparecem, sem preferência por ×, ÷, % ou ^. Primeiro 8 − 3 = 5; depois 5 + 1 = 6.",
       demo: `<div class="cx-stage">
         ${EQ([CELL(8, "given"), OP("−"), CELL(3, "given"), OP("+"), CELL(1, "given"), OP("="), CELL(6, "anim pop")])}
         <div class="cx-steps">
@@ -43,7 +43,7 @@ export const CROSSMATH_TUTORIAL = {
     },
     {
       title: "Cada número uma vez",
-      text: "O banco é a lista de números que faltam. Cada ficha é usada uma única vez; quando uma equação fica completa e não fecha, ela fica vermelha.",
+      text: "O banco é a lista de números que faltam. Cada ficha é usada uma única vez e Backspace devolve o número ao banco. Equação completa que não fecha fica vermelha; a fase termina quando todas fecham, nas duas direções.",
       demo: `<div class="cx-stage">
         <div class="cx-bank">
           <span class="cx-chip used">4</span><span class="cx-chip sel">2</span><span class="cx-chip">2</span><span class="cx-chip">5</span>
@@ -54,12 +54,12 @@ export const CROSSMATH_TUTORIAL = {
       </div>`,
     },
     {
-      title: "Ganhe quando tudo fechar",
-      text: "A fase termina quando todos os buracos estão preenchidos e todas as equações, nas duas direções, estão corretas. Backspace devolve o número ao banco.",
+      title: "Contas especiais",
+      text: "Fácil usa + e −. O Médio traz × e ÷ (a divisão é sempre exata). O Difícil acrescenta %, que é “tantos por cento de”: 50 % 20 = 10. O Genius acrescenta ^, a potência: 2 ^ 5 = 32.",
       demo: `<div class="cx-stage">
-        ${EQ([CELL(5, "filled"), OP("+"), CELL(4, "filled"), OP("="), CELL(9, "given")], "ok")}
-        ${EQ([CELL(5, "filled"), OP("−"), CELL(2, "filled"), OP("="), CELL(3, "given")], "ok")}
-        <span class="cx-note anim pop" style="--d:.4s">✓ todas as contas fecham</span>
+        ${EQ([CELL(50, "given"), OP("%"), CELL(20, "given"), OP("="), CELL(10, "given anim pop")])}
+        ${EQ([CELL(2, "given"), OP("^"), CELL(5, "given"), OP("="), CELL(32, "given anim pop")], "ok")}
+        <span class="cx-note anim fade" style="--d:.5s">20% de 50 é 10 · 2 elevado a 5 é 32</span>
       </div>`,
     },
   ],

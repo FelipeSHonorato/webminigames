@@ -39,6 +39,9 @@ h1{margin:0;font-size:2rem;letter-spacing:-.02em}
 .cm-cell.op rect,.cm-cell.eq rect{fill:var(--chip);stroke:var(--line)}
 .cm-cell.op text,.cm-cell.eq text{fill:var(--muted);font-size:38px}
 .cm-cell .dot{fill:var(--line)}
+.cm-cell.tiny text{font-size:34px}
+.cm-cell .pow{fill:none;stroke:var(--muted);stroke-width:7;stroke-linecap:round;stroke-linejoin:round}
+.cm-cell.bad .pow{stroke:var(--badfg)}
 .cm-cell.bad rect{stroke:var(--bad);stroke-width:6;stroke-dasharray:none}
 .cm-cell.bad text{fill:var(--badfg)}
 .cm-cell.cur rect{stroke:var(--accent);stroke-width:6;stroke-dasharray:none}
