@@ -265,9 +265,9 @@ function opponentNode(view, seat, position) {
   node.append(profile);
 
   if (!entry.out && entry.cards > 0) {
-    const hand = document.createElement(position === "top" ? "div" : "div");
-    hand.className = position === "top" ? "opponent-hand" : "side-hand";
-    const shown = Math.min(entry.cards, position === "top" ? 7 : 3);
+    const hand = document.createElement("div");
+    hand.className = "opponent-hand";   // a mesma mão da barra do topo; na lateral o CSS só a empilha na vertical
+    const shown = Math.min(entry.cards, 7);
     for (let i = 0; i < shown; i++) {
       const back = document.createElement("img");
       back.src = "./cards/costa_cartas.png";

@@ -92,7 +92,7 @@ button{font:inherit;color:inherit}
 .table-actions .primary,.table-actions .secondary{padding:9px 15px;font-size:.86rem}
 .table-hint{position:relative;z-index:1;margin:0;min-height:1.3em;max-width:48ch;text-align:center;font-size:.78rem;line-height:1.35;color:rgba(244,255,248,.8)}
 
-.opponent{display:flex;flex-direction:column;align-items:center;gap:6px;width:100%;min-width:0;padding:8px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.opponent{--card-w:clamp(18px,3.3vw,27px);display:flex;flex-direction:column;align-items:center;gap:6px;width:100%;min-width:0;padding:8px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:0 2px 8px rgba(0,0,0,.05)}
 .opponent.top,.opponent.bottom{flex-direction:row;align-items:center;justify-content:space-between;padding:7px 11px}
 .opponent.turn{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 28%,transparent)}
 .opponent.out{opacity:.5}
@@ -109,12 +109,15 @@ button{font:inherit;color:inherit}
 @keyframes unoPulse{50%{transform:scale(1.08)}}
 
 .opponent-hand{display:flex;align-items:center;justify-content:flex-end;min-width:0;overflow:hidden;padding-left:6px}
-.opponent-hand img,.side-hand img{display:block;width:clamp(18px,3.3vw,27px);aspect-ratio:278/416;object-fit:contain;border-radius:5px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}
+.opponent-hand img{display:block;width:var(--card-w);aspect-ratio:278/416;object-fit:contain;border-radius:5px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}
 .opponent-hand img + img{margin-left:-9px}
 .opponent-hand .more{font-size:.68rem;font-weight:800;color:var(--muted);margin-left:5px;white-space:nowrap}
-.opponent.side .opponent-hand,.side-hand{display:flex;flex-direction:column;align-items:center;gap:0;padding:0;overflow:hidden;max-height:120px}
-.side-hand img{width:clamp(20px,3.8vw,30px)}
-.side-hand img + img{margin-top:-10px}
+/* Laterais: a barra do topo "em pé". Avatar e nome em cima, as cartas (as mesmas, sem girar) empilhadas embaixo com a
+   mesma sobreposição de 1/3 — a carta tem 1,5× a largura de altura, então 1/3 dela é meia largura. */
+.opponent.side{justify-content:space-between}
+.opponent.side .opponent-hand{flex-direction:column;justify-content:flex-start;align-items:center;padding:0}
+.opponent.side .opponent-hand img + img{margin-left:0;margin-top:calc(var(--card-w) * -.5)}
+.opponent.side .opponent-hand .more{margin:5px 0 0}
 
 .hand-area{margin-top:12px}
 .hand-label{margin:0 0 5px;text-align:center;font-size:.74rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
@@ -163,7 +166,7 @@ button{font:inherit;color:inherit}
   .opponent-avatar{width:32px;height:32px}
   .opponent-name{font-size:.72rem}
   .opponent-count{font-size:.62rem}
-  .opponent-hand img,.side-hand img{width:17px}
+  .opponent{--card-w:17px}
   .opponent-hand img + img{margin-left:-8px}
   .opponent.side .opponent-name{max-height:92px;font-size:.68rem}
   .hand .uno-card{width:clamp(58px,17vw,78px)}
