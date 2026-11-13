@@ -59,7 +59,12 @@ button{font:inherit;color:inherit}
 .game-head h1{margin:0}
 .status{margin:0 0 6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-size:.84rem;font-weight:800;color:var(--accent);max-width:100%;text-align:right}
 
-.table-grid{display:grid;grid-template-columns:minmax(82px,124px) minmax(0,1fr) minmax(82px,124px);
+/* Medidas das barras de jogador. A espessura (`--bar-t`) é a altura da barra horizontal: o maior entre a carta (em pé: 1,4964×
+   a largura) e o avatar, mais o padding e a borda. As colunas laterais usam o mesmo valor, então a barra vertical tem
+   exatamente a mesma espessura da horizontal. */
+.table-grid{--card-w:clamp(18px,3.3vw,27px);--card-h:calc(var(--card-w) * 1.4964);--card-overlap:9px;--avatar:38px;
+  --bar-pad:7px;--bar-pad-long:11px;--bar-t:calc(max(var(--card-h),var(--avatar)) + var(--bar-pad) * 2 + 2px);
+  display:grid;grid-template-columns:var(--bar-t) minmax(0,1fr) var(--bar-t);
   grid-template-areas:"left top right" "left center right" "left bottom right";gap:10px;align-items:stretch}
 .slot-left{grid-area:left}.slot-top{grid-area:top}.slot-right{grid-area:right}.slot-center{grid-area:center}.slot-bottom{grid-area:bottom}
 .slot-left,.slot-right{display:flex;min-width:0}
@@ -92,33 +97,36 @@ button{font:inherit;color:inherit}
 .table-actions .primary,.table-actions .secondary{padding:9px 15px;font-size:.86rem}
 .table-hint{position:relative;z-index:1;margin:0;min-height:1.3em;max-width:48ch;text-align:center;font-size:.78rem;line-height:1.35;color:rgba(244,255,248,.8)}
 
-.opponent{--card-w:clamp(18px,3.3vw,27px);display:flex;flex-direction:column;align-items:center;gap:6px;width:100%;min-width:0;padding:8px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:0 2px 8px rgba(0,0,0,.05)}
-.opponent.top,.opponent.bottom{flex-direction:row;align-items:center;justify-content:space-between;padding:7px 11px}
+.opponent{display:flex;flex-direction:column;align-items:center;gap:6px;width:100%;min-width:0;padding:8px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.opponent.top,.opponent.bottom{flex-direction:row;align-items:center;justify-content:space-between;padding:var(--bar-pad) var(--bar-pad-long);min-height:var(--bar-t)}
 .opponent.turn{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 28%,transparent)}
 .opponent.out{opacity:.5}
 .opponent-profile{display:flex;align-items:center;gap:8px;min-width:0}
 .opponent.side .opponent-profile{flex-direction:column;gap:6px;text-align:center}
-.opponent-avatar{display:grid;place-items:center;width:38px;height:38px;flex:none;border-radius:50%;overflow:hidden;background:var(--chip);border:2px solid var(--line);color:var(--muted)}
+.opponent-avatar{display:grid;place-items:center;width:var(--avatar);height:var(--avatar);flex:none;border-radius:50%;overflow:hidden;background:var(--chip);border:2px solid var(--line);color:var(--muted)}
 .opponent-avatar .avatar{display:block;width:100%;height:100%;border-radius:50%;object-fit:cover}
 .opponent-meta{display:flex;flex-direction:column;min-width:0;line-height:1.15}
 /* Laterais = a barra do topo girada 90°: o bloco de texto inteiro (nome e contagem) lê de cima para baixo, as duas linhas
    lado a lado (nome à direita, contagem à esquerda), alinhadas pelo início. Avatar e cartas não giram. */
 .opponent.side .opponent-meta{writing-mode:vertical-rl;text-orientation:mixed;align-items:flex-start;gap:3px}
 .opponent-name{font-size:.8rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
-.opponent.side .opponent-name{max-height:130px;white-space:nowrap;overflow:hidden;font-size:.75rem;letter-spacing:.02em}
+.opponent.side .opponent-name{max-height:130px;font-weight:500}
+.opponent.side .opponent-count{font-weight:400}
 .opponent-count{font-size:.68rem;color:var(--muted);font-weight:700;white-space:nowrap}
 .uno-badge{display:inline-block;padding:1px 6px;border-radius:999px;background:var(--accent);color:var(--accent-fg);font-size:.58rem;font-weight:900;letter-spacing:.05em;animation:unoPulse 1.1s ease-in-out infinite}
 @keyframes unoPulse{50%{transform:scale(1.08)}}
 
 .opponent-hand{display:flex;align-items:center;justify-content:flex-end;min-width:0;overflow:hidden;padding-left:6px}
 .opponent-hand img{display:block;width:var(--card-w);aspect-ratio:278/416;object-fit:contain;border-radius:5px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}
-.opponent-hand img + img{margin-left:-9px}
+.opponent-hand img + img{margin-left:calc(var(--card-overlap) * -1)}
 .opponent-hand .more{font-size:.68rem;font-weight:800;color:var(--muted);margin-left:5px;white-space:nowrap}
-/* Laterais: a barra do topo "em pé". Avatar e nome em cima, as cartas (as mesmas, sem girar) empilhadas embaixo com a
-   mesma sobreposição de 1/3 — a carta tem 1,5× a largura de altura, então 1/3 dela é meia largura. */
-.opponent.side{justify-content:space-between}
-.opponent.side .opponent-hand{flex-direction:column;justify-content:flex-start;align-items:center;padding:0}
-.opponent.side .opponent-hand img + img{margin-left:0;margin-top:calc(var(--card-w) * -.5)}
+/* Laterais: a barra do topo girada 90° (a barra horizontal vira vertical, com o padding trocado). As cartas giram junto:
+   `rotate` não muda o espaço que o <img> ocupa, então as margens trocam largura e altura (cada carta passa a ocupar
+   --card-h de largura × --card-w de altura) e a sobreposição é a mesma da barra horizontal, agora no sentido vertical. */
+.opponent.side{justify-content:space-between;padding:var(--bar-pad-long) var(--bar-pad)}
+.opponent.side .opponent-hand{flex-direction:column;justify-content:flex-start;align-items:center;padding:0;overflow:visible}
+.opponent.side .opponent-hand img{transform:rotate(90deg);margin:calc((var(--card-w) - var(--card-h)) / 2) calc((var(--card-h) - var(--card-w)) / 2)}
+.opponent.side .opponent-hand img + img{margin-left:calc((var(--card-h) - var(--card-w)) / 2);margin-top:calc((var(--card-w) - var(--card-h)) / 2 - var(--card-overlap))}
 .opponent.side .opponent-hand .more{margin:5px 0 0}
 
 .hand-area{margin-top:12px}
@@ -160,17 +168,13 @@ button{font:inherit;color:inherit}
 
 @media (max-width:640px){
   main{padding:14px 10px 30px}
-  .table-grid{grid-template-columns:64px minmax(0,1fr) 64px;gap:6px}
+  .table-grid{--card-w:17px;--card-overlap:8px;--avatar:32px;--bar-pad:6px;--bar-pad-long:8px;gap:6px}
   .table-center{min-height:270px;padding:12px 8px;border-radius:16px}
   .table-center::after{inset:5px;border-radius:11px}
-  .opponent{padding:6px;border-radius:11px}
-  .opponent.top,.opponent.bottom{padding:6px 8px}
-  .opponent-avatar{width:32px;height:32px}
+  .opponent{border-radius:11px}
   .opponent-name{font-size:.72rem}
   .opponent-count{font-size:.62rem}
-  .opponent{--card-w:17px}
-  .opponent-hand img + img{margin-left:-8px}
-  .opponent.side .opponent-name{max-height:92px;font-size:.68rem}
+  .opponent.side .opponent-name{max-height:92px}
   .hand .uno-card{width:clamp(58px,17vw,78px)}
   .hand .uno-card + .uno-card{margin-left:-24px}
   .status{font-size:.76rem;text-align:left}
@@ -178,7 +182,6 @@ button{font:inherit;color:inherit}
   .table-actions .primary,.table-actions .secondary{flex:1 1 120px}
 }
 @media (max-width:420px){
-  .table-grid{grid-template-columns:54px minmax(0,1fr) 54px}
   .opponent.side .opponent-meta{gap:2px}
   .opponent.side .opponent-name{max-height:72px}
   .result-row{grid-template-columns:36px 22px minmax(0,1fr) auto;font-size:.8rem}
