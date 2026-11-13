@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql", "20261044000000_duel_invite_flow.sql", "20261045000000_duel_resume_presence.sql", "20261046000000_duel_invite_when_ready.sql", "20261047000000_dama_duel.sql", "20261048000000_duel_ready_fix.sql", "20261049000000_dama_valida_posicao.sql", "20261050000000_gamao_duel.sql", "20261051000000_go_duel.sql", "20261052000000_onitama_duel.sql", "20261053000000_multiplayer_party.sql", "20261054000000_jogo_crossmath.sql", "20261055000000_uno_party.sql"];
+const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql", "20261044000000_duel_invite_flow.sql", "20261045000000_duel_resume_presence.sql", "20261046000000_duel_invite_when_ready.sql", "20261047000000_dama_duel.sql", "20261048000000_duel_ready_fix.sql", "20261049000000_dama_valida_posicao.sql", "20261050000000_gamao_duel.sql", "20261051000000_go_duel.sql", "20261052000000_onitama_duel.sql", "20261053000000_multiplayer_party.sql", "20261054000000_jogo_crossmath.sql", "20261055000000_uno_party.sql", "20261056000000_party_enter_notify.sql"];
 const migration = f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
 const migrations = migrationNames.map(migration);
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
@@ -770,4 +770,37 @@ test("SQL: UNO entra como o primeiro jogo de partida, no fim do catálogo e sem 
   assert.match(uno, /insert into public\.games \(id, title, sort\) values \('uno', 'UNO', 17\)/);
   assert.match(uno, /on conflict \(id\) do update set title = excluded\.title, sort = excluded\.sort/);
   assert.doesNotMatch(uno, /create table/, "UNO reutiliza duels/party_games");
+});
+
+test("SQL: sala completa avisa quem está fora, todos dentro antes da contagem e desistência na espera", () => {
+  const notify = migration("20261056000000_party_enter_notify.sql");
+  assert.match(notify, /alter table public\.party_games add column if not exists last_event jsonb/);
+
+  // Heartbeat de 20 s: `inside` por jogador e `allInside` na sala; o estado do jogo continua escondido.
+  const json = notify.match(/create or replace function public\.party_json[\s\S]*?end \$\$;/)[0];
+  assert.match(json, /interval '20 seconds'/);
+  assert.match(json, /'allInside', v_d\.status = 'waiting' and v_n > 0 and v_inside = v_n/);
+  assert.match(json, /'inside', v_d\.status <> 'waiting'/);
+  assert.doesNotMatch(json, /v_g\.state|'state'/, "party_json não pode expor party_games.state");
+
+  // A largada (automática ou manual) exige todos dentro do jogo.
+  const launch = notify.match(/create or replace function public\.party_launch[\s\S]*?end \$\$;/)[0];
+  assert.match(launch, /raise exception 'not_all_inside' using errcode = '55000'/);
+  assert.match(launch, /coalesce\(last_seen_at, joined_at\) < now\(\) - interval '20 seconds'/);
+
+  // Desistir na espera registra o evento ANTES de liberar a vaga; criador vira `host_left`.
+  const leave = notify.match(/create or replace function public\.party_leave[\s\S]*?end \$\$;/)[0];
+  assert.match(leave, /last_event = jsonb_build_object/);
+  assert.match(leave, /case when v_d\.created_by = p_uid then 'host_left' else 'left' end/);
+  assert.ok(leave.indexOf("last_event = jsonb_build_object") < leave.indexOf("delete from public.duel_players"),
+    "primeiro avisa, depois libera a vaga");
+
+  // Aviso global: 1×1 e party de 2 iguais; party cheia de 3+ só para quem está fora; recados de desistência.
+  const invites = notify.match(/create or replace function public\.duel_invites[\s\S]*?end \$\$;/)[0];
+  assert.match(invites, /d\.kind <> 'party' or d\.max_players = 2/);
+  assert.match(invites, /d\.max_players > 2/);
+  assert.match(invites, /coalesce\(dp\.last_seen_at, dp\.joined_at\) < now\(\) - interval '20 seconds'/, "só avisa quem está fora do jogo");
+  assert.match(invites, /'notice',\s+g\.last_event/);
+  assert.match(invites, /interval '60 seconds'/, "o recado de desistência é transitório");
+  assert.match(invites, /\(g\.last_event->>'userId'\)::uuid <> p_uid/, "quem desistiu não recebe o próprio recado");
 });

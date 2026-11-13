@@ -29,7 +29,13 @@
 .party-btn:disabled{opacity:.55;cursor:default}
 .party-primary{border-color:var(--accent);background:var(--accent);color:var(--accent-fg,var(--bg))}
 
-.party-count{margin:14px 0;text-align:center;font-size:clamp(1.3rem,6vw,1.8rem);font-weight:900;color:var(--accent)}
+.party-count{margin:14px 0;text-align:center;font-weight:900;color:var(--accent)}
+.party-count-label{display:none}
+.party-count-value{display:block;font-size:clamp(1.3rem,6vw,1.8rem)}
+/* Contagem de largada no meio da tela: só aparece quando todos já estão dentro do jogo. */
+.party.is-countdown .party-count{position:fixed;inset:0;z-index:75;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;margin:0;padding:24px;background:rgba(6,14,20,.72);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.party.is-countdown .party-count-label{display:block;font-size:clamp(.95rem,3.6vw,1.2rem);font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.78)}
+.party.is-countdown .party-count-value{font-size:clamp(4.5rem,28vw,9rem);line-height:1;color:var(--accent,#fff);text-shadow:0 10px 40px rgba(0,0,0,.55);font-variant-numeric:tabular-nums}
 .party-banner{margin:0 0 8px;text-align:center;font-size:1rem;font-weight:800;color:var(--accent);font-variant-numeric:tabular-nums}
 .party-roster{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:8px}
 .party-roster-item{display:flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--grid,var(--line));border-radius:999px}

@@ -4,7 +4,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  ACCEPT_EVENT, MESSAGES, acceptUrl, cleanInvites, createInviteController, inviteDetail, inviteTitle, opponentName,
+  ACCEPT_EVENT, MESSAGES, acceptUrl, cleanInvites, createInviteController, fullParty, inviteDetail, inviteTitle,
+  noticeKey, opponentName, partyNoticeDetail, partyNoticeTitle,
 } from "../shared/duel-invites.js";
 
 const GAMES = { chess: { title: "Xadrez", path: "games/chess/", duel: true }, sudoku: { title: "Sudoku", path: "games/sudoku/" } };
@@ -29,6 +30,11 @@ function fakeCloud(state = {}) {
       calls.push(["decline", id]);
       if (state.declineError) throw state.declineError;
       return { status: "cancelled", cancelReason: "declined" };
+    },
+    async partyLeave(id) {
+      calls.push(["partyLeave", id]);
+      if (state.leaveError) throw state.leaveError;
+      return { status: "waiting" };
     },
   };
   return { cloud, calls, state };
@@ -61,6 +67,30 @@ test("textos do aviso: nome do desafiante, jogo, tempo e estado", () => {
   assert.equal(inviteDetail(invite()), "10 min · Está pronto e esperando você.");
   assert.match(inviteDetail(invite({ opponent: { nickname: "Bia", away: true, ready: true } })), /saiu da página/, "desafiante ausente é avisado");
   assert.equal(inviteDetail(invite({ maxSeconds: null, opponent: { ready: false } })), "Já está na sala.");
+});
+
+test("textos do aviso: sala party de 3+ troca o texto para 'sala completa'", () => {
+  const party = invite({ kind: "party", maxPlayers: 4 });
+  assert.equal(fullParty(party), true);
+  assert.equal(inviteTitle(party, GAMES), "A sala criada do game Xadrez está completa");
+  assert.equal(inviteDetail(party), "A sala está completa e esperando você.");
+
+  const duo = invite({ kind: "party", maxPlayers: 2 });
+  assert.equal(fullParty(duo), false, "sala party de 2 mantém o texto do 1×1");
+  assert.equal(inviteTitle(duo, GAMES), "Bia entrou na sua sala de Xadrez");
+  assert.equal(inviteDetail(duo), "10 min · Está pronto e esperando você.");
+  assert.equal(fullParty(invite()), false, "1×1 continua igual");
+});
+
+test("textos do recado de desistência: jogador comum e criador da sala", () => {
+  const left = invite({ kind: "party", notice: { kind: "left", userId: "u9", nickname: "Bia", at: "2026-11-12T12:00:00Z" } });
+  assert.equal(partyNoticeTitle(left, GAMES), "Bia desistiu do game Xadrez");
+  assert.equal(partyNoticeDetail(left), "A sala continua aberta esperando outro jogador.");
+
+  const host = invite({ kind: "party", notice: { kind: "host_left", userId: "u1", nickname: "Ana", at: "2026-11-12T12:00:00Z" } });
+  assert.equal(partyNoticeTitle(host, GAMES), "O criador da sala desistiu do game Xadrez");
+  assert.equal(partyNoticeTitle({ id: ID, notice: { kind: "left" } }, {}), "Um jogador desistiu", "sem jogo/nome ainda dá texto");
+  assert.notEqual(noticeKey(left), noticeKey(host), "cada evento tem a sua chave");
 });
 
 test("endereço de aceite: jogo + ?duelo=<id>&aceitar=1, respeitando a pasta da página", () => {
@@ -247,6 +277,52 @@ test("Desistir: falha de rede mantém o aviso (dá para tentar de novo) e explic
   await t.controller.decline();
   assert.equal(t.controller.invite, null);
   assert.equal(t.controller.notice, MESSAGES.declined);
+});
+
+/* ---------- salas party ---------- */
+
+test("Desistir numa sala party: sai da sala (partyLeave) e ela continua aberta", async () => {
+  const t = setup({ invites: [invite({ kind: "party", maxPlayers: 4 })] });
+  await t.controller.check();
+  assert.equal(await t.controller.decline(), true);
+  assert.deepEqual(t.calls, [["invites"], ["partyLeave", ID]], "não usa o cancelamento do 1×1");
+  assert.equal(t.controller.invite, null);
+  assert.equal(t.controller.notice, MESSAGES.partyLeft);
+  assert.match(MESSAGES.partyLeft, /continua aberta/);
+  assert.equal(t.controller.busy, false);
+});
+
+test("Desistir numa sala party que já mudou: fecha o aviso em vez de travar", async () => {
+  for (const code of ["bad_status", "duel_not_found", "not_member"]) {
+    const t = setup({ invites: [invite({ kind: "party", maxPlayers: 4 })], leaveError: Object.assign(new Error(code), { code }) });
+    await t.controller.check();
+    await t.controller.decline();
+    assert.equal(t.controller.invite, null, code);
+    assert.equal(t.controller.notice, MESSAGES.gone, code);
+  }
+});
+
+test("recado de desistência: aparece uma vez e fecha no 'Entendi'", async () => {
+  const event = invite({ kind: "party", maxPlayers: 4, notice: { kind: "left", userId: "u9", nickname: "Bia", at: "2026-11-12T12:00:00Z" } });
+  const t = setup({ invites: [event] });
+  await t.controller.check();
+  assert.equal(t.controller.noticeCard?.notice.nickname, "Bia");
+  assert.equal(t.views.at(-1).noticeCard.notice.kind, "left");
+
+  t.controller.dismissEvent();
+  assert.equal(t.controller.noticeCard, null);
+  await t.controller.check();
+  assert.equal(t.controller.noticeCard, null, "o mesmo evento não volta no polling seguinte");
+});
+
+test("recado de desistência e convite convivem: um não esconde o outro", async () => {
+  const event = invite({ kind: "party", maxPlayers: 4, notice: { kind: "host_left", userId: "u1", nickname: "Ana", at: "2026-11-12T12:00:00Z" } });
+  const t = setup({ invites: [invite(), event] });
+  await t.controller.check();
+  assert.equal(t.controller.invite.id, ID);
+  assert.equal(t.controller.noticeCard.notice.kind, "host_left");
+  assert.equal(t.views.at(-1).invite.id, ID);
+  assert.equal(t.views.at(-1).noticeCard.notice.nickname, "Ana");
 });
 
 /* ---------- polling ---------- */

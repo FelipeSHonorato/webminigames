@@ -19,6 +19,10 @@
 .duel-invite-btn:disabled{opacity:.55;cursor:default}
 .duel-invite-btn.primary{border-color:var(--accent,var(--path,#2cc4b6));background:var(--accent,var(--path,#2cc4b6));color:var(--accent-fg,#0e1621)}
 
+/* Desistência na espera: mesma casca, com destaque neutro (não é convite para entrar). */
+.duel-invite-notice{border-color:var(--warn,#d98a2b)}
+.duel-invite-notice .duel-invite-btn:hover:not(:disabled){border-color:var(--warn,#d98a2b)}
+
 .duel-invite-note{margin:0;padding:10px 12px;border:1px solid var(--line,var(--grid,#ccd));border-radius:10px;background:var(--surface,var(--cell,#fff));color:var(--fg,#14213d);font-size:.85rem;font-weight:600;box-shadow:0 6px 18px rgba(0,0,0,.2)}
 
 @keyframes duel-invite-in{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}

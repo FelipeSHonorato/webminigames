@@ -3,7 +3,7 @@
    usando `session.view`. Textos sempre por textContent (nome de jogador nunca vira HTML). */
 import { avatarNode } from "./avatar.js";
 import { fmtTime } from "./ranking-list.js";
-import { duelLink, countdownText } from "./duel-ui.js";
+import { duelLink } from "./duel-ui.js";
 import { lobbyHint, lobbyStatus, outcomeText, slotsLabel } from "./party.js";
 
 /** Qual bloco do painel está ativo. */
@@ -84,8 +84,11 @@ export function mountPartyUi(host, session, { title = "Multijogador", onStart, o
   actions.append(btnReady, btnStart, btnCopy, btnLink, btnLeave);
   lobby.append(node("p", "party-label", "Código do convite"), codeEl, slotsEl, list, hint, actions);
 
-  /* ----- contagem e faixa da vez ----- */
-  const count = node("p", "party-count");
+  /* ----- contagem (no meio da tela) e faixa da vez ----- */
+  const count = node("div", "party-count");
+  const countLabel = node("span", "party-count-label", "A partida começa em");
+  const countValue = node("strong", "party-count-value", "…");
+  count.append(countLabel, countValue);
   const banner = node("p", "party-banner");
   banner.setAttribute("role", "status");
 
@@ -176,6 +179,7 @@ export function mountPartyUi(host, session, { title = "Multijogador", onStart, o
   function render() {
     const view = partyView(session);
     root.classList.toggle("is-running", view === "running");
+    root.classList.toggle("is-countdown", view === "countdown");
     if (view !== "running") closeResignConfirm(false);
     lobby.hidden = view !== "lobby";
     count.hidden = view !== "countdown";
@@ -215,6 +219,7 @@ export function mountPartyUi(host, session, { title = "Multijogador", onStart, o
         return li;
       }));
     }
+    if (view === "countdown") setCountdown(session.msToStart());
   }
 
   async function copy(text, ok) {
@@ -223,8 +228,12 @@ export function mountPartyUi(host, session, { title = "Multijogador", onStart, o
 
   const errorText = e => ({
     bad_status: "A partida já começou.", expired: "A sala expirou.", not_ready: "Ainda há jogadores sem marcar pronto.",
+    not_all_inside: "Ainda há jogadores fora do jogo. Espere todos entrarem.",
     roster_changed: "A sala mudou. Tente iniciar de novo.", not_creator: "Só o criador inicia a partida.", duel_full: "A sala está cheia.",
   }[e?.code] ?? "Não foi possível continuar.");
+
+  /** Número grande no centro: 4, 3, 2, 1 e "Já!" quando a contagem acaba. */
+  const setCountdown = ms => { countValue.textContent = ms > 0 ? String(Math.ceil(ms / 1000)) : "Já!"; };
 
   btnReady.onclick = () => session.ready(!session.me()?.ready).catch(e => flash(errorText(e)));
   btnStart.onclick = () => session.start().catch(e => flash(errorText(e)));
@@ -242,7 +251,7 @@ export function mountPartyUi(host, session, { title = "Multijogador", onStart, o
     session.on("state", render),
     session.on("move", render),
     session.on("resign", render),
-    session.on("countdown", ({ msLeft }) => { render(); count.textContent = countdownText(msLeft); }),
+    session.on("countdown", ({ msLeft }) => { render(); setCountdown(msLeft); }),
     session.on("start", data => { render(); onStart?.(data); }),
     session.on("finished", detail => { render(); onFinish?.(detail); }),
     session.on("kicked", () => { flash("Você foi removido da sala."); onExit?.(); }),
@@ -251,7 +260,7 @@ export function mountPartyUi(host, session, { title = "Multijogador", onStart, o
   /* A faixa da vez conta o tempo sozinha entre uma resposta do servidor e outra. */
   timer = setInterval(() => {
     if (session.status === "running" && session.started) banner.textContent = turnBanner(session);
-    else if (session.status === "running") count.textContent = countdownText(session.msToStart());
+    else if (session.status === "running") setCountdown(session.msToStart());
   }, 500);
 
   render();

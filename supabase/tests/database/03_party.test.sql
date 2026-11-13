@@ -54,7 +54,7 @@ select is((select (r->>'players')::int || '/' || (r->>'maxPlayers')::int
             where r->>'id' = (select id::text from ctx)), '3/4', 'a lista mostra as vagas da sala party');
 select is((select r->'host'->>'rating' from jsonb_array_elements(public.duel_open_rooms('e1000000-0000-4000-8000-000000000005', 30)) r
             where r->>'id' = (select id::text from ctx)), null, 'party não mostra Elo do criador');
-select is(jsonb_array_length(public.duel_invites('e1000000-0000-4000-8000-000000000001')), 0, 'o aviso de desafiante do 1×1 ignora salas party');
+select is(jsonb_array_length(public.duel_invites('e1000000-0000-4000-8000-000000000001')), 0, 'sala party de 3+ ainda incompleta não gera aviso');
 
 -- ---------- 3. pronto e largada ----------
 select throws_ok(format($$select public.party_launch('e1000000-0000-4000-8000-000000000002', %L, '[]'::jsonb, '{"x":1}'::jsonb, 1)$$, (select id from ctx)),
@@ -154,6 +154,11 @@ select is((public.party_leave('e1000000-0000-4000-8000-000000000001', (select id
 select is((select created_by::text from public.duels where id = (select id from ctx3)), 'e1000000-0000-4000-8000-000000000002', 'o comando passa para o próximo assento');
 select is((select ready from public.duel_players where user_id = 'e1000000-0000-4000-8000-000000000002' and duel_id = (select id from ctx3)), true, 'o novo criador fica pronto');
 select is((public.party_join('e1000000-0000-4000-8000-000000000003', (select code from ctx3)))->>'mySeat', '1', 'o assento liberado é reaproveitado');
+select ok(public.party_ready('e1000000-0000-4000-8000-000000000003', (select id from ctx3)) is not null, 'preparação: convidado pronto');
+select is((select count(*) from jsonb_array_elements(public.duel_invites('e1000000-0000-4000-8000-000000000002')) r
+            where r->>'id' = (select id::text from ctx3)), 1::bigint, 'sala party de 2 avisa o criador como no 1×1');
+select is((select r->>'kind' || ':' || (r->>'maxPlayers') from jsonb_array_elements(public.duel_invites('e1000000-0000-4000-8000-000000000002')) r
+            where r->>'id' = (select id::text from ctx3)), 'party:2', 'o aviso vem da sala party, com o tamanho dela');
 select throws_ok(format($$select public.party_kick('e1000000-0000-4000-8000-000000000003', %L, 'e1000000-0000-4000-8000-000000000002')$$, (select id from ctx3)), '55000', 'not_creator', 'só o criador expulsa');
 select is((select jsonb_array_length(public.party_kick('e1000000-0000-4000-8000-000000000002', (select id from ctx3), 'e1000000-0000-4000-8000-000000000003')->'players')), 1, 'criador expulsa o convidado');
 select is((public.party_cancel('e1000000-0000-4000-8000-000000000002', (select id from ctx3)))->>'status', 'cancelled', 'criador cancela a sala');
@@ -193,7 +198,60 @@ update public.party_games set updated_at = now() - interval '10 minutes' where d
 select is(public.party_cleanup(), 1, 'a limpeza cancela partida parada além do tempo máximo');
 select is((select status || ':' || cancel_reason from public.duels where id = (select id from ctx5)), 'cancelled:abandoned', 'motivo registrado como abandonada');
 
--- ---------- 10. permissões ----------
+-- ---------- 10. sala completa avisa quem está fora, espera todos dentro e recado de desistência ----------
+insert into public.party_tap values ('c6', public.party_create('e1000000-0000-4000-8000-000000000001', 'partytest', 3, 3, true, 'turns', 30, 'skip', 600));
+create temp table ctx6 as select (v->>'id')::uuid as id, v->>'code' as code from public.party_tap where k = 'c6';
+grant all on ctx6 to public;
+select ok(public.party_join('e1000000-0000-4000-8000-000000000002', (select code from ctx6)) is not null, 'preparação: party_join');
+select ok(public.party_join('e1000000-0000-4000-8000-000000000003', (select code from ctx6)) is not null, 'preparação: party_join');
+select ok(public.party_ready('e1000000-0000-4000-8000-000000000002', (select id from ctx6)) is not null, 'preparação: party_ready');
+select ok(public.party_ready('e1000000-0000-4000-8000-000000000003', (select id from ctx6)) is not null, 'preparação: party_ready');
+
+-- Carol está com a página do jogo fechada (último heartbeat há 1 minuto)
+update public.duel_players set last_seen_at = now() - interval '1 minute'
+ where duel_id = (select id from ctx6) and user_id = 'e1000000-0000-4000-8000-000000000003';
+select is((public.party_json('e1000000-0000-4000-8000-000000000001', (select id from ctx6)))->>'allInside', 'false', 'nem todos dentro: allInside é false');
+select is((public.party_json('e1000000-0000-4000-8000-000000000001', (select id from ctx6)))->'players'->2->>'inside', 'false', 'quem está fora do jogo aparece com inside=false');
+select is((select count(*) from jsonb_array_elements(public.duel_invites('e1000000-0000-4000-8000-000000000003')) r
+            where r->>'id' = (select id::text from ctx6)), 1::bigint, 'quem está fora recebe o aviso de sala completa');
+select is((select r->'party'->>'players' || '/' || (r->'party'->>'maxPlayers') from jsonb_array_elements(public.duel_invites('e1000000-0000-4000-8000-000000000003')) r
+            where r->>'id' = (select id::text from ctx6)), '3/3', 'o aviso traz o tamanho da sala');
+select is((select count(*) from jsonb_array_elements(public.duel_invites('e1000000-0000-4000-8000-000000000001')) r
+            where r->>'id' = (select id::text from ctx6)), 0::bigint, 'quem já está dentro do jogo não é avisado');
+
+create temp table roster6 as select public.party_roster((select id from ctx6)) as r;
+grant all on roster6 to public;
+select throws_ok(format($$select public.party_launch('e1000000-0000-4000-8000-000000000001', %L, %L::jsonb, '{"s":0}'::jsonb, 1)$$,
+                          (select id from ctx6), (select r->'roster' from roster6)),
+  '55000', 'not_all_inside', 'a largada espera todos entrarem no jogo');
+
+select ok(public.party_state('e1000000-0000-4000-8000-000000000003', (select id from ctx6)) is not null, 'preparação: Carol entra no jogo');
+select is((public.party_json('e1000000-0000-4000-8000-000000000001', (select id from ctx6)))->>'allInside', 'true', 'com todos dentro a sala libera a largada');
+select is((select count(*) from jsonb_array_elements(public.duel_invites('e1000000-0000-4000-8000-000000000003')) r
+            where r->>'id' = (select id::text from ctx6)), 0::bigint, 'o aviso some quando a pessoa entra no jogo');
+
+-- Carol desiste na espera: o evento é gravado antes de liberar a vaga e os que ficam são avisados.
+select is((public.party_leave('e1000000-0000-4000-8000-000000000003', (select id from ctx6)))->>'status', 'waiting', 'desistir na espera mantém a sala aberta');
+select is((select r->'notice'->>'kind' from jsonb_array_elements(public.duel_invites('e1000000-0000-4000-8000-000000000001')) r
+            where r->>'id' = (select id::text from ctx6)), 'left', 'quem ficou é avisado de que um jogador desistiu');
+select is((select r->'notice'->>'nickname' from jsonb_array_elements(public.duel_invites('e1000000-0000-4000-8000-000000000001')) r
+            where r->>'id' = (select id::text from ctx6)), 'Carol', 'o recado traz o nome de quem desistiu');
+select is((select count(*) from jsonb_array_elements(public.duel_invites('e1000000-0000-4000-8000-000000000003')) r
+            where r->>'id' = (select id::text from ctx6)), 0::bigint, 'quem desistiu não recebe o próprio recado');
+
+-- O criador desiste: o recado diz que foi o criador, e a sala passa para o próximo assento.
+select is((public.party_leave('e1000000-0000-4000-8000-000000000001', (select id from ctx6)))->>'status', 'waiting', 'o criador desiste e a sala continua aberta');
+select is((select r->'notice'->>'kind' from jsonb_array_elements(public.duel_invites('e1000000-0000-4000-8000-000000000002')) r
+            where r->>'id' = (select id::text from ctx6)), 'host_left', 'o recado diz que o criador desistiu');
+select is((select r->'notice'->>'nickname' from jsonb_array_elements(public.duel_invites('e1000000-0000-4000-8000-000000000002')) r
+            where r->>'id' = (select id::text from ctx6)), 'Ana', 'o recado do criador traz o nome dele');
+
+-- Uma entrada nova limpa o recado: ele não fica preso na tela depois que a vaga é preenchida.
+select is((public.party_join('e1000000-0000-4000-8000-000000000003', (select code from ctx6)))->>'mySeat', '1', 'preparação: Carol volta e o recado é limpo');
+select is((select count(*) from jsonb_array_elements(public.duel_invites('e1000000-0000-4000-8000-000000000002')) r
+            where r->>'id' = (select id::text from ctx6)), 0::bigint, 'entrar de novo limpa o recado de desistência');
+
+-- ---------- 11. permissões ----------
 select is((select has_function_privilege('authenticated', 'public.party_move(uuid, uuid, int, jsonb, int, jsonb, jsonb, text)', 'execute')), false, 'o navegador não executa party_move');
 select is((select has_function_privilege('service_role', 'public.party_move(uuid, uuid, int, jsonb, int, jsonb, jsonb, text)', 'execute')), true, 'a Edge executa party_move');
 select is((select has_table_privilege('authenticated', 'public.party_games', 'select')), false, 'party_games é fechada ao navegador');

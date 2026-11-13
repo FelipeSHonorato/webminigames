@@ -125,18 +125,19 @@ antigo declara `PARTY`.
 Realtime `duel:<id>`, Salas Online, expiração em 15 min). A sala ganhou `kind = 'party'`,
 `min_players`..`max_players` (2..12) e cada jogador um **assento** (`duel_players.seat`). O estado do jogo vive
 em `party_games` (jsonb + `version` otimista + `turn_seat`). **Nenhuma função do 1×1 foi redefinida**: a Edge
-despacha pelo `kind` da sala para as funções `party_*`; só `duel_open_rooms` (vagas) e `duel_invites` (ignora
-party) foram ajustadas, e o gatilho de Elo não dispara em party. Fora do tipo party a sala continua 2×2 (CHECK).
+despacha pelo `kind` da sala para as funções `party_*`; só `duel_open_rooms` (vagas) e `duel_invites` (agora
+cobre party também) foram ajustadas, e o gatilho de Elo não dispara em party. Fora do tipo party a sala continua
+2×2 (CHECK).
 
 **Ciclo da sala**
 
 | Etapa | Regra |
 |---|---|
 | Criar | `partyCreate(game, { minPlayers, maxPlayers, turnSeconds, open })`; a Edge limita ao contrato `PARTY`. O criador ocupa o assento 1 e **já está pronto**. Para exigir uma mesa de tamanho fixo, mande `minPlayers = maxPlayers` (o **UNO** faz isso com a quantidade escolhida: 2, 3 ou 4). |
-| Entrar | por código (`duelJoin`/`partyJoin`) ou pela lista (`duelJoinRoom`/`partyJoinRoom`): a Edge desvia sozinha. Assento livre mais baixo, **sem estar pronto**; cada entrada estende a espera (+10 min). |
-| Largar | quando há ≥ `min` jogadores e **todos prontos**: **sala lotada → larga sozinha** (o último a marcar pronto dispara); senão o **criador clica em Iniciar** (`partyStart`). A Edge lê o elenco (`party_roster`), monta o estado no domínio (`partyStart`) e o Postgres confere que o elenco não mudou (`roster_changed`). Assentos viram 1..n sem buracos. Contagem de 4 s como no 1×1. |
+| Entrar | por código (`duelJoin`/`partyJoin`) ou pela lista (`duelJoinRoom`/`partyJoinRoom`): a Edge desvia sozinha. Assento livre mais baixo, **sem estar pronto**; cada entrada estende a espera (+10 min). Quem está na página do jogo manda um **heartbeat** (`party_state`/`party_ready`, janela de 20 s): `party_json` devolve `inside` por jogador e `allInside` na sala. |
+| Largar | quando há ≥ `min` jogadores, **todos prontos e todos DENTRO do jogo**: **sala lotada → larga sozinha** (o último a marcar pronto, ou o último a entrar, dispara); senão o **criador clica em Iniciar** (`partyStart`). Quem ainda está em outra página recebe o aviso global e, ao entrar, o `party_state` conclui a largada. A Edge lê o elenco (`party_roster`), monta o estado no domínio (`partyStart`) e o Postgres confere que o elenco não mudou (`roster_changed`) e que ninguém ficou de fora (`not_all_inside`). Assentos viram 1..n sem buracos. Contagem de 4 s no meio da tela. |
 | Vez | `order: "turns"` (vez a vez, `turn_seat`; tempo por jogada opcional) ou `"free"` (todos ao mesmo tempo; versão otimista, o cliente refaz o lance em `stale`). Estourou o tempo: `onTimeout: "skip"` passa a vez, `"out"` elimina. O estouro é aplicado de forma preguiçosa a cada consulta/lance (recupera vários seguidos). |
-| Sair/desistir | na espera libera a vaga (**o criador sai → o comando passa ao próximo assento**; sala vazia cancela). Em jogo é **eliminação**: colocação = quantos ainda estavam na partida; sobrou um, ele vence. O criador pode expulsar (`partyKick`) e cancelar (`partyCancel`) na espera. |
+| Sair/desistir | na espera libera a vaga e grava o último evento em `party_games.last_event` (**o criador sai → o comando passa ao próximo assento**; sala vazia cancela). Os que ficam recebem um card global ("X desistiu" / "O criador da sala desistiu") e a sala continua aberta. Em jogo é **eliminação**: colocação = quantos ainda estavam na partida; sobrou um, ele vence. O criador pode expulsar (`partyKick`) e cancelar (`partyCancel`) na espera. |
 | Fim | o domínio devolve o **ranking** (grupos de assentos ativos, melhor primeiro; empate = mesmo grupo: `[[3],[1,2],[4]]` → 1º, 2º, 2º, 4º). O Postgres valida (cobre os ativos, sem repetir) e grava `placement`; `winner_id` só se o 1º lugar for um jogador único. |
 | Limpeza | espera expirada: `duel_cleanup` (já existente). Partida parada além de `maxSeconds`: cron `party_cleanup` (5 min) → `cancelled/abandoned`. |
 
@@ -172,9 +173,10 @@ inexistente, ranking incompleto → `bad_domain_result`, erro do jogo, não do j
    da vez e do ranking já é coberto por `tests/party*.test.js` e `supabase/tests/database/03_party.test.sql`.
 
 **Ainda fora (de propósito, para decidir com o próximo jogo):** ranking/Elo multijogador (o gatilho de Elo
-ignora party; `placement` já fica gravado em `duel_players` para calcular depois), convite no aviso global
-(`duel_invites` só cobre 1×1; o criador acompanha pelo lobby), espectadores, reentrada depois de eliminado,
-chat e criação pelo pop-up "Criar Sala" do hub (`duel-hub.js` lista jogos de duelo, não de party).
+ignora party; `placement` já fica gravado em `duel_players` para calcular depois), espectadores, reentrada
+depois de eliminado, chat e criação pelo pop-up "Criar Sala" do hub (`duel-hub.js` lista jogos de duelo, não
+de party). Avisos de convite já funcionam (`duel_invites`: 1×1, party de 2 com o texto clássico e party de 3+
+com "A sala criada do game X está completa"; ver `20261056000000_party_enter_notify.sql`).
 
 ---
 

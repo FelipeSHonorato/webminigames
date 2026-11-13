@@ -11,6 +11,7 @@ import { Music } from "../../shared/music.js";
 import { Cloud } from "../../shared/backend/cloud.js";
 import { createPartySession } from "../../shared/party-session.js";
 import { mountPartyUi, turnBanner } from "../../shared/party-ui.js";
+import { ACCEPT_EVENT } from "../../shared/duel-invites.js";
 import { avatarNode } from "../../shared/avatar.js";
 import { isDuelCode, normalizeCode } from "../../shared/duel-hub.js";
 import {
@@ -77,6 +78,7 @@ const ONLINE_MESSAGES = {
   stale: "A mesa mudou. Atualizando…",
   not_member: "Você não está nessa sala.",
   not_ready: "Ainda há jogadores sem marcar pronto.",
+  not_all_inside: "Ainda há jogadores fora do jogo. Espere todos entrarem.",
   roster_changed: "A sala mudou. Tente iniciar de novo.",
   not_creator: "Só quem criou a sala pode fazer isso.",
   unknown_game: "Esse jogo não está mais disponível.",
@@ -136,9 +138,16 @@ function noticeSetup(message = "") {
 const params = new URLSearchParams(location.search);
 const invite = params.get("duelo");
 const inviteKind = !invite ? null : invite === "novo" ? "new" : UUID_RE.test(invite) ? "id" : "code";
+const acceptRequested = params.get("aceitar") === "1";   // vem do aviso global: "Entrar na sala"
+let acceptPending = acceptRequested;
 
 function clearInvite() {
   try { history.replaceState(null, "", location.pathname); } catch { /* sem History API */ }
+}
+
+/** Mantém a sala no endereço (recarregar volta para ela) e tira o `aceitar`, para o aceite não se repetir. */
+function keepRoomInUrl(id) {
+  try { history.replaceState(null, "", `${location.pathname}?duelo=${encodeURIComponent(id)}`); } catch { /* sem History API */ }
 }
 
 /* ===================== nomes, avatares e contagens ===================== */
@@ -821,12 +830,34 @@ async function attachOnlineRoom(id) {
   try {
     startOnline();
     await online.attach(id);
+    keepRoomInUrl(id);
     handleOnline();
+    if (acceptPending) { acceptPending = false; await acceptOnlineInvite(); }
   } catch (e) {
     teardownOnline();
     noticeSetup(onlineMessage(e));
   }
 }
+
+/** "Entrar na sala" do aviso global: a sala já está aberta nesta página; entra e marca pronto se preciso.
+    A partida só começa quando todos estiverem dentro (a Edge larga e a contagem aparece no meio da tela). */
+async function acceptOnlineInvite() {
+  if (!online) return;
+  if (online.status === "waiting" && !online.me()?.ready) {
+    try { await online.ready(); } catch { /* a sala pode ter largado/ mudado nesse meio-tempo */ }
+  }
+  await online.refresh().catch(() => { /* o polling tenta de novo */ });
+  handleOnline();
+}
+
+/* A página já está com a sala aberta: aceita aqui mesmo, sem recarregar. */
+window.addEventListener(ACCEPT_EVENT, event => {
+  if (!online || online.id !== event.detail?.id) return;
+  event.preventDefault();
+  acceptPending = false;
+  keepRoomInUrl(online.id);
+  acceptOnlineInvite();
+});
 
 /** Sem `?duelo=`: se já existe uma sala minha neste jogo, abre ELA em vez de oferecer criar outra. */
 async function resumeActiveRoom() {

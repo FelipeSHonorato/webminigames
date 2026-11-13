@@ -214,6 +214,36 @@ test("lobbyStatus: sala com tamanho exato (min = max) só larga com todos pronto
   assert.equal(s.autoStart, true, "mesa cheia e pronta: largada automática");
 });
 
+test("lobbyStatus: a largada espera todos DENTRO do jogo", () => {
+  const ana = { user_id: "a", nickname: "Ana", seat: 1, ready: true, host: true, is_me: true, inside: true };
+  const bob = { user_id: "b", nickname: "Bob", seat: 2, ready: true, inside: true };
+  const cid = { user_id: "c", nickname: "Cid", seat: 3, ready: true, inside: true };
+  const duda = { user_id: "d", nickname: "Duda", seat: 4, ready: true, inside: false };
+  const full = room({ minPlayers: 4, maxPlayers: 4 }, [ana, bob, cid, duda]);
+
+  let s = lobbyStatus(full);
+  assert.equal(s.canLaunch, true, "cheia e pronta");
+  assert.equal(s.allInside, false);
+  assert.deepEqual(s.away.map(p => p.nickname), ["Duda"]);
+  assert.equal(s.canStart, false, "o criador também espera");
+  assert.equal(s.autoStart, false, "sem todos dentro não há contagem");
+  assert.equal(lobbyHint(full), "Sala completa. Esperando Duda entrar no jogo.");
+
+  duda.inside = true;
+  s = lobbyStatus(full);
+  assert.equal(s.allInside, true);
+  assert.equal(s.autoStart, true);
+
+  const twoAway = [ana, { ...bob, inside: false }, { ...cid, inside: false }, duda];
+  assert.equal(lobbyHint(room({ minPlayers: 4, maxPlayers: 4 }, twoAway)), "Sala completa. Esperando 2 jogadores entrarem no jogo.");
+
+  const beforeFull = [ana, bob, { ...cid, inside: false }];
+  assert.equal(lobbyHint(room({ minPlayers: 3, maxPlayers: 4 }, beforeFull)), "Esperando Cid entrar no jogo.", "sala ainda com vaga não diz 'completa'");
+
+  const legacy = [{ user_id: "a", nickname: "Ana", ready: true, host: true, is_me: true }, { user_id: "b", nickname: "Bob", ready: true }];
+  assert.equal(lobbyStatus(room({ minPlayers: 2, maxPlayers: 2 }, legacy)).allInside, true, "sem o campo, todos contam como dentro");
+});
+
 test("lobbyHint: diz o que falta, no singular e no plural", () => {
   assert.equal(lobbyHint(room()), "Falta 1 jogador para poder começar.");
   assert.equal(lobbyHint(room({ minPlayers: 4 })), "Faltam 2 jogadores para poder começar.");

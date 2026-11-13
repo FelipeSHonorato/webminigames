@@ -95,7 +95,7 @@ const duelStatus = (msg: string) =>
     : msg === "duel_not_found" ? 404
       : msg === "too_many_open" || msg === "duel_full" || msg === "bad_status"
         || msg === "expired" || msg === "not_started" || msg === "not_your_turn"
-        || msg === "roster_changed" || msg === "not_ready"
+        || msg === "roster_changed" || msg === "not_ready" || msg === "not_all_inside"
         || msg === "stale" || msg === "closed_room" || msg === "opponent_away" ? 409
         : msg === "invalid_move" ? 422
         : 400;
@@ -229,6 +229,20 @@ const launchParty = async (svc: any, uid: string, duelId: string) => {
   return error ? { error: error.message } : { data };
 };
 
+/** Largada automática: sala cheia, todos prontos e TODOS dentro do jogo (heartbeat recente).
+    Quem ainda está em outra página recebe o aviso global; a largada espera ele entrar. Perder a corrida
+    para outro disparo não é erro: devolve o estado atual. */
+const autoLaunchParty = async (svc: any, uid: string, duelId: string, data: any) => {
+  if (!(data?.status === "waiting" && data?.full && data?.canLaunch && data?.allInside)) return null;
+  const launched = await launchParty(svc, uid, duelId);
+  if (launched.data) return await withPartyView(svc, launched.data);
+  if (["bad_status", "roster_changed", "not_ready", "not_all_inside"].includes(launched.error!)) {
+    const { data: now } = await svc.rpc("party_state", { p_uid: uid, p_duel: duelId });
+    return await withPartyView(svc, now ?? data);
+  }
+  throw new Error(launched.error);
+};
+
 async function handleParty(svc: any, uid: string, action: string, body: any) {
   const fail = (msg: string) => json({ error: msg }, duelStatus(msg));
 
@@ -270,16 +284,11 @@ async function handleParty(svc: any, uid: string, action: string, body: any) {
   if (action === "party_ready") {
     const { data, error } = await svc.rpc("party_ready", { p_uid: uid, p_duel: duelId, p_ready: body?.ready !== false });
     if (error) return fail(error.message);
-    /* Sala lotada e todos prontos: largada automática (qualquer jogador dispara). Perder a corrida para outro
-       disparo (`bad_status`) ou para uma saída (`roster_changed`) não é erro: devolve o estado atual. */
-    if (data?.canLaunch && data?.full) {
-      const launched = await launchParty(svc, uid, duelId);
-      if (launched.data) return json(await withPartyView(svc, launched.data));
-      if (!["bad_status", "roster_changed", "not_ready"].includes(launched.error!)) return fail(launched.error!);
-      const { data: now } = await svc.rpc("party_state", { p_uid: uid, p_duel: duelId });
-      return json(await withPartyView(svc, now ?? data));
-    }
-    return json(data);
+    /* Sala lotada, todos prontos e todos dentro do jogo: largada automática.
+       Se alguém ainda está navegando em outra página, o aviso global chama a pessoa; quando ela entra,
+       o `party_state` abaixo conclui a largada. */
+    const view = await autoLaunchParty(svc, uid, duelId, data);
+    return json(view ?? data);
   }
 
   if (action === "party_start") {
@@ -291,7 +300,9 @@ async function handleParty(svc: any, uid: string, action: string, body: any) {
   if (action === "party_state") {
     const { data, error } = await svc.rpc("party_state", { p_uid: uid, p_duel: duelId });
     if (error) return fail(error.message);
-    return json(await withPartyView(svc, data));
+    /* O heartbeat desta consulta pode ser o que faltava: se todos já estão dentro, larga agora. */
+    const view = await autoLaunchParty(svc, uid, duelId, data);
+    return json(view ?? await withPartyView(svc, data));
   }
 
   if (action === "party_move") {

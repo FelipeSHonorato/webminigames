@@ -3,8 +3,14 @@
      • "Entrar na sala": abre o jogo e marca pronto; a partida só começa com os dois na sala;
      • "Desistir": o servidor cancela a sala (`duel_decline`) — o desafiante é avisado e NINGUÉM ganha
        nem perde pontos (o rating só muda quando a partida termina, nunca no cancelamento).
+   Também cobre as partidas com 2+ jogadores (`kind = 'party'`):
+     • sala de 2: o mesmo aviso do 1×1;
+     • sala de 3+: quando ela lota e todos ficam prontos, avisa quem ainda não abriu o jogo; "Entrar na
+       sala" leva direto para a mesa, que só começa a contagem quando todos estão dentro;
+     • desistência na espera: um card avisa quem ficou e a sala continua aberta.
    A lógica fica em `createInviteController` (sem DOM, testada no Node); o pop-up é só a casca visual.
-   A Edge + o Postgres continuam a autoridade: aqui só perguntamos (`duel_invites`) e pedimos (`duel_decline`). */
+   A Edge + o Postgres continuam a autoridade: aqui só perguntamos (`duel_invites`) e pedimos
+   (`duel_decline` para 1×1, `party_leave` para salas party). */
 import { Cloud } from "./backend/cloud.js";
 import { avatarNode } from "./avatar.js";
 import { durationLabel } from "./rooms.js";
@@ -19,6 +25,7 @@ export const ACCEPT_EVENT = "wmg:duel-accept";
 
 export const MESSAGES = {
   declined: "Você desistiu do duelo. Ninguém ganha nem perde pontos.",
+  partyLeft: "Você saiu da sala. Ela continua aberta esperando outro jogador.",
   gone: "Esse convite não está mais ativo.",
   declineFailed: "Não foi possível desistir agora. Tente de novo.",
 };
@@ -30,14 +37,19 @@ export function cleanInvites(raw, games = {}) {
 
 export const opponentName = invite => invite?.opponent?.nickname || "Um jogador";
 
-/** "Ana entrou na sua sala de Xadrez". */
+/** Salas com 3+ jogadores: o aviso não é "fulano entrou", e sim "a sala está completa". */
+export const fullParty = invite => invite?.kind === "party" && Number(invite?.maxPlayers) > 2;
+
+/** "Ana entrou na sua sala de Xadrez" ou "A sala criada do game UNO está completa". */
 export function inviteTitle(invite, games = {}) {
   const game = games[invite?.gameId]?.title ?? "duelo";
+  if (fullParty(invite)) return `A sala criada do game ${game} está completa`;
   return `${opponentName(invite)} entrou na sua sala de ${game}`;
 }
 
 /** "10 min · Está pronto e esperando você." (ou o aviso de que ele pode ter saído da página). */
 export function inviteDetail(invite) {
+  if (fullParty(invite)) return "A sala está completa e esperando você.";
   const opp = invite?.opponent;
   const state = opp?.away
     ? "Parece que ele saiu da página. Você ainda pode entrar e esperar a volta dele."
@@ -45,6 +57,21 @@ export function inviteDetail(invite) {
   const time = durationLabel(invite);
   return time ? `${time} · ${state}` : state;
 }
+
+/** Recado de quem desistiu antes da largada. `notice.kind` é `left` ou `host_left`. */
+export function partyNoticeTitle(notice, games = {}) {
+  const game = games[notice?.gameId]?.title;
+  const where = game ? ` do game ${game}` : "";
+  if (notice?.notice?.kind === "host_left") return `O criador da sala desistiu${where}`;
+  return `${notice?.notice?.nickname || "Um jogador"} desistiu${where}`;
+}
+
+export function partyNoticeDetail() {
+  return "A sala continua aberta esperando outro jogador.";
+}
+
+/** Chave do recado: o mesmo evento não volta a aparecer a cada consulta do polling. */
+export const noticeKey = entry => [entry?.id, entry?.notice?.kind, entry?.notice?.userId, entry?.notice?.at].join("|");
 
 /** Endereço do jogo para aceitar: `<jogo>/?duelo=<id>&aceitar=1`. A página abre a sala e marca pronto sozinha. */
 export function acceptUrl(invite, games = {}, base = "") {
@@ -72,11 +99,12 @@ export function createInviteController({
   pollMs = INVITE_POLL_MS, hiddenMs = INVITE_POLL_HIDDEN_MS,
   isHidden = () => typeof document !== "undefined" && document.hidden,
 } = {}) {
-  let invite = null, notice = "", busy = false, inflight = false, stopped = false, timer = null;
+  let invite = null, event = null, notice = "", busy = false, inflight = false, stopped = false, timer = null;
   let epoch = 0;                    // muda a cada aceitar/desistir: respostas de consultas antigas são descartadas
   let catalog = games;
+  const seenEvents = new Set();     // recados de desistência já mostrados (o polling devolve o mesmo por 60 s)
 
-  const view = () => ({ invite, notice, busy, games: catalog ?? {} });
+  const view = () => ({ invite, noticeCard: event, notice, busy, games: catalog ?? {} });
   const emit = () => onChange(view());
   const enabled = () => !stopped && Boolean(cloud?.active && cloud?.uid);
 
@@ -88,12 +116,18 @@ export function createInviteController({
     try {
       const data = await cloud.duelInvites();
       const raw = Array.isArray(data?.invites) ? data.invites : [];
-      if (raw.length && !catalog) catalog = (await loadGames?.()) ?? {};
+      const rawInvites = raw.filter(i => i && !i.notice);
+      const rawEvents = raw.filter(i => i && i.notice);
+      if ((rawInvites.length || rawEvents.length) && !catalog) catalog = (await loadGames?.()) ?? {};
       if (ticket !== epoch) { inflight = false; return invite; }   // o criador já decidiu: resposta velha não reabre o aviso
-      const next = cleanInvites(raw, catalog ?? {})[0] ?? null;
+      const next = cleanInvites(rawInvites, catalog ?? {})[0] ?? null;
       if (next) notice = "";                                       // convite novo/renovado limpa o recado anterior
       else if (invite) notice = MESSAGES.gone;                     // sumiu sem o criador agir: o desafiante saiu ou expirou
       invite = next;
+      if (!event) {
+        const fresh = cleanInvites(rawEvents, catalog ?? {}).find(e => !seenEvents.has(noticeKey(e)));
+        if (fresh) { seenEvents.add(noticeKey(fresh)); event = fresh; }
+      }
     } catch { /* rede ou erro passageiro: mantém o que está na tela e tenta no próximo ciclo */ }
     inflight = false;
     emit();
@@ -115,19 +149,22 @@ export function createInviteController({
     return true;
   }
 
-  /** "Desistir": cancela a sala. O desafiante é avisado pela própria sala; ninguém ganha nem perde pontos. */
+  /** "Desistir": em salas party, sai da sala (ela continua aberta); no 1×1, cancela o duelo.
+      Ninguém ganha nem perde pontos — o rating só muda quando a partida termina. */
   async function decline() {
     if (!invite || busy) return false;
     const target = invite;
+    const party = target.kind === "party" && typeof cloud.partyLeave === "function";
     epoch += 1;
     busy = true; notice = "";
     emit();
     try {
-      await cloud.duelDecline(target.id);
+      if (party) await cloud.partyLeave(target.id);
+      else await cloud.duelDecline(target.id);
       invite = null;
-      notice = MESSAGES.declined;
+      notice = party ? MESSAGES.partyLeft : MESSAGES.declined;
     } catch (e) {
-      if (["bad_status", "duel_not_found", "not_creator"].includes(e?.code)) { invite = null; notice = MESSAGES.gone; }   // a sala já mudou: só fecha o aviso
+      if (["bad_status", "duel_not_found", "not_creator", "not_member"].includes(e?.code)) { invite = null; notice = MESSAGES.gone; }   // a sala já mudou: só fecha o aviso
       else notice = MESSAGES.declineFailed;
     }
     busy = false;
@@ -136,6 +173,7 @@ export function createInviteController({
   }
 
   function dismissNotice() { if (notice) { notice = ""; emit(); } }
+  function dismissEvent() { if (event) { event = null; emit(); } }
 
   function schedule() {
     clearTimeout(timer); timer = null;
@@ -147,8 +185,9 @@ export function createInviteController({
   function stop() { stopped = true; clearTimeout(timer); timer = null; }
 
   return {
-    start, stop, check, accept, decline, dismissNotice,
+    start, stop, check, accept, decline, dismissNotice, dismissEvent,
     get invite() { return invite; },
+    get noticeCard() { return event; },
     get notice() { return notice; },
     get busy() { return busy; },
   };
@@ -199,14 +238,31 @@ export function startDuelInvites({ base = "", cloud = Cloud } = {}) {
   actions.append(btnEnter, btnGiveUp);
   card.append(head, actions);
 
+  /* Recado de desistência (o card do convite e o recado podem aparecer juntos). */
+  const eventCard = node("section", "duel-invite duel-invite-notice");
+  eventCard.setAttribute("role", "status");
+  eventCard.hidden = true;
+  const eventHead = node("div", "duel-invite-head");
+  const eventAvatar = node("span", "duel-invite-avatar");
+  const eventText = node("div", "duel-invite-text");
+  const eventTitle = node("strong", "duel-invite-title");
+  const eventDetail = node("span", "duel-invite-detail");
+  eventText.append(eventTitle, eventDetail);
+  eventHead.append(eventAvatar, eventText);
+  const eventActions = node("div", "duel-invite-actions");
+  const btnEventOk = node("button", "duel-invite-btn", "Entendi");
+  btnEventOk.type = "button";
+  eventActions.append(btnEventOk);
+  eventCard.append(eventHead, eventActions);
+
   const note = node("p", "duel-invite-note");
   note.setAttribute("role", "status");
   note.hidden = true;
-  host.append(card, note);
+  host.append(card, eventCard, note);
   document.body.append(host);
 
-  let shownId = null, noteTimer = null, shownNotice = "";
-  const render = ({ invite, notice, busy, games }) => {
+  let shownId = null, shownEvent = null, noteTimer = null, shownNotice = "";
+  const render = ({ invite, noticeCard, notice, busy, games }) => {
     if (invite) {
       if (shownId !== invite.id) {                       // refaz o conteúdo só quando o convite muda (o avatar é uma imagem)
         shownId = invite.id;
@@ -218,6 +274,19 @@ export function startDuelInvites({ base = "", cloud = Cloud } = {}) {
     } else {
       shownId = null;
       card.hidden = true;
+    }
+    if (noticeCard) {
+      const key = noticeKey(noticeCard);
+      if (shownEvent !== key) {
+        shownEvent = key;
+        eventAvatar.replaceChildren(avatarNode(noticeCard.opponent?.avatar));
+      }
+      eventTitle.textContent = partyNoticeTitle(noticeCard, games);
+      eventDetail.textContent = partyNoticeDetail();
+      eventCard.hidden = false;
+    } else {
+      shownEvent = null;
+      eventCard.hidden = true;
     }
     btnEnter.disabled = btnGiveUp.disabled = busy;
     note.hidden = !notice;
@@ -237,6 +306,7 @@ export function startDuelInvites({ base = "", cloud = Cloud } = {}) {
 
   btnEnter.onclick = () => controller.accept();
   btnGiveUp.onclick = () => { controller.decline(); };
+  btnEventOk.onclick = () => controller.dismissEvent();
   const wake = () => { if (!document.hidden) controller.check(); };
   document.addEventListener("visibilitychange", wake);
   window.addEventListener("focus", wake);

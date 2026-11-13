@@ -604,3 +604,19 @@ test("Edge: ações party roteadas por `kind`, o estado do jogo nunca vai ao nav
   assert.match(entry, /p_roster: info\.roster/);
   assert.match(entry, /launched\.error!\)/, "perder a corrida da largada automática não é erro");
 });
+
+test("Edge: a largada party espera todos DENTRO e o heartbeat também dispara", () => {
+  const entry = read("supabase/functions/play/index.ts");
+  const auto = entry.match(/const autoLaunchParty = [\s\S]*?\n\};/)?.[0] ?? "";
+  assert.ok(auto, "autoLaunchParty não encontrado");
+  assert.match(auto, /data\?\.status === "waiting" && data\?\.full && data\?\.canLaunch && data\?\.allInside/);
+  assert.match(auto, /"not_all_inside"/);
+
+  const ready = entry.match(/if \(action === "party_ready"\) \{[\s\S]*?\n  \}/)?.[0] ?? "";
+  assert.match(ready, /autoLaunchParty\(svc, uid, duelId, data\)/);
+
+  // Quem entra por último e faz o heartbeat também conclui a largada (sem depender do "pronto").
+  const state = entry.match(/if \(action === "party_state"\) \{[\s\S]*?\n  \}/)?.[0] ?? "";
+  assert.match(state, /autoLaunchParty\(svc, uid, duelId, data\)/);
+  assert.match(entry, /msg === "not_all_inside"/, "erro vira 409 com mensagem própria");
+});

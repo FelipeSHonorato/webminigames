@@ -157,14 +157,18 @@ export function lobbyStatus(room) {
   const notReady = players.filter(p => !p.ready);
   const me = players.find(p => p.is_me) ?? null;
   const isHost = Boolean(me?.host);
+  /* `inside` vem do heartbeat do servidor (party_json); ausente = dentro, para salas antigas/testes. */
+  const away = players.filter(p => p.inside === false);
+  const allInside = away.length === 0;
   const canLaunch = room?.status === "waiting" && missing === 0 && notReady.length === 0;
   return {
     count: players.length, min, max, missing, notReady, me, isHost, canLaunch,
     free: Math.max(0, max - players.length),
-    /** Iniciar manualmente: só o criador, com todos prontos e o mínimo atingido. */
-    canStart: isHost && canLaunch,
-    /** Largada automática: sala lotada e todos prontos (qualquer um dispara). */
-    autoStart: canLaunch && players.length >= max,
+    away, allInside,
+    /** Iniciar manualmente: só o criador, com todos prontos, o mínimo atingido e todos dentro do jogo. */
+    canStart: isHost && canLaunch && allInside,
+    /** Largada automática: sala lotada, todos prontos e todos já dentro do jogo. */
+    autoStart: canLaunch && players.length >= max && allInside,
   };
 }
 
@@ -176,6 +180,17 @@ export function lobbyHint(room) {
   if (s.notReady.length) {
     const names = s.notReady.map(p => p.nickname || "Jogador");
     return names.length === 1 ? `Esperando ${names[0]} ficar pronto.` : `Esperando ${names.length} jogadores ficarem prontos.`;
+  }
+  if (!s.allInside) {
+    const names = s.away.map(p => p.nickname || "Jogador");
+    if (names.length === 1) {
+      return s.count >= s.max
+        ? `Sala completa. Esperando ${names[0]} entrar no jogo.`
+        : `Esperando ${names[0]} entrar no jogo.`;
+    }
+    return s.count >= s.max
+      ? `Sala completa. Esperando ${names.length} jogadores entrarem no jogo.`
+      : `Esperando ${names.length} jogadores entrarem no jogo.`;
   }
   if (s.autoStart) return "Sala cheia e todos prontos: a partida já vai começar.";
   return s.isHost ? "Todos prontos. Inicie agora ou espere mais jogadores (até " + s.max + ")." : "Todos prontos. Esperando o criador iniciar.";
