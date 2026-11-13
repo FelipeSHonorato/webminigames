@@ -118,7 +118,7 @@ button{font:inherit;color:inherit}
 
 .hand-area{margin-top:12px}
 .hand-label{margin:0 0 5px;text-align:center;font-size:.74rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.hand{display:flex;align-items:flex-end;justify-content:center;min-height:calc(clamp(86px,14vw,150px) + 8px);padding:8px 12px 14px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
+.hand{display:flex;align-items:flex-end;justify-content:center;min-height:calc(clamp(86px,14vw,150px) + 8px);padding:8px 12px 14px;overflow-x:auto;overflow-y:hidden}
 .hand .uno-card{flex:none;width:clamp(64px,10vw,100px);transition:transform .14s,filter .14s;margin:0;padding:0;border:0;background:none;border-radius:10px;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .hand .uno-card + .uno-card{margin-left:clamp(-26px,-2.5vw,-10px)}
 .hand .uno-card img{display:block;width:100%;height:auto;border-radius:9px;filter:drop-shadow(0 3px 5px rgba(0,0,0,.25))}

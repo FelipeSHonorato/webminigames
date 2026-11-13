@@ -136,7 +136,7 @@ button{font:inherit;color:inherit}
 .match-info div{display:flex;justify-content:space-between;gap:8px}
 .match-info dt{color:var(--muted)}
 .match-info dd{margin:0;font-weight:800;text-align:right;overflow-wrap:anywhere}
-.moves{list-style:none;margin:0;padding:0;max-height:330px;overflow:auto;font-variant-numeric:tabular-nums;scrollbar-width:thin}
+.moves{list-style:none;margin:0;padding:0;max-height:330px;overflow:auto;font-variant-numeric:tabular-nums}
 .moves li{display:grid;grid-template-columns:2.1em auto minmax(0,1fr);gap:6px;align-items:center;padding:3px 4px;border-radius:6px;font-size:.86rem}
 .moves li:nth-child(odd){background:var(--chip)}
 .moves li.cur{outline:2px solid var(--accent);outline-offset:-2px}

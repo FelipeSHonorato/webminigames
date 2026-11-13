@@ -174,7 +174,7 @@ button.die.pick:hover{filter:brightness(1.06)}
 button.die.unavailable{opacity:.38;cursor:default}
 button.die.chosen{outline:3px solid var(--sel);outline-offset:2px}
 .die-mult{margin-left:-2px;align-self:flex-start;padding:0 4px;border-radius:999px;background:var(--accent);color:var(--accent-fg);font-size:.62rem;font-weight:900;line-height:1.4}
-.moves{list-style:none;margin:0;padding:0;max-height:360px;overflow:auto;font-variant-numeric:tabular-nums;scrollbar-width:thin}
+.moves{list-style:none;margin:0;padding:0;max-height:360px;overflow:auto;font-variant-numeric:tabular-nums}
 .moves li{display:grid;grid-template-columns:2.1em auto minmax(0,1fr);gap:6px;align-items:center;padding:3px 4px;border-radius:6px;font-size:.86rem}
 .moves li:nth-child(odd){background:var(--chip)}
 .moves li.cur{outline:2px solid var(--accent);outline-offset:-2px}

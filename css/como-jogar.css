@@ -45,7 +45,7 @@ body{height:auto;min-height:100%}
 .lg-bad{border-radius:50%;background:#e5484d;border:2px solid #fff;box-shadow:0 0 0 1px var(--line)}
 
 /* ---------- índice do guia ---------- */
-.cj-toc{display:flex;gap:8px;margin:0 0 18px;padding:2px 0 8px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
+.cj-toc{display:flex;gap:8px;margin:0 0 18px;padding:2px 0 8px;overflow-x:auto;-webkit-overflow-scrolling:touch}
 .cj-toc-item{flex:none;display:inline-flex;align-items:center;gap:8px;padding:7px 14px 7px 8px;border:2px solid var(--line);border-radius:999px;background:var(--surface);font-weight:700;font-size:.88rem;white-space:nowrap}
 .cj-toc-item:hover{border-color:var(--accent)}
 .cj-toc-item span{display:grid;place-items:center;min-width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-fg);font-size:.78rem}
