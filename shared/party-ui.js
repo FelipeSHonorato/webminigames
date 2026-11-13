@@ -100,11 +100,26 @@ export function mountPartyUi(host, session, { title = "Multijogador", onStart, o
   const btnExit = button("Sair");
   result.append(resultTitle, table, btnExit);
 
+  /* ----- confirmação de desistência (no lugar do confirm() do navegador) ----- */
+  const confirmOverlay = node("div", "party-confirm");
+  confirmOverlay.hidden = true;
+  const confirmCard = node("div", "party-confirm-card");
+  confirmCard.setAttribute("role", "dialog");
+  confirmCard.setAttribute("aria-modal", "true");
+  confirmCard.setAttribute("aria-label", "Desistir da partida?");
+  const confirmActions = node("div", "party-confirm-actions");
+  const btnKeep = button("Continuar jogando", "party-primary");
+  const btnQuit = button("Desistir", "party-danger");
+  confirmActions.append(btnKeep, btnQuit);
+  confirmCard.append(node("strong", "party-confirm-title", "Desistir da partida?"),
+    node("p", "party-confirm-text", "Você sai da partida e ela conta como derrota."), confirmActions);
+  confirmOverlay.append(confirmCard);
+
   const note = node("p", "party-note");
   note.setAttribute("role", "status");
   note.hidden = true;
 
-  root.append(head, lobby, count, banner, roster, btnResign, result, note);
+  root.append(head, lobby, count, banner, roster, btnResign, result, confirmOverlay, note);
   host.replaceChildren(root);
 
   const flash = message => {
@@ -113,6 +128,28 @@ export function mountPartyUi(host, session, { title = "Multijogador", onStart, o
     clearTimeout(noteTimer);
     noteTimer = setTimeout(() => { note.hidden = true; }, 2800);
   };
+
+  /* Confirmação de desistência: modal da própria página, no mesmo desenho dos resultados dos duelos. */
+  function openResignConfirm() {
+    confirmOverlay.hidden = false;
+    btnKeep.focus();
+  }
+  function closeResignConfirm(restoreFocus = true) {
+    if (confirmOverlay.hidden) return;
+    confirmOverlay.hidden = true;
+    if (restoreFocus) btnResign.focus();
+  }
+  const onConfirmKey = e => {
+    if (confirmOverlay.hidden) return;
+    if (e.key === "Escape") { e.preventDefault(); closeResignConfirm(); return; }
+    if (e.key !== "Tab") return;
+    const items = [btnKeep, btnQuit];
+    const i = items.indexOf(document.activeElement);
+    if (e.shiftKey && i <= 0) { e.preventDefault(); btnQuit.focus(); }
+    else if (!e.shiftKey && i === items.length - 1) { e.preventDefault(); btnKeep.focus(); }
+  };
+  document.addEventListener("keydown", onConfirmKey);
+  confirmOverlay.addEventListener("click", e => { if (e.target === confirmOverlay) closeResignConfirm(); });
 
   function seatRow(player) {
     const li = node("li", "party-seat" + (player.is_me ? " me" : "") + (player.out ? " out" : ""));
@@ -139,6 +176,7 @@ export function mountPartyUi(host, session, { title = "Multijogador", onStart, o
   function render() {
     const view = partyView(session);
     root.classList.toggle("is-running", view === "running");
+    if (view !== "running") closeResignConfirm(false);
     lobby.hidden = view !== "lobby";
     count.hidden = view !== "countdown";
     banner.hidden = !(view === "running");
@@ -193,7 +231,9 @@ export function mountPartyUi(host, session, { title = "Multijogador", onStart, o
   btnCopy.onclick = () => copy(session.code ?? "", "Código copiado!");
   btnLink.onclick = () => copy(duelLink(location.href, session.code), "Link copiado!");
   btnLeave.onclick = () => { session.leave().catch(() => {}).finally(() => onExit?.()); };
-  btnResign.onclick = () => { if (confirm("Desistir da partida?")) session.resign().catch(e => flash(errorText(e))); };
+  btnResign.onclick = openResignConfirm;
+  btnKeep.onclick = () => closeResignConfirm();
+  btnQuit.onclick = () => { closeResignConfirm(false); session.resign().catch(e => flash(errorText(e))); };
   btnExit.onclick = () => { session.leave().catch(() => {}).finally(() => onExit?.()); };
 
   offs.push(
@@ -221,6 +261,7 @@ export function mountPartyUi(host, session, { title = "Multijogador", onStart, o
     destroy() {
       clearInterval(timer);
       clearTimeout(noteTimer);
+      document.removeEventListener("keydown", onConfirmKey);
       for (const off of offs) off();
       root.remove();
     },
