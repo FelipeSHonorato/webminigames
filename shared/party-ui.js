@@ -138,6 +138,7 @@ export function mountPartyUi(host, session, { title = "Multijogador", onStart, o
 
   function render() {
     const view = partyView(session);
+    root.classList.toggle("is-running", view === "running");
     lobby.hidden = view !== "lobby";
     count.hidden = view !== "countdown";
     banner.hidden = !(view === "running");

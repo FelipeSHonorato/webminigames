@@ -36,6 +36,17 @@
 .party-roster-item.turn{border-color:var(--accent);background:var(--accent);color:var(--accent-fg,var(--bg))}
 .party-roster-item.turn .party-tags{color:inherit}
 
+/* Em jogo o painel vira uma faixa fina: vez + tempo, jogadores e "Desistir" na mesma linha.
+   O cabeçalho ("Em andamento") some porque o título do jogo já diz onde estamos. */
+.party.is-running{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:8px 12px;border-radius:12px}
+.party.is-running .party-head{display:none}
+.party.is-running .party-banner{flex:1 1 auto;margin:0;text-align:left;white-space:nowrap}
+.party.is-running .party-roster{flex:0 1 auto;width:auto;margin:0;justify-content:flex-start;gap:5px}
+.party.is-running .party-roster-item{padding:2px 9px}
+.party.is-running .party-name{font-size:.78rem}
+.party.is-running .party-btn{flex:0 0 auto;padding:6px 12px;border-width:1px;font-size:.8rem}
+.party.is-running .party-note{flex-basis:100%;margin:0}
+
 .party-result{display:grid;gap:8px;justify-items:center;text-align:center;padding:6px 0}
 .party-result-title{font-size:1.1rem}
 .party-standing{display:grid;grid-template-columns:44px minmax(0,1fr);align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--grid,var(--line));border-radius:10px}
@@ -43,9 +54,16 @@
 .party-place{font-weight:900;color:var(--accent)}
 .party-note{margin:8px 0 0;font-size:.8rem;font-weight:700;text-align:center;color:var(--accent)}
 
+@media (max-width:560px){
+  .party.is-running{gap:6px 10px;padding:8px 10px}
+  .party.is-running .party-banner{flex:1 1 100%;text-align:center}
+  .party.is-running .party-roster{justify-content:center}
+}
+
 @media (max-width:360px){
   .party{padding:10px}
   .party-btn{flex:1 1 100%}
+  .party.is-running .party-btn{flex:0 0 auto}
   .party-seat{grid-template-columns:30px minmax(0,1fr) auto}
   .party-seat .party-kick{grid-column:1 / -1}
   .party-avatar,.party-avatar .avatar{width:30px;height:30px}

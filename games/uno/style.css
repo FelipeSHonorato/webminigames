@@ -50,6 +50,8 @@ button{font:inherit;color:inherit}
 /* ---------- painel party ---------- */
 .party-host{max-width:760px;margin:0 auto 14px}
 .party-host .party{margin:0}
+/* Em jogo o painel fica abaixo do título "UNO", alinhado com a mesa. */
+.game .party-host{max-width:none;margin:0 0 10px}
 
 /* ---------- partida ---------- */
 .game{max-width:1040px;margin:0 auto}

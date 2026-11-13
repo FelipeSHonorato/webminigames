@@ -26,7 +26,7 @@ const $ = id => document.getElementById(id);
 const els = {
   setup: $("setup"), playerOptions: $("playerOptions"), timeOptions: $("timeOptions"), roomOptions: $("roomOptions"),
   startLocal: $("startLocal"), createRoom: $("createRoom"), duelNotice: $("duelNotice"),
-  partyHost: $("partyHost"), game: $("game"), status: $("status"),
+  partyHost: $("partyHost"), game: $("game"), status: $("status"), main: document.querySelector("main"),
   leftPlayer: $("leftPlayer"), topPlayer: $("topPlayer"), rightPlayer: $("rightPlayer"), bottomPlayer: $("bottomPlayer"),
   dirBadge: $("dirBadge"), deckCount: $("deckCount"), turnTimer: $("turnTimer"),
   deckPile: $("deckPile"), topCardImg: $("topCardImg"), colorDot: $("colorDot"), colorName: $("colorName"),
@@ -187,6 +187,18 @@ function canAct(view = currentView()) {
   return Boolean(online && online.status === "running" && online.started && !sending && online.canPlay() && view.seat === online.mySeat);
 }
 
+/* Em jogo, o painel da partida fica logo abaixo do título "UNO" (antes da mesa).
+   No lobby, na contagem e no resultado ele volta para cima da seção, já que a mesa está escondida. */
+function placePartyPanel(inGame) {
+  const host = els.partyHost;
+  if (inGame) {
+    const table = els.game.querySelector(".table-grid");
+    if (host.parentNode !== els.game) els.game.insertBefore(host, table);
+  } else if (host.parentNode !== els.main) {
+    els.main.insertBefore(host, els.game);
+  }
+}
+
 function render() {
   if (mode === "local") renderLocal();
   else if (mode === "online") renderOnline();
@@ -201,6 +213,7 @@ function renderLocal() {
 
 function renderOnline() {
   if (!online?.view) return;
+  placePartyPanel(true);
   renderTable(online.view, online.mySeat ?? online.view.seat);
 }
 
@@ -399,6 +412,9 @@ function renderHand(view) {
 /* ===================== status e relógio ===================== */
 
 function renderStatus() {
+  /* Em jogo online a faixa da partida (shared/party-ui.js) já mostra a vez e o tempo:
+     escondemos o selo do cabeçalho para não repetir a mesma informação duas vezes. */
+  els.status.hidden = mode === "online" && online?.status === "running" && Boolean(online.started);
   if (mode === "local") {
     if (!local) return;
     if (local.ended) { els.status.textContent = "Partida encerrada."; return; }
@@ -672,6 +688,7 @@ function teardownOnline() {
   els.partyHost.replaceChildren();
   els.partyHost.hidden = true;
   els.game.hidden = true;
+  placePartyPanel(false);
   els.gate.hidden = true;
   els.colorPick.hidden = true;
   els.result.hidden = true;
@@ -736,6 +753,7 @@ function handleOnline() {
   if (status === "cancelled") {
     mode = "online";
     els.game.hidden = true;
+    placePartyPanel(false);
     return;
   }
   if (status === "running" && online.started && online.view) {
@@ -751,10 +769,12 @@ function handleOnline() {
       renderOnline();
     } else {
       els.game.hidden = true;
+      placePartyPanel(false);
     }
     return;
   }
   els.game.hidden = true;   // espera ou contagem
+  placePartyPanel(false);
 }
 
 async function createOnlineRoom() {
