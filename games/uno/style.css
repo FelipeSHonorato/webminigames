@@ -101,9 +101,11 @@ button{font:inherit;color:inherit}
 .opponent-avatar{display:grid;place-items:center;width:38px;height:38px;flex:none;border-radius:50%;overflow:hidden;background:var(--chip);border:2px solid var(--line);color:var(--muted)}
 .opponent-avatar .avatar{display:block;width:100%;height:100%;border-radius:50%;object-fit:cover}
 .opponent-meta{display:flex;flex-direction:column;min-width:0;line-height:1.15}
-.opponent.side .opponent-meta{align-items:center}
+/* Laterais = a barra do topo girada 90°: o bloco de texto inteiro (nome e contagem) lê de cima para baixo, as duas linhas
+   lado a lado (nome à direita, contagem à esquerda), alinhadas pelo início. Avatar e cartas não giram. */
+.opponent.side .opponent-meta{writing-mode:vertical-rl;text-orientation:mixed;align-items:flex-start;gap:3px}
 .opponent-name{font-size:.8rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
-.opponent.side .opponent-name{writing-mode:vertical-rl;text-orientation:mixed;max-height:130px;white-space:nowrap;overflow:hidden;font-size:.75rem;letter-spacing:.02em}
+.opponent.side .opponent-name{max-height:130px;white-space:nowrap;overflow:hidden;font-size:.75rem;letter-spacing:.02em}
 .opponent-count{font-size:.68rem;color:var(--muted);font-weight:700;white-space:nowrap}
 .uno-badge{display:inline-block;padding:1px 6px;border-radius:999px;background:var(--accent);color:var(--accent-fg);font-size:.58rem;font-weight:900;letter-spacing:.05em;animation:unoPulse 1.1s ease-in-out infinite}
 @keyframes unoPulse{50%{transform:scale(1.08)}}
