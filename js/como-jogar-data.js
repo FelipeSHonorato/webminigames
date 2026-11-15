@@ -1,16 +1,20 @@
-/* Conteúdo das páginas "Como jogar" (Xadrez, Dama, Gamão, Go e Onitama). Módulo puro: sem DOM, roda no navegador e nos testes.
+/* Conteúdo das páginas "Como jogar" (Xadrez, Dama, Gamão, Go, Onitama e UNO). Módulo puro: sem DOM, roda no navegador
+   e nos testes.
 
-   Os EXEMPLOS (CHESS, DAMA, GAMMON, GO) ficam exportados porque `tests/como-jogar.test.js` confere cada um contra o
-   domínio do jogo (ex.: o "mate do corredor" é mesmo xeque-mate; a captura dupla da Dama é mesmo a única válida; o
-   grupo do Go tem mesmo aquelas liberdades). Assim a página nunca ensina uma regra diferente da que o jogo aplica.
+   Os EXEMPLOS (CHESS, DAMA, GAMMON, GO, ONITAMA, UNO) ficam exportados porque `tests/como-jogar.test.js` confere cada
+   um contra o domínio do jogo (ex.: o "mate do corredor" é mesmo xeque-mate; a captura dupla da Dama é mesmo a única
+   válida; o grupo do Go tem mesmo aquelas liberdades). Assim a página nunca ensina uma regra diferente da que o jogo
+   aplica.
 
    Texto: pode usar <b>, <em> e <kbd>; é conteúdo nosso (não vem do usuário), por isso entra como HTML. */
 
 import { GAMES } from "./games.js";
 import {
-  chessBoard, damaBoard, gammonBoard, goBoard, onitamaBoard, onitamaCardSvg, diceSvg, damaPosition, parseFen, parseSquare, squareName, GAMMON_START,
+  chessBoard, damaBoard, gammonBoard, goBoard, onitamaBoard, onitamaCardSvg, diceSvg, damaPosition, parseFen, parseSquare, squareName,
+  unoCardSvg, unoCardsSvg, unoTableSvg, GAMMON_START,
 } from "./como-jogar-art.js";
 import { CARDS as ONITAMA_CARDS } from "../games/onitama/domain.js";
+import { COLOR_NAMES as UNO_COLOR_NAMES, canPlayCard as unoCanPlay, cardName as unoCardName } from "../games/uno/domain.js";
 
 export { damaPosition };
 
@@ -125,6 +129,18 @@ export const GO = Object.freeze({
     white: ["H8", "J8", "H9", "J9"],
     komi: 6.5,
   },
+});
+
+/* ==================================== UNO ==================================== */
+
+/* UNO: exemplos usados nas figuras; o teste confere as cartas jogáveis e os efeitos no domínio. */
+export const UNO = Object.freeze({
+  colors: ["r-7-1", "y-7-1", "g-7-1", "b-7-1"],
+  actions: { skip: "g-skip-1", reverse: "b-reverse-1", draw2: "y-draw2-1", wild: "w-wild-1", draw4: "w-draw4-1" },
+  match: { top: "r-7-1", color: "r", hand: ["r-9-1", "b-7-1", "g-5-1", "w-wild-1", "w-draw4-1"] },
+  wild: { top: "g-5-1", color: "g", hand: ["g-2-1", "w-wild-1", "w-draw4-1"], chosen: "b" },
+  draw: { top: "r-7-1", color: "r", hand: ["y-1-1", "g-4-1", "b-9-1"], drawn: "r-2-1" },
+  win: { top: "r-9-1", color: "r", hand: ["r-5-1"] },
 });
 
 /** Casas para onde a peça de `from` pode ir no xadrez (sem xeque/cravada: os exemplos foram escolhidos sem isso;
@@ -719,5 +735,142 @@ function onitamaGuide() {
   };
 }
 
-export const GUIDES = [chessGuide(), damaGuide(), gammonGuide(), goGuide(), onitamaGuide()];
+/* ==================================== UNO ==================================== */
+
+const LEGEND_UNO = [
+  ["good", "Carta que pode ser jogada agora"],
+  ["sel", "Carta escolhida por você"],
+  ["bad", "Carta proibida (✕)"],
+  ["color", "Cor atual da mesa"],
+];
+
+function unoGuide() {
+  const U = UNO;
+  const playable = (ex, hand = ex.hand) => hand.filter(id => unoCanPlay(hand, id, ex.color, ex.top));
+  const marksOf = (ex, hand = ex.hand, extra = {}) => {
+    const marks = {};
+    for (const id of hand) marks[id] = playable(ex, hand).includes(id) ? "good" : "bad";
+    return { ...marks, ...extra };
+  };
+  const table = (ex, opts = {}) => {
+    const hand = opts.hand ?? ex.hand;
+    return unoTableSvg({
+      deck: opts.deck ?? false, top: ex.top, color: ex.color, colorName: UNO_COLOR_NAMES[ex.color],
+      hand, marks: opts.marks ?? marksOf(ex, hand), label: opts.label,
+    });
+  };
+  const drawnHand = [...U.draw.hand, U.draw.drawn];
+  const name = id => unoCardName(id);
+
+  return {
+    id: "uno", name: "UNO", glyph: "🃏",
+    title: "Como jogar UNO",
+    lead: "O clássico das cores e dos números. Combine a carta da mesa, use bloqueios e curingas e seja o <b>primeiro a ficar sem cartas</b>. Em poucos minutos você aprende o essencial.",
+    chips: chips(["2 a 4 jogadores", "108 cartas", "7 cartas cada", "Vence quem zerar a mão"]),
+    legend: LEGEND_UNO,
+    sections: [
+      {
+        id: "objetivo", title: "O objetivo: ficar sem cartas",
+        body: [
+          "O UNO é um jogo de cartas para <b>2 a 4 jogadores</b>. Cada um começa com <b>7 cartas</b> e o objetivo é simples: <b>ser o primeiro a ficar sem nenhuma</b>.",
+          "Quem zera a mão vence na hora. Os outros são classificados pela <b>quantidade de cartas que sobraram</b>: menos cartas, melhor colocação.",
+        ],
+        figures: [fig(table(U.win, { marks: { [U.win.hand[0]]: "sel" }, label: "Mesa vermelha e uma única carta na mão" }),
+          "Com uma só carta você já está de <b>UNO</b>. Ao jogar a última, a partida termina e você vence.")],
+      },
+      {
+        id: "baralho", title: "As 108 cartas",
+        body: [
+          "São <b>108 cartas</b> em <b>quatro cores</b>: vermelho, amarelo, verde e azul. Cada cor tem os números <b>0 a 9</b> e três ações: <b>Bloqueio</b>, <b>Inverter</b> e <b>+2</b>.",
+          "Além delas, há <b>4 Curingas</b> (pretos, com as quatro cores) e <b>4 Curingas +4</b>. No começo, cada jogador recebe <b>7 cartas</b> e uma carta é virada na mesa — ela nunca é um curinga.",
+        ],
+        figures: [fig(unoCardsSvg(U.colors, { label: "Quatro cartas de UNO, uma de cada cor" }),
+          "As quatro cores do baralho. Números e ações só podem ser jogados combinando a <b>cor</b> ou o <b>número/símbolo</b> com a carta da mesa.")],
+        tips: ["As cartas de ação também têm cor: um <b>Bloqueio verde</b> combina com qualquer carta verde."],
+      },
+      {
+        id: "jogar", title: "Jogar uma carta: cor ou número",
+        body: [
+          "Na sua vez, jogue uma carta que combine com a <b>carta do topo do descarte</b> de duas formas: <b>mesma cor</b> ou <b>mesmo número/símbolo</b>. Vale qualquer uma das duas.",
+          "<b>Curinga</b> pode sempre. O <b>Curinga +4</b> só pode quando você <b>não tem nenhuma carta da cor atual</b>.",
+        ],
+        figures: [fig(table(U.match, { label: "Mesa com um 7 vermelho e cinco cartas na mão: 9 vermelho, 7 azul, 5 verde, Curinga e Curinga +4" }),
+          "Mesa vermelha com um <b>7</b>: o <b>9 vermelho</b> combina pela cor e o <b>7 azul</b> pelo número. O <b>5 verde</b> não combina; o <b>Curinga</b> sempre pode; o <b>+4</b> não, porque você tem vermelho na mão.")],
+      },
+      {
+        id: "acoes", title: "Bloqueio, Inverter e +2", grid: true,
+        body: ["Três cartas mudam o ritmo da partida. Todas são jogadas como qualquer outra: combinando cor ou símbolo (ou sendo curinga)."],
+        figures: [
+          fig(unoCardSvg(U.actions.skip, { label: `Carta ${name(U.actions.skip)}` }),
+            "<b>Bloqueio ⊘</b> O próximo jogador <b>perde a vez</b>. Com <b>2 jogadores</b>, quem jogou volta a jogar."),
+          fig(unoCardSvg(U.actions.reverse, { label: `Carta ${name(U.actions.reverse)}` }),
+            "<b>Inverter ⇄</b> Muda o <b>sentido</b> da mesa: ↻ vira ↺. Com <b>2 jogadores</b>, vale como bloqueio."),
+          fig(unoCardSvg(U.actions.draw2, { label: `Carta ${name(U.actions.draw2)}` }),
+            "<b>+2</b> O próximo jogador <b>compra 2 cartas</b> e perde a vez. As cartas ficam na mão dele para os próximos turnos."),
+        ],
+      },
+      {
+        id: "curingas", title: "Curingas e a escolha de cor",
+        body: [
+          "O <b>Curinga</b> pode ser jogado a qualquer momento e você <b>escolhe a nova cor</b> da mesa. O <b>Curinga +4</b> faz o próximo <b>comprar 4</b> e perder a vez — mas só pode ser usado se você <b>não tiver carta da cor atual</b>.",
+          "Depois do curinga, a mesa passa a valer a cor escolhida: o próximo jogador precisa jogar aquela cor ou outro curinga.",
+        ],
+        figures: [
+          fig(unoCardsSvg([U.actions.wild, U.actions.draw4], { label: "Curinga e Curinga +4" }),
+            "<b>Curinga ★</b> e <b>Curinga +4</b>: as duas cartas pretas do baralho. Ao jogá-las, você escolhe a cor."),
+          fig(unoTableSvg({
+            top: U.actions.wild, color: U.wild.chosen, colorName: UNO_COLOR_NAMES[U.wild.chosen],
+            hand: ["b-4-1", "y-3-1"], marks: { "b-4-1": "good", "y-3-1": "bad" }, label: "Curinga azul na mesa com um 4 azul jogável e um 3 amarelo proibido",
+          }), "Depois de um <b>Curinga azul</b>, só cartas azuis (ou outro curinga) podem ser jogadas. O <b>3 amarelo</b> fica de fora."),
+        ],
+        tips: ["O curinga também pode repetir a cor que já estava na mesa. A escolha é estratégica: prefira a cor que você tem mais na mão."],
+      },
+      {
+        id: "comprar", title: "Sem carta jogável? Compre uma",
+        body: [
+          "Se não tiver nenhuma carta jogável, <b>compre uma</b> do monte. Se a carta comprada servir, você pode <b>jogá-la ou passar</b>; se não servir, a vez passa <b>automaticamente</b>.",
+          "Você compra <b>uma vez por turno</b>: não dá para comprar de novo enquanto decide o que fazer com a carta comprada.",
+        ],
+        figures: [
+          fig(table(U.draw, { deck: true, label: "Mesa vermelha e mão sem nenhuma carta jogável" }),
+            "Mesa vermelha com um <b>7</b>. Nenhuma das cartas da mão combina: é hora de <b>comprar uma</b>."),
+          fig(table(U.draw, { hand: drawnHand, marks: marksOf(U.draw, drawnHand), label: "Depois da compra: o 2 vermelho combina com a mesa" }),
+            "Saiu um <b>2 vermelho</b>: ele combina com a mesa, então você pode <b>jogá-lo</b> (ou passar). Se não combinasse, a vez passaria sozinha."),
+        ],
+      },
+      {
+        id: "vez", title: "UNO, sentido e relógio",
+        body: [
+          "<b>UNO automático:</b> quando você fica com uma só carta, o jogo já marca <b>UNO!</b> — não existe a mecânica de “pegar” quem esqueceu de falar. Ao jogar a última, vence.",
+          "<b>Sentido:</b> o selo <b>↻/↺</b> no centro da mesa mostra para que lado a vez corre. O <b>Inverter</b> troca o sentido.",
+          "<b>Tempo:</b> cada jogada tem <b>30, 45 ou 60 segundos</b> (o padrão é 45). Se o tempo acabar, a vez passa sozinha; a partida continua.",
+        ],
+      },
+      {
+        id: "fim", title: "Como a partida termina",
+        body: [
+          "<b>Vitória:</b> quem jogar a última carta primeiro vence.",
+          "<b>Classificação:</b> os demais aparecem em ordem de <b>quantas cartas sobraram</b> (menos cartas = melhor lugar).",
+          "Se todas as cartas acabarem nas mãos e ninguém puder comprar (situação raríssima), a partida encerra pela <b>menor mão</b>.",
+          "No fim, use <b>Revanche</b> para jogar de novo com os mesmos jogadores ou <b>Trocar jogadores</b> para voltar ao início.",
+        ],
+      },
+    ],
+    screen: {
+      title: "Como jogar na tela",
+      steps: [
+        ["Escolha os jogadores e o tempo", "Marque <b>2</b>, <b>3</b> ou <b>4</b> jogadores e o tempo por jogada: <b>30s</b>, <b>45s</b> ou <b>60s</b>. Quem estoura o tempo perde a vez, não a partida."],
+        ["Crie a sala online ou jogue no mesmo aparelho", "A sala pode ser <b>Aberta</b> (qualquer um entra pela lista) ou <b>Fechada</b> (só com o código). No online, todos precisam tocar em <b>Estou pronto</b>. Em <b>Jogar no mesmo dispositivo</b>, o aparelho passa de mão em mão."],
+        ["Escolha uma carta", "Sua mão fica embaixo. As cartas que podem ser jogadas ficam <b>acesas</b>; as outras ficam apagadas. Toque na carta para jogar."],
+        ["Compre ou passe", "Use <b>Comprar carta</b> (ou toque no monte). Se a carta comprada servir, escolha jogá-la ou toque em <b>Passar</b>; se não servir, a vez passa sozinha."],
+        ["Escolha a cor do curinga", "Ao jogar <b>Curinga</b> ou <b>Curinga +4</b>, aparece a escolha de <b>Vermelho</b>, <b>Amarelo</b>, <b>Verde</b> ou <b>Azul</b>. A mesa mostra a <b>cor atual</b> do lado do descarte."],
+        ["Acompanhe a mesa", "No centro ficam o <b>topo do descarte</b>, a <b>cor atual</b>, o <b>sentido</b> (↻/↺), quantas cartas restam no <b>monte</b> e o <b>relógio</b>. A mão dos adversários fica virada para baixo, com o selo <b>UNO!</b> quando resta uma carta."],
+        ["Fim e revanche", "No fim aparece a classificação. <b>Revanche</b> começa outra partida com os mesmos jogadores; <b>Trocar jogadores</b> volta ao início."],
+      ],
+    },
+    cta: { label: "Jogar UNO", href: GAMES.uno.path },
+  };
+}
+
+export const GUIDES = [chessGuide(), damaGuide(), gammonGuide(), goGuide(), onitamaGuide(), unoGuide()];
 export const GUIDE_IDS = GUIDES.map(g => g.id);

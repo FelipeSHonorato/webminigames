@@ -1,5 +1,5 @@
-/* Ilustrações da página "Como jogar": tabuleiros de Xadrez, Dama, Gamão, Go e Onitama (com cartas) e dados, desenhados em SVG por código.
-   Módulo puro (só devolve strings): roda no navegador e nos testes do Node.
+/* Ilustrações da página "Como jogar": tabuleiros de Xadrez, Dama, Gamão, Go e Onitama (com cartas), cartas de UNO e
+   dados, desenhados em SVG por código. Módulo puro (só devolve strings): roda no navegador e nos testes do Node.
 
    Por que SVG gerado e não imagem: as figuras usam as mesmas cores e a mesma geometria dos jogos, escalam em
    qualquer tela, não pesam e dão para validar nos testes (os exemplos vêm de posições reais).
@@ -8,6 +8,8 @@
    • sem <defs>/url(#id): o mesmo id em várias figuras da página se confunde;
    • cores fixas (iguais nos temas claro e escuro); só os rótulos usam `currentColor`;
    • quem usa precisa dar `label` (vira o aria-label da figura). */
+
+import { cardOf } from "../games/uno/domain.js";
 
 export const COLORS = Object.freeze({
   light: "#f0d9b5", dark: "#b58863",              // casas (iguais às de xadrez e dama)
@@ -459,6 +461,131 @@ export function goBoard({ size = 9, stones = {}, label, dots = [], rings = [], s
   return svgOpen("cj-board cj-go", label, GO_SIDE, GO_SIDE) +
     `<rect x="0" y="0" width="${GO_SIDE}" height="${GO_SIDE}" rx="10" fill="${COLORS.goWood}" stroke="${COLORS.goLine}" stroke-width="2"/>` +
     grid + stars + coords + terr + men + top + "</svg>";
+}
+
+/* ------------------------------------ uno ----------------------------------- */
+
+const UNO_W = 88, UNO_H = 132, UNO_GAP = 12;
+const UNO_CARD_COLORS = { r: "#e23b32", y: "#f2a81d", g: "#3fa34d", b: "#3f57d4" };
+const UNO_DARK = "#1e232a";
+const UNO_SHORT = { skip: "⊘", reverse: "⇄", draw2: "+2", wild: "★", draw4: "+4" };
+const unoShort = value => UNO_SHORT[value] ?? String(value);
+
+function unoCardOf(id) {
+  const card = cardOf(id);
+  if (!card) throw new Error(`carta de uno inválida: ${id}`);
+  return card;
+}
+
+/** Desenho do centro da carta: número, ação ou roda de cores (curinga). */
+function unoCenter(card, cx, cy, w, h) {
+  const color = UNO_CARD_COLORS[card.color] ?? "#fff";
+  if (card.value === "wild") {
+    const rx = w * 0.34, ry = h * 0.28;
+    return [
+      ["r", `M${n1(cx)} ${n1(cy)}L${n1(cx)} ${n1(cy - ry)}A${n1(rx)} ${n1(ry)} 0 0 0 ${n1(cx - rx)} ${n1(cy)}Z`],
+      ["b", `M${n1(cx)} ${n1(cy)}L${n1(cx + rx)} ${n1(cy)}A${n1(rx)} ${n1(ry)} 0 0 0 ${n1(cx)} ${n1(cy - ry)}Z`],
+      ["g", `M${n1(cx)} ${n1(cy)}L${n1(cx)} ${n1(cy + ry)}A${n1(rx)} ${n1(ry)} 0 0 0 ${n1(cx + rx)} ${n1(cy)}Z`],
+      ["y", `M${n1(cx)} ${n1(cy)}L${n1(cx - rx)} ${n1(cy)}A${n1(rx)} ${n1(ry)} 0 0 0 ${n1(cx)} ${n1(cy + ry)}Z`],
+    ].map(([c, d]) => `<path d="${d}" fill="${UNO_CARD_COLORS[c]}"/>`).join("");
+  }
+  if (card.value === "draw4") {
+    const cw = w * 0.22, ch = h * 0.26;
+    return ["r", "b", "g", "y"].map((c, i) => {
+      const dx = (i % 2 ? 1 : -1) * w * 0.1, dy = (i < 2 ? -1 : 1) * h * 0.09;
+      return `<rect x="${n1(cx + dx - cw / 2)}" y="${n1(cy + dy - ch / 2)}" width="${n1(cw)}" height="${n1(ch)}" rx="3" fill="${UNO_CARD_COLORS[c]}" stroke="#fff" stroke-width="2" transform="rotate(${i % 2 ? 12 : -12} ${n1(cx + dx)} ${n1(cy + dy)})"/>`;
+    }).join("");
+  }
+  if (card.value === "skip") {
+    const r = w * 0.2, stroke = n1(w * 0.055);
+    return `<circle cx="${n1(cx)}" cy="${n1(cy)}" r="${n1(r)}" fill="none" stroke="${color}" stroke-width="${stroke}"/>` +
+      `<line x1="${n1(cx - r * 0.72)}" y1="${n1(cy - r * 0.72)}" x2="${n1(cx + r * 0.72)}" y2="${n1(cy + r * 0.72)}" stroke="${color}" stroke-width="${stroke}" stroke-linecap="round"/>`;
+  }
+  if (card.value === "reverse") {
+    const dx = w * 0.22, dy = h * 0.07, opts = { color, width: w * 0.055, gapStart: 0, gapEnd: 0, head: w * 0.16 };
+    return arrow({ x: cx - dx, y: cy - dy }, { x: cx + dx, y: cy - dy }, opts) +
+      arrow({ x: cx + dx, y: cy + dy }, { x: cx - dx, y: cy + dy }, opts);
+  }
+  if (card.value === "draw2") {
+    const cw = w * 0.22, ch = h * 0.27;
+    return `<rect x="${n1(cx - cw)}" y="${n1(cy - ch * 0.6)}" width="${n1(cw)}" height="${n1(ch)}" rx="3" fill="${color}" stroke="#fff" stroke-width="2" transform="rotate(-14 ${n1(cx - cw / 2)} ${n1(cy)})"/>` +
+      `<rect x="${n1(cx)}" y="${n1(cy - ch * 0.4)}" width="${n1(cw)}" height="${n1(ch)}" rx="3" fill="${color}" stroke="#fff" stroke-width="2" transform="rotate(12 ${n1(cx + cw / 2)} ${n1(cy)})"/>`;
+  }
+  const size = card.value.length === 1 ? w * 0.46 : w * 0.3;
+  return `<text x="${n1(cx)}" y="${n1(cy + 1)}" text-anchor="middle" dominant-baseline="central" font-family="${FONT}" font-size="${n1(size)}" font-style="italic" font-weight="900" fill="${color}">${esc(card.value)}</text>`;
+}
+
+/** Carta de UNO em (x, y); `mark` = "good" (jogável), "sel" (escolhida) ou "bad" (proibida). */
+function unoCardBody(card, x, y, { faded = false, mark = "" } = {}) {
+  const w = UNO_W, h = UNO_H, cx = x + w / 2, cy = y + h / 2;
+  const base = card.wild ? UNO_DARK : UNO_CARD_COLORS[card.color];
+  let out = `<g${faded ? ' opacity=".38"' : ""}>` +
+    `<rect x="${n1(x)}" y="${n1(y)}" width="${w}" height="${h}" rx="${n1(w * 0.1)}" fill="#fff" stroke="#c8d0d8" stroke-width="1.5"/>` +
+    `<rect x="${n1(x + w * 0.06)}" y="${n1(y + w * 0.06)}" width="${n1(w * 0.88)}" height="${n1(h - w * 0.12)}" rx="${n1(w * 0.07)}" fill="${base}"/>` +
+    `<ellipse cx="${n1(cx)}" cy="${n1(cy)}" rx="${n1(w * 0.35)}" ry="${n1(h * 0.29)}" fill="#fff" transform="rotate(-28 ${n1(cx)} ${n1(cy)})"/>` +
+    unoCenter(card, cx, cy, w, h);
+  const short = esc(unoShort(card.value));
+  out += `<text x="${n1(x + w * 0.15)}" y="${n1(y + h * 0.12)}" text-anchor="middle" dominant-baseline="central" font-family="${FONT}" font-size="${n1(w * 0.19)}" font-weight="900" fill="#fff">${short}</text>` +
+    `<text x="${n1(x + w * 0.85)}" y="${n1(y + h * 0.88)}" text-anchor="middle" dominant-baseline="central" font-family="${FONT}" font-size="${n1(w * 0.19)}" font-weight="900" fill="#fff" transform="rotate(180 ${n1(x + w * 0.85)} ${n1(y + h * 0.88)})">${short}</text>`;
+  if (mark === "good" || mark === "sel") {
+    const stroke = mark === "sel" ? COLORS.sel : COLORS.good;
+    out += `<rect x="${n1(x - 3)}" y="${n1(y - 3)}" width="${w + 6}" height="${h + 6}" rx="${n1(w * 0.12)}" fill="none" stroke="${stroke}" stroke-width="3"/>`;
+  } else if (mark === "bad") {
+    out += crossMark(x + w - 11, y + 11, 10);
+  }
+  return out + "</g>";
+}
+
+/** Verso da carta (monte). */
+function unoCardBack(x, y) {
+  const w = UNO_W, h = UNO_H, cx = x + w / 2, cy = y + h / 2;
+  return `<rect x="${n1(x)}" y="${n1(y)}" width="${w}" height="${h}" rx="${n1(w * 0.1)}" fill="#fff" stroke="#c8d0d8" stroke-width="1.5"/>` +
+    `<rect x="${n1(x + w * 0.06)}" y="${n1(y + w * 0.06)}" width="${n1(w * 0.88)}" height="${n1(h - w * 0.12)}" rx="${n1(w * 0.07)}" fill="${UNO_DARK}"/>` +
+    `<ellipse cx="${n1(cx)}" cy="${n1(cy)}" rx="${n1(w * 0.34)}" ry="${n1(h * 0.27)}" fill="#e23b32" transform="rotate(-28 ${n1(cx)} ${n1(cy)})"/>` +
+    `<text x="${n1(cx)}" y="${n1(cy + 1)}" text-anchor="middle" dominant-baseline="central" font-family="${FONT}" font-size="${n1(w * 0.22)}" font-style="italic" font-weight="900" fill="#f2c94c" transform="rotate(-28 ${n1(cx)} ${n1(cy)})">UNO</text>`;
+}
+
+/** Uma carta avulsa (exemplos de ação e de curinga). */
+export function unoCardSvg(id, { label, faded = false, mark = "" } = {}) {
+  return svgOpen("cj-uno cj-uno-single", label, UNO_W + 12, UNO_H + 12) +
+    unoCardBody(unoCardOf(id), 6, 6, { faded, mark }) + "</svg>";
+}
+
+/** Fileira de cartas. `marks` = { id: "good"|"sel"|"bad" }, `faded` = ids esmaecidos. */
+export function unoCardsSvg(ids, { label, marks = {}, faded = [] } = {}) {
+  const width = ids.length * (UNO_W + UNO_GAP) - UNO_GAP + 12;
+  const out = ids.map((id, i) =>
+    unoCardBody(unoCardOf(id), 6 + i * (UNO_W + UNO_GAP), 6, { faded: faded.includes(id), mark: marks[id] })).join("");
+  return svgOpen("cj-uno cj-uno-row", label, width, UNO_H + 12) + out + "</svg>";
+}
+
+/**
+ * Cena da mesa: monte (opcional), topo do descarte, cor atual e a mão.
+ * `marks` = { id: "good"|"sel"|"bad" }; `colorName` é o nome da cor atual (ex.: "Vermelho").
+ */
+export function unoTableSvg({ top = null, deck = false, color = null, colorName = "", hand = [], marks = {}, label }) {
+  const pad = 8, gapX = 24;
+  let x = pad, right = pad, body = "";
+  if (deck) {
+    body += unoCardBack(x, pad);
+    right = Math.max(right, x + UNO_W);
+    x += UNO_W + 10;
+  }
+  if (top) {
+    body += unoCardBody(unoCardOf(top), x, pad);
+    right = Math.max(right, x + UNO_W);
+    x += UNO_W + gapX;
+  }
+  if (hand.length) {
+    body += hand.map((id, i) => unoCardBody(unoCardOf(id), x + i * (UNO_W + UNO_GAP), pad, { mark: marks[id] })).join("");
+    right = Math.max(right, x + hand.length * (UNO_W + UNO_GAP) - UNO_GAP);
+  }
+  const width = right + pad, height = pad + UNO_H + (color ? 30 : 0) + pad, lineY = pad + UNO_H + 16;
+  const extra = color
+    ? `<circle cx="${pad + 8}" cy="${lineY}" r="7" fill="${UNO_CARD_COLORS[color]}" stroke="${UNO_DARK}" stroke-width="1.5"/>` +
+      `<text x="${pad + 22}" y="${lineY}" dominant-baseline="central" font-size="13" font-weight="700" fill="currentColor">Cor atual: ${esc(colorName)}</text>`
+    : "";
+  return svgOpen("cj-uno cj-uno-scene", label, width, height) + body + extra + "</svg>";
 }
 
 /* ----------------------------------- dados ----------------------------------- */

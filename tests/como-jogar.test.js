@@ -8,8 +8,12 @@ import * as dama from "../games/dama/domain.js";
 import * as onitama from "../games/onitama/domain.js";
 import * as gamao from "../games/gamao/domain.js";
 import * as go from "../games/go/domain.js";
-import { CHESS, DAMA, GAMMON, GO, ONITAMA, GUIDES, GUIDE_IDS, chessReach, damaFromPosition, damaPosition, gammonPoints } from "../js/como-jogar-data.js";
-import { chessBoard, damaBoard, gammonBoard, goBoard, onitamaBoard, onitamaCardSvg, goCoord, goPoint, goPosition, diceSvg, parseFen } from "../js/como-jogar-art.js";
+import * as uno from "../games/uno/domain.js";
+import { CHESS, DAMA, GAMMON, GO, ONITAMA, UNO, GUIDES, GUIDE_IDS, chessReach, damaFromPosition, damaPosition, gammonPoints } from "../js/como-jogar-data.js";
+import {
+  chessBoard, damaBoard, gammonBoard, goBoard, onitamaBoard, onitamaCardSvg, unoCardSvg, unoCardsSvg, unoTableSvg,
+  goCoord, goPoint, goPosition, diceSvg, parseFen,
+} from "../js/como-jogar-art.js";
 
 const root = new URL("../", import.meta.url);
 const read = path => readFileSync(new URL(path, root), "utf8");
@@ -311,6 +315,89 @@ test("como jogar · onitama: figuras e cartas desenhadas (acessíveis, sem <defs
   assert.doesNotMatch(card + board, /<defs|url\(#/);
 });
 
+/* ==================================== UNO ==================================== */
+
+const unoPlayable = (ex, hand = ex.hand) => hand.filter(id => uno.canPlayCard(hand, id, ex.color, ex.top));
+const unoState = (over = {}) => ({
+  hands: [["r-1-1", "b-1-1"], ["b-2-1"], ["g-3-1"]],
+  deck: ["y-1-1", "y-2-1", "y-3-1", "y-4-1", "r-4-1", "g-4-1"],
+  discard: ["r-9-1"],
+  color: "r", dir: 1, turn: 1, seed: 12345,
+  drawn: null, last: null, plays: [], winner: null, ranking: null,
+  ...over,
+});
+
+test("como jogar · uno: toda carta das figuras existe e as jogáveis são as do domínio", () => {
+  const ids = [
+    ...UNO.colors, ...Object.values(UNO.actions),
+    ...UNO.match.hand, UNO.match.top,
+    ...UNO.wild.hand, UNO.wild.top,
+    ...UNO.draw.hand, UNO.draw.drawn, UNO.draw.top,
+    ...UNO.win.hand, UNO.win.top,
+  ];
+  for (const id of ids) assert.ok(uno.cardOf(id), `${id} não é uma carta de UNO`);
+
+  assert.deepEqual(unoPlayable(UNO.match), ["r-9-1", "b-7-1", "w-wild-1"], "cor, número e curinga podem; verde e +4 não");
+  assert.deepEqual(unoPlayable(UNO.wild), ["g-2-1", "w-wild-1"], "o +4 é proibido porque há verde na mão");
+  assert.deepEqual(unoPlayable(UNO.draw), [], "sem carta jogável: compre");
+  assert.deepEqual(unoPlayable(UNO.draw, [...UNO.draw.hand, UNO.draw.drawn]), [UNO.draw.drawn], "a carta comprada serve");
+  assert.deepEqual(unoPlayable(UNO.win), [UNO.win.hand[0]], "a última carta é jogável e vence");
+});
+
+test("como jogar · uno: bloqueio, inversão, +2 e +4 fazem o que o guia ensina", () => {
+  const skip = uno.partyMove(unoState({ hands: [["r-skip-1", "b-1-1"], ["b-2-1"], ["g-3-1"]] }), 1, { action: "play", card: "r-skip-1" });
+  assert.equal(skip.turn, 3, "o assento 2 perde a vez");
+
+  const reverse = uno.partyMove(unoState({ hands: [["r-reverse-1", "b-1-1"], ["b-2-1"], ["g-3-1"]] }), 1, { action: "play", card: "r-reverse-1" });
+  assert.equal(reverse.state.dir, -1);
+  assert.equal(reverse.turn, 3, "no sentido invertido o assento anterior joga");
+
+  const reverseTwo = uno.partyMove(unoState({ hands: [["r-reverse-1", "b-1-1"], ["b-2-1"]] }), 1, { action: "play", card: "r-reverse-1" });
+  assert.equal(reverseTwo.turn, 1, "com 2 jogadores o Inverter vale como bloqueio: quem jogou joga de novo");
+
+  const draw2 = uno.partyMove(unoState({ hands: [["r-draw2-1", "b-1-1"], ["b-2-1"], ["g-3-1"]] }), 1, { action: "play", card: "r-draw2-1" });
+  assert.equal(draw2.state.hands[1].length, 3, "o próximo compra 2");
+  assert.equal(draw2.turn, 3, "e perde a vez");
+
+  const draw4 = uno.partyMove(unoState({
+    hands: [["b-1-1", "w-draw4-1"], ["g-3-1"]],
+    deck: ["y-1-1", "y-2-1", "y-3-1", "y-4-1"],
+  }), 1, { action: "play", card: "w-draw4-1", color: "b" });
+  assert.equal(draw4.state.hands[1].length, 5, "o próximo compra 4");
+  assert.equal(draw4.state.color, "b", "a cor escolhida vale para a mesa");
+});
+
+test("como jogar · uno: a última carta encerra a partida e classifica pela mão", () => {
+  const result = uno.partyMove(unoState({
+    hands: [[UNO.win.hand[0]], ["b-2-1"], ["g-3-1"]],
+    discard: [UNO.win.top],
+    color: UNO.win.color,
+  }), 1, { action: "play", card: UNO.win.hand[0] });
+  assert.equal(result.reason, "uno");
+  assert.equal(result.state.winner, 1);
+  assert.deepEqual(result.ranking, [[1], [2, 3]], "os dois com uma carta dividem a 2ª colocação");
+});
+
+test("como jogar · uno: figuras desenhadas, acessíveis e sem recursos externos", () => {
+  const row = unoCardsSvg(UNO.colors, { label: "cores" });
+  assert.match(row, /aria-label="cores"/);
+  assert.match(row, /class="cj-uno cj-uno-row"/);
+
+  const scene = unoTableSvg({
+    top: UNO.match.top, deck: true, color: UNO.match.color, colorName: "Vermelho",
+    hand: UNO.match.hand, marks: { "r-9-1": "good", "b-7-1": "good", "g-5-1": "bad", "w-wild-1": "good", "w-draw4-1": "bad" },
+    label: "mesa",
+  });
+  assert.match(scene, /aria-label="mesa"/);
+  assert.match(scene, /Cor atual: Vermelho/);
+  assert.match(scene, /cj-uno-scene/);
+
+  const card = unoCardSvg(UNO.actions.draw4, { label: "Carta Curinga +4" });
+  assert.match(card, /aria-label="Carta Curinga \+4"/);
+  assert.throws(() => unoCardSvg("x-9-1", { label: "x" }), /carta de uno inválida/);
+  assert.doesNotMatch(row + scene + card, /<defs|url\(#|<script|<image|<foreignObject|https?:\/\//);
+});
+
 /* ============================== figuras e página ============================== */
 
 test("como jogar · figuras: SVG acessível, sem <defs>, sem recursos externos", () => {
@@ -331,8 +418,8 @@ test("como jogar · figuras: peça em casa clara da dama e FEN inválido são re
   assert.equal((gammonBoard({ label: "x" }).match(/<polygon/g) ?? []).length >= 24, true);
 });
 
-test("como jogar · conteúdo: ids únicos, cinco guias e links dos jogos", () => {
-  assert.deepEqual(GUIDE_IDS, ["xadrez", "dama", "gamao", "go", "onitama"]);
+test("como jogar · conteúdo: ids únicos, seis guias e links dos jogos", () => {
+  assert.deepEqual(GUIDE_IDS, ["xadrez", "dama", "gamao", "go", "onitama", "uno"]);
   const catalog = read("js/games.js");
   for (const g of GUIDES) {
     const ids = g.sections.map(s => s.id);
@@ -356,6 +443,16 @@ test("como jogar · página: abas, módulo, tema e sem recursos externos", () =>
   assert.match(js, /hashchange/);
 });
 
+test("como jogar · seção sem figuras usa a largura toda (sem coluna direita vazia)", () => {
+  const js = read("js/como-jogar.js");
+  assert.match(js, /sec\.figures\?\.length \? " has-figs" : ""/, "a classe has-figs só entra quando há figuras");
+  const css = read("css/como-jogar.css");
+  assert.match(css, /\.cj-sec-body\.has-figs:not\(\.is-grid\)\{grid-template-columns:minmax/, "só as seções com figuras dividem em duas colunas");
+  assert.doesNotMatch(css, /\.cj-sec-body:not\(\.is-grid\)\{grid-template-columns:minmax/, "sem figuras o texto não fica preso numa coluna estreita");
+  const noFigs = GUIDES.flatMap(g => g.sections.filter(s => !s.figures?.length).map(s => `${g.id}#${s.id}`));
+  assert.ok(noFigs.includes("uno#vez") && noFigs.includes("uno#fim"), "as seções 7 e 8 do UNO seguem sem figuras");
+});
+
 test("como jogar · cada jogo de duelo tem o link 'Como jogar ?' à direita do título do setup, fora do sitebar", () => {
   const css = read("css/gamebar.css");
   assert.match(css, /howto-link/);
@@ -370,6 +467,16 @@ test("como jogar · cada jogo de duelo tem o link 'Como jogar ?' à direita do t
     assert.match(nav, /<strong>[^<]+<\/strong><span class="mode-tag">1×1<\/span>/, `${dir}: o sitebar fica com o nome e o 1×1`);
     assert.match(read(`games/${dir}/style.css`), /--grid:/, `${dir}: o link usa var(--grid) como borda`);
   }
+});
+
+test("como jogar · UNO (multijogador) também tem o link ao lado do título do setup", () => {
+  const html = read("games/uno/index.html");
+  assert.match(html, /<a class="howto-link" href="\.\.\/\.\.\/como-jogar\.html#uno" aria-label="Como jogar UNO"><span>Como jogar<\/span><\/a>/);
+  assert.match(html, /<div class="setup-title-row"><h1 id="setupTitle">UNO<\/h1><a class="howto-link"[^>]*><span>Como jogar<\/span><\/a><\/div>/);
+  assert.match(read("games/uno/style.css"), /--grid:/, "o link usa var(--grid) como borda");
+  const nav = html.match(/<nav class="sitebar">[\s\S]*?<\/nav>/)?.[0] ?? "";
+  assert.doesNotMatch(nav, /howto-link/, "o link não fica no sitebar");
+  assert.match(nav, /<strong>UNO<\/strong><span class="mode-tag">2–4 jogadores<\/span>/);
 });
 
 test("como jogar · celular: o rótulo 'Como jogar' continua visível e o texto dos passos flui na mesma linha", () => {

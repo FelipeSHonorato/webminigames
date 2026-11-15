@@ -1,5 +1,5 @@
-/* Página "Como jogar": monta as abas (Xadrez, Dama, Gamão, Go) a partir de js/como-jogar-data.js.
-   • A aba vem do hash (#xadrez, #dama, #gamao, #go, #onitama); os jogos linkam direto para a aba certa.
+/* Página "Como jogar": monta as abas (Xadrez, Dama, Gamão, Go, Onitama e UNO) a partir de js/como-jogar-data.js.
+   • A aba vem do hash (#xadrez, #dama, #gamao, #go, #onitama, #uno); os jogos linkam direto para a aba certa.
    • Só usa o hash para escolher a aba (um nome simples, sem barra nem parâmetros). */
 import { GUIDES, GUIDE_IDS } from "./como-jogar-data.js";
 
@@ -16,7 +16,7 @@ function sectionHtml(guide, sec, index) {
   const tips = (sec.tips ?? []).map(t => `<aside class="cj-tip"><b>Dica</b><p>${t}</p></aside>`).join("");
   return `<section class="cj-sec" id="${guide.id}-${sec.id}" aria-labelledby="${hid}">` +
     `<div class="cj-sec-head"><span class="cj-num" aria-hidden="true">${index + 1}</span><h3 id="${hid}">${sec.title}</h3></div>` +
-    `<div class="cj-sec-body${sec.grid ? " is-grid" : ""}">` +
+    `<div class="cj-sec-body${sec.figures?.length ? " has-figs" : ""}${sec.grid ? " is-grid" : ""}">` +
       `<div class="cj-text">${sec.body.map(p => `<p>${p}</p>`).join("")}${tips}</div>` +
       (sec.figures?.length ? `<div class="cj-figs">${sec.figures.map(figureHtml).join("")}</div>` : "") +
     `</div></section>`;

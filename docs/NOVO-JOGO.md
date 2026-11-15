@@ -570,6 +570,7 @@ carrossel não tinha essa reserva (agora tem, mas a reserva é só um paliativo:
 
 Todo jogo de duelo tem uma aba em `como-jogar.html` (Xadrez, Dama, Gamão, Go e Onitama são o modelo). A página é a mesma para
 todos: abas por hash (`#xadrez`, `#dama`, `#gamao`, `#go`, `#onitama`), figuras em SVG e um passo a passo de como usar a tela.
+O **UNO** (multijogador, 2–4) usa o mesmo guia e o mesmo link no setup, com a aba `#uno`.
 
 | Arquivo | Papel |
 |---|---|

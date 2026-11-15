@@ -43,6 +43,8 @@ body{height:auto;min-height:100%}
 .lg-ring{border-radius:50%;border:3.5px solid #1fa971}
 .lg-sel{border-radius:4px;background:#f2b134}
 .lg-bad{border-radius:50%;background:#e5484d;border:2px solid #fff;box-shadow:0 0 0 1px var(--line)}
+.lg-good{border-radius:5px;border:3px solid #1fa971;background:#fff}
+.lg-color{border-radius:50%;background:conic-gradient(#e53935 0 25%,#3f57d4 0 50%,#43a047 0 75%,#f5a300 0);border:2px solid #fff;box-shadow:0 0 0 1px var(--line)}
 
 /* ---------- índice do guia ---------- */
 .cj-toc{display:flex;gap:8px;margin:0 0 18px;padding:2px 0 8px;overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -66,6 +68,10 @@ body{height:auto;min-height:100%}
 .cj-chess,.cj-dama,.cj-go{max-width:400px}
 .cj-gammon{max-width:700px}
 .cj-onitama{max-width:360px}
+.cj-uno{display:block;width:100%;height:auto;margin:0 auto;color:var(--muted)}
+.cj-uno-single{max-width:150px}
+.cj-uno-row{max-width:560px}
+.cj-uno-scene{max-width:660px}
 .cj-card-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;margin:2px 0 10px}
 .cj-card{display:block;width:auto;height:150px}
 .cj-fig-small .cj-card{height:128px}
@@ -96,8 +102,9 @@ body{height:auto;min-height:100%}
 
 /* ---------- telas maiores: texto ao lado da figura ---------- */
 @media (min-width:860px){
-  .cj-sec-body:not(.is-grid){grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:start}
-  .cj-sec-body:not(.is-grid) .cj-text{position:sticky;top:96px}
+  /* só divide em duas colunas quando há figuras; sem figuras o texto ocupa a largura toda */
+  .cj-sec-body.has-figs:not(.is-grid){grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:start}
+  .cj-sec-body.has-figs:not(.is-grid) .cj-text{position:sticky;top:96px}
   .cj-sec{padding:26px}
 }
 
