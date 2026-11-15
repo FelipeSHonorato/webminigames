@@ -13,3 +13,43 @@
 .ranking-note{margin:12px 0 0;color:var(--muted);font-size:.85rem;line-height:1.4}
 .ranking-note a{color:var(--accent,var(--path));font-weight:700}
 .ranking-list .avatar{width:22px;height:22px;border-width:1px}
+
+/* O nome do ranking é um botão: abre a ficha do jogador (sem mexer no visual da linha). */
+.ranking-list button.nm{display:block;width:100%;min-width:0;flex:none;margin:0;padding:0;border:0;border-radius:4px;
+  background:none;font:inherit;color:inherit;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.ranking-list button.nm:hover{color:var(--accent,var(--path));text-decoration:underline;text-underline-offset:2px}
+.ranking-list button.nm:focus-visible{outline:2px solid var(--accent,var(--path,currentColor));outline-offset:2px}
+
+/* ---------- Ficha do jogador (pop-up) ---------- */
+.player-card{position:relative;width:min(430px,calc(100% - 24px));max-height:calc(100dvh - 24px);padding:0;
+  border:1px solid var(--line,var(--grid,#c3ced9));border-radius:18px;
+  background:var(--surface,var(--cell,#fff));color:var(--fg,#14213d);
+  box-shadow:0 30px 80px rgba(0,0,0,.45);overflow:auto}
+.player-card::backdrop{background:rgba(6,12,18,.62);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+.player-card-body{padding:22px}
+.player-card-close{position:absolute;top:10px;right:10px;display:grid;place-items:center;flex:none;
+  width:34px;height:34px;padding:0;border:2px solid transparent;border-radius:50%;background:transparent;
+  color:var(--muted,#5b6b7e);font:inherit;font-size:1.4rem;line-height:1;cursor:pointer}
+.player-card-close:hover{color:var(--fg,#14213d);border-color:var(--line,var(--grid))}
+.player-card-close:focus-visible{outline:3px solid var(--accent,var(--path,currentColor));outline-offset:2px}
+.player-card-head{display:flex;align-items:center;gap:14px;padding-right:32px}
+.player-card-avatar{display:grid;place-items:center;flex:none;width:72px;height:72px;overflow:hidden;
+  border:2px solid var(--line,var(--grid));border-radius:50%;background:var(--bg);color:var(--muted)}
+.player-card-avatar .avatar{width:100%;height:100%;border:0;border-radius:50%;object-fit:cover;background:transparent}
+.player-card-avatar .avatar svg{width:100%;height:100%}
+.player-card-identity{min-width:0}
+.player-card-name{margin:0;font-size:1.25rem;line-height:1.2;overflow-wrap:anywhere}
+.player-card-region{margin:4px 0 0;color:var(--muted,#5b6b7e);font-size:.85rem}
+.player-card-region[hidden]{display:none}
+.player-card-facts{display:grid;gap:8px;margin:20px 0 0;padding:0}
+.player-card-fact{margin:0;padding:10px 12px;border:1px solid var(--line,var(--grid,#c3ced9));border-radius:10px;background:var(--bg,#e9eef3)}
+.player-card-fact dt{margin:0 0 3px;color:var(--muted,#5b6b7e);font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.player-card-fact dd{margin:0;font-size:.95rem;line-height:1.35;overflow-wrap:anywhere}
+.player-card-fact dd b{font-weight:800}
+.player-card-sub{margin-left:4px;color:var(--muted,#5b6b7e)}
+.player-card-status{min-height:1.2em;margin:12px 0 0;color:var(--muted,#5b6b7e);font-size:.85rem}
+@media (max-width:520px){
+  .player-card-body{padding:18px 16px}
+  .player-card-head{gap:12px}
+  .player-card-avatar{width:60px;height:60px}
+}

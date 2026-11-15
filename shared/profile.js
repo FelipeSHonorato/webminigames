@@ -6,12 +6,49 @@ const PROFILES = "wmg.profiles";   // { [userId]: { nickname?, avatar? } }
 const ACTIVITY = "wmg.activity";   // { [userId]: { [gameId]: { lastPlayedAt, plays } } }
 const NICK_RE = /^[\p{L}\p{N}_. -]{3,20}$/u;
 
+/** Resume a atividade do jogador para a ficha: jogo favorito (mais partidas) e último jogo jogado.
+    Tudo puro, a partir de `{ [gameId]: { plays, lastPlayedAt } }`. */
+export function summarizeActivity(activity = {}) {
+  const rows = Object.entries(activity ?? {})
+    .map(([game, a]) => ({ game, plays: Number(a?.plays) || 0, at: Number(a?.lastPlayedAt) || 0 }))
+    .filter(r => r.at > 0);
+  const favorite = rows.filter(r => r.plays > 0)
+    .sort((a, b) => b.plays - a.plays || b.at - a.at || a.game.localeCompare(b.game))[0] ?? null;
+  const last = rows.sort((a, b) => b.at - a.at || a.game.localeCompare(b.game))[0] ?? null;
+  return {
+    favorite: favorite ? { game: favorite.game, plays: favorite.plays } : null,
+    last: last ? { game: last.game, at: last.at } : null,
+  };
+}
+
 export const Profile = {
   get: uid => (Cloud.owns(uid) ? Cloud.profile() : readJSON(PROFILES, {})[uid] ?? {}),
   /** Apelido (se houver) ou o nome do cadastro. É o nome exibido no ranking e na barra. */
   displayName(session) {
     if (session.provider === "anonymous") return "Anônimo";          // vale também para sessões antigas ("Visitante")
     return this.get(session.id).nickname || session.name;
+  },
+
+  /** Ficha pública exibida ao clicar num nome do ranking. Na nuvem vem do servidor (`player_card`);
+      no modo local, do cadastro (`wmg.users`), do perfil e da atividade guardados neste navegador.
+      `fallback` são os dados que o ranking já tinha (nome, foto e região), usados se algo faltar. */
+  async card(uid, fallback = {}) {
+    if (Cloud.active) {
+      const data = await Cloud.playerCard(uid);
+      if (data) return data;
+    }
+    const profiles = readJSON(PROFILES, {}), users = readJSON("wmg.users", {});
+    const profile = profiles[uid] ?? {};
+    const account = Object.values(users).find(u => u.id === uid) ?? null;
+    const { favorite, last } = summarizeActivity(readJSON(ACTIVITY, {})[uid] ?? {});
+    return {
+      id: uid,
+      name: profile.nickname || account?.name || fallback.name || "Jogador",
+      avatar: profile.avatar ?? fallback.avatar ?? null,
+      region: account?.region ?? fallback.region ?? null,
+      createdAt: account?.createdAt ?? fallback.createdAt ?? null,
+      favorite, last,
+    };
   },
 
   /** Define o apelido; texto vazio remove. Único (sem diferenciar maiúsculas). Na nuvem devolve uma Promise (use `await`): quem garante a unicidade é o banco. */

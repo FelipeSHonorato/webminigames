@@ -503,6 +503,14 @@ export const Cloud = {
     if (error) { console.warn("[WebMiniGames] ranking indisponível:", error.message); return { top: [], me: null, total: 0 }; }
     return data;
   },
+  /** Ficha pública de um jogador do ranking: nome/apelido, foto, região, data da conta, jogo favorito e último jogo.
+      Só existe na nuvem; o modo local lê os dados do próprio navegador em shared/profile.js. */
+  async playerCard(uid) {
+    if (!S.client || S.degraded || !uid) return null;
+    const { data, error } = await S.client.rpc("player_card", { p_user: uid });
+    if (error) { console.warn("[WebMiniGames] ficha do jogador indisponível:", error.message); return null; }
+    return data ?? null;
+  },
   /** Ranking de UM jogo de duelo 1×1 (Elo no xadrez). A função devolve `points` = rating. */
   async duelRanking(gameId, scope = "global", limit = 10) {
     if (!S.client || S.degraded) return { top: [], me: null, total: 0 };

@@ -30,6 +30,15 @@ test("ranking sem formatador usa 'pts' e não confunde com Object.prototype.valu
   assert.equal(li.children.at(-1).textContent, "30 pts");
 });
 
+test("o nome do ranking é um botão que abre a ficha do jogador", () => {
+  const li = rankingRow(row());
+  const name = li.children[2];
+  assert.equal(name.tagName, "button");
+  assert.equal(name.textContent, "Ana");
+  assert.equal(name.title, "Ver informações de Ana");
+  assert.equal(typeof name.onclick, "function");
+});
+
 test("rankingRow aceita um formatador próprio (Go mostra o grau Kyu/Dan no lugar do Elo)", () => {
   const li = rankingRow(row({ points: 1650 }), "Elo", r => `${r.points} → 15 kyu`);
   assert.equal(li.children.at(-1).textContent, "1650 → 15 kyu");

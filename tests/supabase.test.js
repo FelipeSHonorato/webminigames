@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /* ---------- O esquema do banco (SQL) e o código do site precisam dizer a mesma coisa ---------- */
-const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql", "20261044000000_duel_invite_flow.sql", "20261045000000_duel_resume_presence.sql", "20261046000000_duel_invite_when_ready.sql", "20261047000000_dama_duel.sql", "20261048000000_duel_ready_fix.sql", "20261049000000_dama_valida_posicao.sql", "20261050000000_gamao_duel.sql", "20261051000000_go_duel.sql", "20261052000000_onitama_duel.sql", "20261053000000_multiplayer_party.sql", "20261054000000_jogo_crossmath.sql", "20261055000000_uno_party.sql", "20261056000000_party_enter_notify.sql"];
+const migrationNames = ["20261014000000_init.sql", "20261017000000_delete_account.sql", "20261018000000_phase_runs.sql", "20261019000000_serve_phase.sql", "20261020000000_admin_sem_pontos.sql", "20261021000000_desafio_diario.sql", "20261022000000_diario_configuravel.sql", "20261023000000_jogo_setas.sql", "20261024000000_trofeus_diarios.sql", "20261025000000_admin_coins.sql", "20261026000000_daily_tickets.sql", "20261026000001_daily_backlog_hoje.sql", "20261027000000_daily_fluxo.sql", "20261028000000_daily_top_times.sql", "20261029000000_admin_level_daily.sql", "20261030000000_jogo_queens.sql", "20261031000000_jogo_tango.sql", "20261032000000_jogo_texttwist.sql", "20261033000000_texttwist_trofeus.sql", "20261034000000_texttwist_inicio_rodada.sql", "20261035000000_duels.sql", "20261036000000_duels_ajustes.sql", "20261037000000_duels_realtime_cron.sql", "20261038000000_chess_duel.sql", "20261039000000_duel_ratings.sql", "20261040000000_duel_open_rooms.sql", "20261041000000_one_open_room.sql", "20261042000000_duel_open_rooms_rating.sql", "20261043000000_duel_open_visibility.sql", "20261044000000_duel_invite_flow.sql", "20261045000000_duel_resume_presence.sql", "20261046000000_duel_invite_when_ready.sql", "20261047000000_dama_duel.sql", "20261048000000_duel_ready_fix.sql", "20261049000000_dama_valida_posicao.sql", "20261050000000_gamao_duel.sql", "20261051000000_go_duel.sql", "20261052000000_onitama_duel.sql", "20261053000000_multiplayer_party.sql", "20261054000000_jogo_crossmath.sql", "20261055000000_uno_party.sql", "20261056000000_party_enter_notify.sql", "20261057000000_player_card.sql"];
 const migration = f => readFileSync(new URL(`../supabase/migrations/${f}`, import.meta.url), "utf8");
 const migrations = migrationNames.map(migration);
 const sql = migrations[0];                     // constantes, regiões e jogos vivem na migração inicial
@@ -70,8 +70,8 @@ test("SQL: funções security definer fixam o search_path (sem sequestro por esq
 
 test("SQL: o visitante (anon) só recebe a lista de jogos e o ranking; o papel (role) não é editável pelo cliente", () => {
   const toAnon = [...sqlAll.matchAll(/^grant [^;]* to ([^;]*anon[^;]*);/gm)].map(m => m[0]);
-  assert.equal(toAnon.length, 5, toAnon.join("\n"));   // o grant antigo do daily_leaderboard fica no histórico; a função antiga é dropada
-  assert.ok(toAnon.some(g => /select on public\.games/.test(g)) && toAnon.some(g => /function public\.ranking/.test(g)) && toAnon.some(g => /function public\.daily_leaderboard\(text, int, text, int, date\)/.test(g)) && toAnon.some(g => /function public\.duel_ranking\(text, text, int\)/.test(g)));
+  assert.equal(toAnon.length, 6, toAnon.join("\n"));   // o grant antigo do daily_leaderboard fica no histórico; a função antiga é dropada
+  assert.ok(toAnon.some(g => /select on public\.games/.test(g)) && toAnon.some(g => /function public\.ranking/.test(g)) && toAnon.some(g => /function public\.daily_leaderboard\(text, int, text, int, date\)/.test(g)) && toAnon.some(g => /function public\.duel_ranking\(text, text, int\)/.test(g)) && toAnon.some(g => /function public\.player_card\(uuid\)/.test(g)));
   const upd = sql.match(/grant update \(([^)]*)\) on public\.profiles/)[1];
   assert.ok(!/\brole\b/.test(upd) && !/\bid\b/.test(upd), `colunas editáveis: ${upd}`);
 });
@@ -473,6 +473,19 @@ test("SQL: ranking dos duelos 1x1 — Elo por jogo, gatilho de fim e leitura pú
 
   // A barra do tabuleiro recebe o rating real (1500 para quem ainda não jogou).
   assert.match(ratingSql, /'rating', coalesce\(dr\.rating, 1500\)/);
+});
+
+test("SQL: ficha do jogador traz conta, jogo favorito e último jogo sem expor dados privados", () => {
+  const code = migration("20261057000000_player_card.sql");
+  assert.match(code, /create or replace function public\.player_card\(p_user uuid\) returns jsonb/);
+  assert.match(code, /security definer set search_path = ''/);
+  assert.match(code, /coalesce\(p\.nickname, p\.name\)/);
+  assert.match(code, /'createdAt',\s*\(extract\(epoch from p\.created_at\) \* 1000\)::bigint/);
+  assert.match(code, /'favorite',\s*\(\s*select[\s\S]*?from public\.activity a[\s\S]*?order by a\.plays desc/);
+  assert.match(code, /'last',\s*\(\s*select[\s\S]*?from public\.activity a[\s\S]*?order by a\.last_played_at desc/);
+  assert.match(code, /revoke all on function public\.player_card\(uuid\) from public, anon, authenticated/);
+  assert.match(code, /grant execute on function public\.player_card\(uuid\) to anon, authenticated/);
+  assert.doesNotMatch(code, /auth\.users|email|hash|password/i);
 });
 
 test("SQL: ajustes dos duelos corrigem avatar, LGPD, regra words e Realtime", () => {

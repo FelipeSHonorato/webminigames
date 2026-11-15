@@ -33,7 +33,7 @@ async function ensureAdmin() {
   const all = users();
   if (all[ADMIN_EMAIL]) return;
   const salt = randomHex(16);
-  all[ADMIN_EMAIL] = { id: ADMIN_ID, name: ADMIN_NAME, region: null, role: "admin", salt, hash: await hashPassword(ADMIN_PASSWORD, salt) };
+  all[ADMIN_EMAIL] = { id: ADMIN_ID, name: ADMIN_NAME, region: null, role: "admin", createdAt: Date.now(), salt, hash: await hashPassword(ADMIN_PASSWORD, salt) };
   store.set("wmg.users", JSON.stringify(all));
 }
 
@@ -72,7 +72,7 @@ export const Auth = {
     const all = users(), key = email.trim().toLowerCase();
     if (all[key]) throw new Error("Já existe uma conta com este e-mail. Use a aba Entrar.");
     const salt = randomHex(16), id = "u-" + randomHex(8);
-    all[key] = { id, name: name.trim(), region, salt, hash: await hashPassword(password, salt) };
+    all[key] = { id, name: name.trim(), region, createdAt: Date.now(), salt, hash: await hashPassword(password, salt) };
     store.set("wmg.users", JSON.stringify(all));
     return this.start({ id, name: name.trim(), provider: "password", region });
   },

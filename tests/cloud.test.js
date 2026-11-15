@@ -268,6 +268,19 @@ test("ranking vem do servidor (função ranking), com escopo e limite; erro vira
   assert.deepEqual(await Scores.leaderboard("zip"), { top: [], me: null, total: 0 });
 });
 
+test("ficha do jogador vem do servidor (função player_card) e erro não quebra o ranking", async () => {
+  const card = {
+    id: "u2", name: "Aninha", avatar: null, region: "sul", createdAt: 1700000000000,
+    favorite: { game: "zip", plays: 7 }, last: { game: "patches", at: 1800000000000 },
+  };
+  const c = await boot({ rpc: { player_card: () => ({ data: card, error: null }) } });
+  assert.deepEqual(await Profile.card("u2"), card);
+  assert.deepEqual(c.calls.find(x => x[1] === "player_card")[2], { p_user: "u2" });
+
+  await boot({ rpc: { player_card: () => ({ data: null, error: { message: "x" } }) } });
+  assert.equal(await Cloud.playerCard("u2"), null);
+});
+
 test("ranking dos duelos vem do servidor (função duel_ranking) e usa o rating como pontos", async () => {
   const data = { top: [{ id: UID, name: "Ana", points: 1523, rating: 1523, rank: 1, isMe: true }], me: null, total: 1 };
   const c = await boot({ rpc: { duel_ranking: () => ({ data, error: null }) } });

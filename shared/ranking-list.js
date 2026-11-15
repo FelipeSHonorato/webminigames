@@ -2,6 +2,7 @@ import { Scores } from "./scores.js";
 import { getSession } from "./session.js";
 import { regionName } from "./regions.js";
 import { avatarNode } from "./avatar.js";
+import { openPlayerCard } from "./player-card.js";
 
 export const el = (tag, cls = "", text) => {
   const n = document.createElement(tag);
@@ -43,7 +44,15 @@ export function rankingRow(r, suffix = "pts", formatValue = null) {
   li.title = regionName(r.region);
   const custom = typeof formatValue === "function" ? formatValue(r) : null;
   const value = custom != null ? String(custom) : suffix ? `${r.points} ${suffix}` : String(r.points);
-  li.append(el("span", "pos", String(r.rank)), avatarNode(r.avatar), el("span", "nm", r.name + (r.isMe ? " (você)" : "")), el("span", "pts", value));
+  /* O nome abre a ficha do jogador (foto, conta, jogo favorito e último jogo). É um botão para funcionar
+     no teclado e no toque; o resto da linha continua sendo só exibição. */
+  const name = el("button", "nm", r.name + (r.isMe ? " (você)" : ""));
+  name.type = "button";
+  name.title = `Ver informações de ${r.name}`;
+  name.setAttribute("aria-haspopup", "dialog");
+  if (r.id) name.onclick = () => openPlayerCard(r);
+  else name.disabled = true;
+  li.append(el("span", "pos", String(r.rank)), avatarNode(r.avatar), name, el("span", "pts", value));
   return li;
 }
 

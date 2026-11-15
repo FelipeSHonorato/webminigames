@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { store } from "../shared/storage.js";
-import { Profile, Activity } from "../shared/profile.js";
+import { Profile, Activity, summarizeActivity } from "../shared/profile.js";
 import { Scores } from "../shared/scores.js";
 import { Auth } from "../js/auth.js";
 
@@ -35,6 +35,36 @@ test("atividade guarda o último horário e a quantidade de partidas por jogo", 
   assert.equal(a.zip.plays, 2);
   assert.ok(a.zip.lastPlayedAt > 0 && a.patches.plays === 1);
   assert.deepEqual(Activity.all("outro"), {});
+});
+
+test("ficha do jogador: jogo favorito é o mais jogado e o último jogo é o mais recente", () => {
+  assert.deepEqual(summarizeActivity({}), { favorite: null, last: null });
+  const summary = summarizeActivity({
+    zip: { plays: 2, lastPlayedAt: 1000 },
+    patches: { plays: 5, lastPlayedAt: 2000 },
+    sudoku: { plays: 1, lastPlayedAt: 3000 },
+  });
+  assert.deepEqual(summary.favorite, { game: "patches", plays: 5 });
+  assert.deepEqual(summary.last, { game: "sudoku", at: 3000 });
+});
+
+test("ficha local: apelido, data da conta, jogo favorito e último jogo", async () => {
+  reset();
+  await Auth.register({ name: "Ana Souza", email: "ana@example.com", password: "Segredo1", region: "sul" });
+  const s = Auth.current();
+  store.set("wmg.profiles", JSON.stringify({ [s.id]: { nickname: "Aninha" } }));
+  store.set("wmg.activity", JSON.stringify({ [s.id]: {
+    zip: { plays: 3, lastPlayedAt: 1000 },
+    patches: { plays: 1, lastPlayedAt: 2000 },
+  } }));
+
+  const card = await Profile.card(s.id, { name: "Nome do ranking", avatar: null, region: "sul" });
+  assert.equal(card.name, "Aninha");
+  assert.equal(card.region, "sul");
+  assert.ok(card.createdAt > 0, "o cadastro local passa a guardar a data de criação");
+  assert.deepEqual(card.favorite, { game: "zip", plays: 3 });
+  assert.deepEqual(card.last, { game: "patches", at: 2000 });
+  assert.equal((await Profile.card("desconhecido", { name: "Só ranking" })).name, "Só ranking");
 });
 
 test("troca de senha exige a atual e a nova passa a valer", async () => {
