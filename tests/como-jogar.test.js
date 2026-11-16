@@ -9,9 +9,11 @@ import * as onitama from "../games/onitama/domain.js";
 import * as gamao from "../games/gamao/domain.js";
 import * as go from "../games/go/domain.js";
 import * as uno from "../games/uno/domain.js";
-import { CHESS, DAMA, GAMMON, GO, ONITAMA, UNO, GUIDES, GUIDE_IDS, chessReach, damaFromPosition, damaPosition, gammonPoints } from "../js/como-jogar-data.js";
+import * as truco from "../games/truco/domain.js";
+import { CHESS, DAMA, GAMMON, GO, ONITAMA, UNO, TRUCO, GUIDES, GUIDE_IDS, chessReach, damaFromPosition, damaPosition, gammonPoints } from "../js/como-jogar-data.js";
 import {
   chessBoard, damaBoard, gammonBoard, goBoard, onitamaBoard, onitamaCardSvg, unoCardSvg, unoCardsSvg, unoTableSvg,
+  trucoCardSvg, trucoCardsSvg, trucoTableSvg,
   goCoord, goPoint, goPosition, diceSvg, parseFen,
 } from "../js/como-jogar-art.js";
 
@@ -398,6 +400,49 @@ test("como jogar · uno: figuras desenhadas, acessíveis e sem recursos externos
   assert.doesNotMatch(row + scene + card, /<defs|url\(#|<script|<image|<foreignObject|https?:\/\//);
 });
 
+/* ==================================== TRUCO =================================== */
+
+const trucoIds = [
+  ...TRUCO.hand, ...TRUCO.base, ...TRUCO.manilhas,
+  ...TRUCO.round.table, ...TRUCO.round.hand, ...TRUCO.truco, ...TRUCO.eleven,
+];
+
+test("como jogar · truco: toda carta das figuras existe e a força segue o domínio", () => {
+  for (const id of trucoIds) assert.ok(truco.cardOf(id), `${id} não é uma carta de truco`);
+
+  assert.deepEqual(TRUCO.manilhas.map(truco.manilhaName), ["Zap", "Copeta", "Espadilha", "Pica-fumo"]);
+  assert.ok(TRUCO.manilhas.every(id => truco.isManilha(id)), "as quatro cartas da figura são manilhas");
+  assert.deepEqual(TRUCO.manilhas.map(truco.strengthOf), [14, 13, 12, 11], "zap > copeta > espadilha > pica-fumo");
+
+  assert.deepEqual(TRUCO.base.map(truco.cardRank), ["3", "2", "K", "J", "Q", "7", "6", "5", "4"]);
+  assert.ok(TRUCO.base.every(id => !truco.isManilha(id)), "a fileira da ordem base não tem manilha");
+  const strengths = TRUCO.base.map(truco.strengthOf);
+  assert.deepEqual(strengths, [...strengths].sort((a, b) => b - a), "a figura vai da carta mais forte para a mais fraca");
+  for (const id of TRUCO.manilhas) assert.ok(truco.strengthOf(id) > truco.strengthOf("3-hearts"), `${id} vence qualquer 3`);
+
+  assert.equal(truco.cardName("4-clubs"), "4 de paus (Zap)");
+  assert.equal(truco.cardName("3-hearts"), "3 de copas");
+});
+
+test("como jogar · truco: figuras desenhadas, acessíveis e sem recursos externos", () => {
+  const row = trucoCardsSvg(TRUCO.manilhas, { label: "As quatro manilhas" });
+  assert.match(row, /aria-label="As quatro manilhas"/);
+  assert.match(row, /class="cj-truco cj-truco-row"/);
+  assert.match(row, /Zap/);
+
+  const scene = trucoTableSvg({
+    table: TRUCO.round.table, hand: TRUCO.round.hand,
+    marks: { "3-hearts": "good", "K-clubs": "bad" }, label: "Mesa da primeira vaza",
+  });
+  assert.match(scene, /aria-label="Mesa da primeira vaza"/);
+  assert.match(scene, /cj-truco-scene/);
+
+  const single = trucoCardSvg("4-clubs", { label: "Carta 4 de paus (Zap)" });
+  assert.match(single, /aria-label="Carta 4 de paus \(Zap\)"/);
+  assert.throws(() => trucoCardSvg("x-9-1", { label: "x" }), /carta de truco inválida/);
+  assert.doesNotMatch(row + scene + single, /<defs|url\(#|<script|<image|<foreignObject|https?:\/\//);
+});
+
 /* ============================== figuras e página ============================== */
 
 test("como jogar · figuras: SVG acessível, sem <defs>, sem recursos externos", () => {
@@ -418,8 +463,8 @@ test("como jogar · figuras: peça em casa clara da dama e FEN inválido são re
   assert.equal((gammonBoard({ label: "x" }).match(/<polygon/g) ?? []).length >= 24, true);
 });
 
-test("como jogar · conteúdo: ids únicos, seis guias e links dos jogos", () => {
-  assert.deepEqual(GUIDE_IDS, ["xadrez", "dama", "gamao", "go", "onitama", "uno"]);
+test("como jogar · conteúdo: ids únicos, sete guias e links dos jogos", () => {
+  assert.deepEqual(GUIDE_IDS, ["xadrez", "dama", "gamao", "go", "onitama", "uno", "truco"]);
   const catalog = read("js/games.js");
   for (const g of GUIDES) {
     const ids = g.sections.map(s => s.id);
@@ -477,6 +522,16 @@ test("como jogar · UNO (multijogador) também tem o link ao lado do título do 
   const nav = html.match(/<nav class="sitebar">[\s\S]*?<\/nav>/)?.[0] ?? "";
   assert.doesNotMatch(nav, /howto-link/, "o link não fica no sitebar");
   assert.match(nav, /<strong>UNO<\/strong><span class="mode-tag">2–4 jogadores<\/span>/);
+});
+
+test("como jogar · Truco (1×1) também tem o link ao lado do título do setup", () => {
+  const html = read("games/truco/index.html");
+  assert.match(html, /<a class="howto-link" href="\.\.\/\.\.\/como-jogar\.html#truco" aria-label="Como jogar Truco"><span>Como jogar<\/span><\/a>/);
+  assert.match(html, /<div class="setup-title-row"><h1 id="setupTitle">Truco Paulista<\/h1><a class="howto-link"[^>]*><span>Como jogar<\/span><\/a><\/div>/);
+  assert.match(read("games/truco/style.css"), /--grid:/, "o link usa var(--grid) como borda");
+  const nav = html.match(/<nav class="sitebar">[\s\S]*?<\/nav>/)?.[0] ?? "";
+  assert.doesNotMatch(nav, /howto-link/, "o link não fica no sitebar");
+  assert.match(nav, /<strong>Truco<\/strong><span class="mode-tag">1×1<\/span>/);
 });
 
 test("como jogar · celular: o rótulo 'Como jogar' continua visível e o texto dos passos flui na mesma linha", () => {

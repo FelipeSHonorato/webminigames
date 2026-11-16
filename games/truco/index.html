@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Truco Paulista 1×1</title>
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/email-logo.png" type="image/png" sizes="96x96">
+<link rel="apple-touch-icon" href="../../assets/email-logo.png">
+<script src="../../shared/theme-init.js"></script>
+<link rel="stylesheet" href="../../css/scrollbar.css">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../css/gamebar.css">
+<link rel="stylesheet" href="../../css/party.css">
+<link rel="stylesheet" href="../../css/userbar.css">
+</head>
+<body>
+<nav class="sitebar"><a href="../../jogos.html">← Jogos</a><div class="gametitle"><strong>Truco</strong><span class="mode-tag">1×1</span></div><div id="userbar"></div></nav>
+
+<main>
+  <section id="setup" class="setup" aria-labelledby="setupTitle">
+    <header class="setup-head">
+      <p class="eyebrow">Duelo de cartas</p>
+      <div class="setup-title-row"><h1 id="setupTitle">Truco Paulista</h1><a class="howto-link" href="../../como-jogar.html#truco" aria-label="Como jogar Truco"><span>Como jogar</span></a></div>
+      <p class="lead">O truco brasileiro para dois jogadores. Três cartas, melhor de três vazas e uma partida até 12 pontos. Peça truco, aumente a aposta e saiba a hora de correr.</p>
+    </header>
+
+    <div id="duelNotice" class="notice" role="status" hidden></div>
+
+    <fieldset class="pick">
+      <legend>Formato da partida</legend>
+      <div class="format-lock">
+        <b>1 × 1</b>
+        <small>Truco Paulista · 40 cartas · partida até 12 pontos</small>
+      </div>
+      <p class="setup-hint">A sala online é sempre de dois jogadores: um assento para você e um para o adversário.</p>
+    </fieldset>
+
+    <fieldset class="pick">
+      <legend>Tempo por jogada</legend>
+      <div id="timeOptions" class="option-grid three" role="radiogroup" aria-label="Tempo por jogada">
+        <button type="button" class="option-card" data-seconds="30" aria-pressed="false"><b>30s</b><small>Rápido</small></button>
+        <button type="button" class="option-card" data-seconds="40" aria-pressed="true"><b>40s</b><small>Padrão</small></button>
+        <button type="button" class="option-card" data-seconds="60" aria-pressed="false"><b>60s</b><small>Tranquilo</small></button>
+      </div>
+    </fieldset>
+
+    <fieldset class="pick">
+      <legend>Sala online</legend>
+      <div id="roomOptions" class="option-grid two" role="radiogroup" aria-label="Visibilidade da sala online">
+        <button type="button" class="option-card" data-open="true" aria-pressed="true"><b>Aberta</b><small>Qualquer jogador entra pela lista de salas</small></button>
+        <button type="button" class="option-card" data-open="false" aria-pressed="false"><b>Fechada</b><small>Só entra quem tiver o código do convite</small></button>
+      </div>
+    </fieldset>
+
+    <div class="setup-actions">
+      <button id="startLocal" class="primary" type="button">Jogar no mesmo dispositivo</button>
+      <button id="createRoom" class="secondary" type="button">Criar sala online</button>
+    </div>
+
+    <p class="setup-note">Manilhas fixas: 4♣ (zap) &gt; 7♥ (copeta) &gt; A♠ (espadilha) &gt; 7♦ (pica-fumo) &gt; 3 &gt; 2 &gt; A &gt; K &gt; J &gt; Q &gt; 7 &gt; 6 &gt; 5 &gt; 4. O truco sobe 1 → 3 → 6 → 9 → 12 e quem corre entrega o valor que estava valendo. Quem chega a 11 decide jogar uma mão valendo 3 ou correr e dar 1 ponto ao adversário.</p>
+  </section>
+
+  <div id="partyHost" class="party-host" hidden></div>
+
+  <section id="game" class="game" aria-label="Partida de Truco" hidden>
+    <div class="game-head">
+      <div class="game-title">
+        <p class="eyebrow">Mesa de Truco</p>
+        <h1>Truco Paulista</h1>
+      </div>
+      <p id="status" class="status" role="status">Sua vez</p>
+    </div>
+
+    <div class="table-grid">
+      <div class="slot slot-top"><div id="topPlayer" class="opponent-host"></div></div>
+
+      <div class="slot slot-center">
+        <div class="table-center">
+          <div class="scoreboard" aria-label="Placar">
+            <div class="score-side score-bottom"><span id="scoreBottomName">Você</span><b id="scoreBottomValue">0</b></div>
+            <span class="score-x" aria-hidden="true">×</span>
+            <div class="score-side score-top"><span id="scoreTopName">Oponente</span><b id="scoreTopValue">0</b></div>
+          </div>
+
+          <div class="table-meta">
+            <span id="handNo">Mão 1</span>
+            <span class="meta-sep">·</span>
+            <span id="handValue">Vale 1</span>
+            <span class="meta-sep">·</span>
+            <span id="roundInfo">Rodada 1 de 3</span>
+            <span id="turnTimer" class="turn-timer" aria-label="Tempo da jogada">—</span>
+          </div>
+
+          <div id="tableCards" class="table-cards" aria-label="Cartas na mesa"></div>
+          <p id="roundResult" class="round-result" role="status"></p>
+
+          <div id="tableActions" class="table-actions">
+            <button id="trucoBtn" class="primary" type="button">Trucar</button>
+            <button id="acceptBtn" class="primary" type="button" hidden>Aceitar</button>
+            <button id="raiseBtn" class="secondary" type="button" hidden>Aumentar</button>
+            <button id="foldBtn" class="secondary" type="button" hidden>Correr</button>
+            <button id="maoPlayBtn" class="primary" type="button" hidden>Jogar valendo 3</button>
+            <button id="maoFoldBtn" class="secondary" type="button" hidden>Correr (+1)</button>
+          </div>
+          <p id="hint" class="table-hint" role="status"></p>
+        </div>
+      </div>
+
+      <div class="slot slot-bottom"><div id="bottomPlayer" class="opponent-host"></div></div>
+    </div>
+
+    <div class="hand-area">
+      <p id="handLabel" class="hand-label">Sua mão</p>
+      <div id="hand" class="hand" role="group" aria-label="Sua mão"></div>
+    </div>
+  </section>
+</main>
+
+<div id="gate" class="overlay gate" hidden>
+  <div class="overlay-card" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
+    <p class="eyebrow">Passar o dispositivo</p>
+    <h2 id="gateTitle">Vez de Jogador 1</h2>
+    <p id="gateText" class="overlay-text">Passe o aparelho para o próximo jogador. Só ele deve olhar a mão.</p>
+    <button id="gateBtn" class="primary" type="button">Sou o próximo jogador</button>
+  </div>
+</div>
+
+<div id="result" class="overlay result" hidden>
+  <div class="overlay-card result-card" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+    <span id="resultIcon" class="result-icon" aria-hidden="true">12</span>
+    <h2 id="resultTitle">Partida encerrada</h2>
+    <p id="resultText" class="overlay-text"></p>
+    <ol id="resultList" class="result-list" aria-label="Placar final"></ol>
+    <div class="result-actions">
+      <button id="rematch" class="primary" type="button">Revanche</button>
+      <button id="backSetup" class="secondary" type="button">Voltar ao início</button>
+    </div>
+  </div>
+</div>
+
+<script src="../../shared/file-warning.js"></script>
+<script type="module" src="./ui.js"></script>
+</body>
+</html>

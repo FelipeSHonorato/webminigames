@@ -24,6 +24,7 @@ import * as sopa from "../games/sopa/domain.js";
 import * as sudoku from "../games/sudoku/domain.js";
 import * as tango from "../games/tango/domain.js";
 import * as texttwist from "../games/texttwist/domain.js";
+import * as truco from "../games/truco/domain.js";
 import * as uno from "../games/uno/domain.js";
 import * as zip from "../games/zip/domain.js";
 
@@ -33,7 +34,7 @@ const normPoints = s => s.replace(/"(?:\.\.\/)+(?:shared\/)?points\.js"/g, '"POI
 
 /* ---------- paridade entre games/ e a cópia usada pela Edge Function ---------- */
 test("cópias dos domínios na Edge Function batem com games/ (paridade)", () => {
-  for (const g of ["arrows", "canos", "chess", "crossmath", "cruzadas", "dama", "gamao", "go", "onitama", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "uno", "zip"]) {
+  for (const g of ["arrows", "canos", "chess", "crossmath", "cruzadas", "dama", "gamao", "go", "onitama", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "truco", "uno", "zip"]) {
     assert.equal(normPoints(read(`supabase/functions/play/_shared/${g}/domain.js`)), normPoints(read(`games/${g}/domain.js`)), `domain de ${g} divergiu`);
   }
   for (const g of ["cruzadas", "sopa", "texttwist"]) {
@@ -295,8 +296,8 @@ test("snapshot diário: o puzzle completo valida e a visão pública continua se
   assert.equal(validateSnapshot("crossmath", crossSnap.fullPuzzle, { nums: [] }), false);
 });
 
-test("GAMES agrupa os dezessete domínios e SOLO_GAMES deixa xadrez, dama, gamão, Go, Onitama e UNO de fora", () => {
-  assert.deepEqual(Object.keys(GAMES).sort(), ["arrows", "canos", "chess", "crossmath", "cruzadas", "dama", "gamao", "go", "onitama", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "uno", "zip"]);
+test("GAMES agrupa os dezoito domínios e SOLO_GAMES deixa xadrez, dama, gamão, Go, Onitama, UNO e Truco de fora", () => {
+  assert.deepEqual(Object.keys(GAMES).sort(), ["arrows", "canos", "chess", "crossmath", "cruzadas", "dama", "gamao", "go", "onitama", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "truco", "uno", "zip"]);
   assert.deepEqual(Object.keys(SOLO_GAMES).sort(), ["arrows", "canos", "crossmath", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
   assert.equal(typeof chess.generatePuzzle, "undefined", "xadrez não gera fase: só duelo");
   assert.equal(typeof dama.generatePuzzle, "undefined", "dama não gera fase: só duelo");
@@ -304,6 +305,7 @@ test("GAMES agrupa os dezessete domínios e SOLO_GAMES deixa xadrez, dama, gamã
   assert.equal(typeof go.generatePuzzle, "undefined", "Go não gera fase: só duelo");
   assert.equal(typeof onitama.generatePuzzle, "undefined", "Onitama não gera fase: só duelo");
   assert.equal(typeof uno.generatePuzzle, "undefined", "UNO não gera fase: é partida");
+  assert.equal(typeof truco.generatePuzzle, "undefined", "Truco não gera fase: é partida");
 });
 
 test("a Edge aceita todo jogo SOLO do catálogo (lista vem do board, não fixa)", () => {
@@ -556,12 +558,16 @@ test("Edge: a cópia de shared/party.js é idêntica (a Edge e o navegador preci
   assert.doesNotMatch(read("shared/party.js"), /^import /m, "party.js é puro: sem imports, para a cópia ser idêntica");
 });
 
-test("Edge: só UNO declara PARTY (converter jogo antigo mudaria as regras dele)", async () => {
+test("Edge: só UNO e Truco declaram PARTY (converter jogo antigo mudaria as regras dele)", async () => {
   const { PARTIES, partyOf } = await import("../supabase/functions/play/_shared/board.js");
-  assert.deepEqual(Object.keys(PARTIES), ["uno"], "UNO é a primeira partida de 2+ jogadores");
+  assert.deepEqual(Object.keys(PARTIES), ["truco", "uno"], "UNO e Truco são as partidas de 2+ jogadores (ordem do board)");
   assert.equal(PARTIES.uno.minPlayers, 2);
   assert.equal(PARTIES.uno.maxPlayers, 4);
   assert.equal(PARTIES.uno.order, "turns");
+  assert.equal(PARTIES.truco.minPlayers, 2);
+  assert.equal(PARTIES.truco.maxPlayers, 2, "Truco Paulista é 1×1");
+  assert.equal(PARTIES.truco.order, "turns");
+  assert.equal(PARTIES.truco.onTimeout, "out");
   assert.equal(partyOf("chess"), null);
   assert.equal(partyOf("inexistente"), null);
   const { SOLO_GAMES } = await import("../supabase/functions/play/_shared/board.js");

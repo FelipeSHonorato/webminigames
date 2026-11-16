@@ -1,5 +1,5 @@
-/* Página "Como jogar": monta as abas (Xadrez, Dama, Gamão, Go, Onitama e UNO) a partir de js/como-jogar-data.js.
-   • A aba vem do hash (#xadrez, #dama, #gamao, #go, #onitama, #uno); os jogos linkam direto para a aba certa.
+/* Página "Como jogar": monta as abas (Xadrez, Dama, Gamão, Go, Onitama, UNO e Truco) a partir de js/como-jogar-data.js.
+   • A aba vem do hash (#xadrez, #dama, #gamao, #go, #onitama, #uno ou #truco); os jogos linkam direto para a aba certa.
    • Só usa o hash para escolher a aba (um nome simples, sem barra nem parâmetros). */
 import { GUIDES, GUIDE_IDS } from "./como-jogar-data.js";
 

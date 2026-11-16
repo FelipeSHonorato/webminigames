@@ -1,4 +1,4 @@
-/* Conteúdo das páginas "Como jogar" (Xadrez, Dama, Gamão, Go, Onitama e UNO). Módulo puro: sem DOM, roda no navegador
+/* Conteúdo das páginas "Como jogar" (Xadrez, Dama, Gamão, Go, Onitama, UNO e Truco). Módulo puro: sem DOM, roda no navegador
    e nos testes.
 
    Os EXEMPLOS (CHESS, DAMA, GAMMON, GO, ONITAMA, UNO) ficam exportados porque `tests/como-jogar.test.js` confere cada
@@ -11,7 +11,7 @@
 import { GAMES } from "./games.js";
 import {
   chessBoard, damaBoard, gammonBoard, goBoard, onitamaBoard, onitamaCardSvg, diceSvg, damaPosition, parseFen, parseSquare, squareName,
-  unoCardSvg, unoCardsSvg, unoTableSvg, GAMMON_START,
+  unoCardSvg, unoCardsSvg, unoTableSvg, trucoCardSvg, trucoCardsSvg, trucoTableSvg, GAMMON_START,
 } from "./como-jogar-art.js";
 import { CARDS as ONITAMA_CARDS } from "../games/onitama/domain.js";
 import { COLOR_NAMES as UNO_COLOR_NAMES, canPlayCard as unoCanPlay, cardName as unoCardName } from "../games/uno/domain.js";
@@ -141,6 +141,16 @@ export const UNO = Object.freeze({
   wild: { top: "g-5-1", color: "g", hand: ["g-2-1", "w-wild-1", "w-draw4-1"], chosen: "b" },
   draw: { top: "r-7-1", color: "r", hand: ["y-1-1", "g-4-1", "b-9-1"], drawn: "r-2-1" },
   win: { top: "r-9-1", color: "r", hand: ["r-5-1"] },
+});
+
+/* TRUCO: exemplos usados nas figuras; o teste confere cada carta, as manilhas e a ordem das forças no domínio. */
+export const TRUCO = Object.freeze({
+  hand: ["Q-hearts", "J-spades", "5-diamonds"],
+  base: ["3-hearts", "2-hearts", "K-hearts", "J-hearts", "Q-hearts", "7-clubs", "6-hearts", "5-hearts", "4-hearts"],
+  manilhas: ["4-clubs", "7-hearts", "A-spades", "7-diamonds"],
+  round: { table: ["3-hearts", "2-hearts"], hand: ["K-clubs"] },
+  truco: ["3-clubs", "2-spades", "A-diamonds"],
+  eleven: ["3-spades", "2-clubs", "K-diamonds"],
 });
 
 /** Casas para onde a peça de `from` pode ir no xadrez (sem xeque/cravada: os exemplos foram escolhidos sem isso;
@@ -872,5 +882,121 @@ function unoGuide() {
   };
 }
 
-export const GUIDES = [chessGuide(), damaGuide(), gammonGuide(), goGuide(), onitamaGuide(), unoGuide()];
+/* ==================================== TRUCO =================================== */
+
+const LEGEND_TRUCO = [
+  ["good", "Carta que ganha a vaza"],
+  ["bad", "Carta que perde a vaza"],
+  ["sel", "Carta que você joga"],
+  ["ring", "Manilha: vence qualquer 3"],
+];
+
+function trucoGuide() {
+  const T = TRUCO;
+  const cards = (ids, opts = {}) => trucoCardsSvg(ids, { label: opts.label ?? `Cartas ${ids.join(", ")}`, marks: opts.marks ?? {} });
+  const marksAll = (ids, kind) => Object.fromEntries(ids.map(id => [id, kind]));
+
+  return {
+    id: "truco", name: "Truco", glyph: "♠",
+    title: "Como jogar Truco Paulista",
+    lead: "O truco brasileiro para <b>dois jogadores</b>: três cartas na mão, melhor de três vazas e uma partida até <b>12 pontos</b>. Peça truco, aumente a aposta e saiba a hora de correr.",
+    chips: chips(["1 × 1", "40 cartas", "3 cartas por mão", "Partida até 12 pontos"]),
+    legend: LEGEND_TRUCO,
+    sections: [
+      {
+        id: "objetivo", title: "O objetivo: chegar a 12 pontos",
+        body: [
+          "O <b>Truco Paulista</b> é jogado <b>um contra um</b> com um baralho de <b>40 cartas</b>. Cada jogador recebe <b>3 cartas</b> e a mão é disputada em até <b>três vazas</b>.",
+          "Quem vence a mão soma o <b>valor em disputa</b> — <b>1 ponto</b> sem truco — e a partida vai até <b>12 pontos</b>. Quem corre entrega o valor que estava valendo ao adversário.",
+        ],
+        figures: [fig(cards(T.hand, { label: "Mão de truco com Q de copas, J de espadas e 5 de ouros", marks: { "Q-hearts": "sel" } }),
+          "Sua mão tem <b>três cartas</b>: Q♥, J♠ e 5♦. Em cada vaza você joga uma delas — e a que ficar na mão não vale nada.")],
+      },
+      {
+        id: "baralho", title: "O baralho de 40 cartas",
+        body: [
+          "São <b>40 cartas</b>: os valores <b>4, 5, 6, 7, Q, J, K, A, 2 e 3</b> em <b>quatro naipes</b>. O baralho <b>não tem 8, 9 e 10</b>.",
+          "A força base, da mais fraca para a mais forte, é <b>4 &lt; 5 &lt; 6 &lt; 7 &lt; Q &lt; J &lt; K &lt; A &lt; 2 &lt; 3</b>. As quatro manilhas ficam acima de qualquer 3.",
+        ],
+        figures: [fig(cards(T.base, { label: "Ordem base do truco, do 3 ao 4" }),
+          "Da esquerda para a direita: <b>3, 2, K, J, Q, 7, 6, 5 e 4</b>. O <b>3</b> é a carta mais forte do baralho comum.")],
+        tips: ["O naipe só importa para identificar as manilhas. Fora delas, um <b>3 de paus</b> vale o mesmo que um <b>3 de ouros</b>."],
+      },
+      {
+        id: "manilhas", title: "As quatro manilhas",
+        body: [
+          "As manilhas são <b>fixas</b> — não dependem de nenhuma carta virada. Elas vencem <b>qualquer 3</b> e valem, nesta ordem: <b>4♣ zap &gt; 7♥ copeta &gt; A♠ espadilha &gt; 7♦ pica-fumo</b>.",
+          "Se dois jogadores jogarem manilhas na mesma vaza, vence a mais alta: o <b>zap</b> ganha de todas, a <b>copeta</b> perde só para o zap, e assim por diante.",
+        ],
+        figures: [fig(cards(T.manilhas, { label: "As quatro manilhas do truco paulista" }),
+          "As quatro manilhas, da mais forte para a mais fraca: <b>4♣ zap</b>, <b>7♥ copeta</b>, <b>A♠ espadilha</b> e <b>7♦ pica-fumo</b>.")],
+      },
+      {
+        id: "vazas", title: "As três vazas e os empates",
+        body: [
+          "Cada jogador baixa <b>uma carta</b> por vaza. A mais forte leva a vaza e quem venceu <b>começa a próxima</b>. Quem fizer <b>duas vazas</b> vence a mão.",
+          "<b>Empates:</b> se a <b>1ª</b> vaza empatar, a <b>2ª</b> decide; se a <b>2ª</b> empatar, vence quem ganhou a <b>1ª</b>; se <b>1ª e 2ª</b> empatarem, a <b>3ª</b> decide; se a <b>3ª</b> empatar, vence quem ganhou a <b>1ª</b>. Se as <b>três</b> empatarem, ninguém pontua.",
+        ],
+        figures: [fig(trucoTableSvg({
+          table: T.round.table, hand: T.round.hand, marks: { "3-hearts": "good", "K-clubs": "bad" },
+          label: "Mesa com 3 de copas e 2 de copas, e um K de paus na mão",
+        }), "O <b>3♥</b> bate o <b>2♥</b> (10 contra 9). O <b>K♣</b> da mão perderia para o 3♥: às vezes vale guardar a carta forte para a próxima vaza.")],
+      },
+      {
+        id: "truco", title: "Truco, retruco, vale quatro e vale cinco",
+        body: [
+          "Na sua vez, <b>antes de jogar uma carta</b>, você pode pedir <b>truco</b> e a mão passa a valer <b>3</b>. O adversário escolhe <b>aceitar</b>, <b>aumentar</b> ou <b>correr</b>.",
+          "Os aumentos sobem <b>1 → 3 → 6 → 9 → 12</b>: truco, retruco, vale quatro e vale cinco. Quem <b>corre</b> entrega o valor que estava valendo antes do último pedido — correr de um truco custa <b>1 ponto</b>; correr de um retruco custa <b>3</b>.",
+          "O direito de aumentar <b>alterna</b>: fica com quem aceitou o último pedido, e só volta a valer <b>depois de jogar uma carta</b>.",
+        ],
+        figures: [fig(cards(T.truco, { marks: marksAll(T.truco, "good"), label: "Mão forte com 3 de paus, 2 de espadas e A de ouros" }),
+          "Mão forte: <b>3♣, 2♠ e A♦</b>. Com cartas assim, vale a pena pedir <b>truco</b> e pressionar o adversário.")],
+        tips: ["Pedir truco também serve para <b>blefar</b>: o adversário pode correr mesmo com uma mão boa, e você leva o ponto sem jogar."],
+      },
+      {
+        id: "onze", title: "A mão de onze",
+        body: [
+          "Quando um jogador chega a <b>11 pontos</b> (vindo de menos de 11), ele decide antes da mão: <b>jogar a mão de onze</b>, que vale <b>3 pontos</b> e não aceita truco, ou <b>correr</b> e dar <b>1 ponto</b> ao adversário.",
+          "Se correr, o adversário soma 1 e a partida segue. Se jogar e vencer, soma 3 e chega a 14 — o que passa de 12, mas o que importa é <b>fechar a partida</b>.",
+        ],
+        figures: [fig(cards(T.eleven, { label: "Mão de onze com 3 de espadas, 2 de paus e K de ouros" }),
+          "Em <b>11 pontos</b>, esta mão vale <b>3</b> se você decidir jogá-la. Correr daria apenas <b>1 ponto</b> ao adversário.")],
+      },
+      {
+        id: "ferro", title: "A mão de ferro",
+        body: [
+          "Se <b>os dois</b> chegarem a <b>11 pontos</b>, a mão vira <b>mão de ferro</b>: vale <b>3 pontos</b> e <b>não aceita truco</b>.",
+          "Na mão de ferro as cartas são <b>normais e visíveis para quem está jogando</b> — não há cartas escondidas nem aposta extra. Quem vencer a mão fecha a partida.",
+        ],
+        figures: [fig(trucoTableSvg({
+          table: ["7-hearts"], hand: ["A-clubs", "K-spades"],
+          marks: { "7-hearts": "good" }, label: "Mão de ferro: copeta na mesa e duas cartas na mão",
+        }), "Com os dois em <b>11</b>, a mão vale <b>3</b> e ninguém pode trucar. A <b>copeta</b> na mesa já vence qualquer carta comum.")],
+      },
+      {
+        id: "tela", title: "Tempo, telas e fim de partida",
+        body: [
+          "<b>Tempo:</b> cada jogada tem <b>30, 40 ou 60 segundos</b> (o padrão é 40). No <b>mesmo aparelho</b>, o tempo esgotado joga a carta mais fraca (ou corre do truco e da mão de onze). <b>Online</b>, quem estoura o tempo é <b>eliminado</b> e o adversário vence.",
+          "<b>Mesmo aparelho:</b> a mesa gira para o jogador da vez e uma tela de <b>“passar o dispositivo”</b> esconde a mão até ele confirmar.",
+          "<b>Online:</b> a sala é sempre <b>1 × 1</b>. Crie uma sala <b>aberta</b> (aparece na lista) ou <b>fechada</b> (só com o código), marque <b>Estou pronto</b> e jogue. No fim aparecem as colocações e o botão <b>Revanche</b>.",
+        ],
+        figures: [],
+      },
+    ],
+    screen: {
+      title: "Como jogar na tela",
+      steps: [
+        ["Escolha o tempo e a sala", "Selecione <b>30s</b>, <b>40s</b> ou <b>60s</b> por jogada e se a sala online é <b>Aberta</b> ou <b>Fechada</b>. A sala é sempre de <b>dois jogadores</b>."],
+        ["Jogue no mesmo aparelho ou crie a sala", "Em <b>Jogar no mesmo dispositivo</b>, o aparelho passa de mão em mão. Em <b>Criar sala online</b>, compartilhe o código com o adversário e os dois marcam <b>Estou pronto</b>."],
+        ["Jogue uma carta", "Sua mão fica embaixo. Toque em uma carta para baixá-la na mesa. A carta mais forte leva a vaza e o placar mostra os pontos de cada um."],
+        ["Peça truco ou responda", "Use <b>Trucar</b> na sua vez, antes de jogar. Quando o adversário pede, escolha <b>Aceitar</b>, <b>Aumentar</b> ou <b>Correr</b> — os botões mostram o valor em jogo."],
+        ["Decida a mão de onze", "Ao chegar a <b>11</b>, escolha <b>Jogar valendo 3</b> ou <b>Correr (+1)</b>. A mesa mostra <b>Mão de onze</b> ou <b>Mão de ferro</b> no lugar do valor normal."],
+        ["Confira o resultado", "No fim aparece quem venceu e os pontos. <b>Revanche</b> começa outra partida; <b>Voltar ao início</b> troca o tempo ou a sala."],
+      ],
+    },
+    cta: { label: "Jogar Truco", href: GAMES.truco.path },
+  };
+}
+
+export const GUIDES = [chessGuide(), damaGuide(), gammonGuide(), goGuide(), onitamaGuide(), unoGuide(), trucoGuide()];
 export const GUIDE_IDS = GUIDES.map(g => g.id);

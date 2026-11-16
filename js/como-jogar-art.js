@@ -10,6 +10,10 @@
    • quem usa precisa dar `label` (vira o aria-label da figura). */
 
 import { cardOf } from "../games/uno/domain.js";
+import {
+  cardOf as trucoCard, isManilha as trucoIsManilha, manilhaName as trucoManilhaName,
+  SUIT_SYMBOLS as TRUCO_SUITS, RED_SUITS as TRUCO_RED_SUITS,
+} from "../games/truco/domain.js";
 
 export const COLORS = Object.freeze({
   light: "#f0d9b5", dark: "#b58863",              // casas (iguais às de xadrez e dama)
@@ -586,6 +590,82 @@ export function unoTableSvg({ top = null, deck = false, color = null, colorName 
       `<text x="${pad + 22}" y="${lineY}" dominant-baseline="central" font-size="13" font-weight="700" fill="currentColor">Cor atual: ${esc(colorName)}</text>`
     : "";
   return svgOpen("cj-uno cj-uno-scene", label, width, height) + body + extra + "</svg>";
+}
+
+/* ------------------------------------ truco ----------------------------------- */
+
+const TRUCO_W = 88, TRUCO_H = 132, TRUCO_GAP = 12;
+const TRUCO_INK = "#1e232a", TRUCO_RED = "#c0392b", TRUCO_BADGE = "#f2b134";
+
+function trucoCardOrThrow(id) {
+  const card = trucoCard(id);
+  if (!card) throw new Error(`carta de truco inválida: ${id}`);
+  return card;
+}
+
+/** Carta de truco em (x, y). `mark` = "good" (ganha a vaza), "sel" (jogada) ou "bad" (perde). */
+function trucoCardBody(id, x, y, { faded = false, mark = "" } = {}) {
+  const card = trucoCardOrThrow(id);
+  const w = TRUCO_W, h = TRUCO_H, cx = x + w / 2;
+  const color = TRUCO_RED_SUITS.includes(card.suit) ? TRUCO_RED : TRUCO_INK;
+  const suit = TRUCO_SUITS[card.suit];
+  const badge = trucoIsManilha(id) ? trucoManilhaName(id) : "";
+  const corner = (tx, ty, rotate = 0) =>
+    `<text x="${n1(tx)}" y="${n1(ty)}" text-anchor="middle" dominant-baseline="central" font-family="${FONT}" font-size="${n1(w * 0.24)}" font-weight="900" fill="${color}"${rotate ? ` transform="rotate(${rotate} ${n1(tx)} ${n1(ty)})"` : ""}>${esc(card.rank)}</text>` +
+    `<text x="${n1(tx)}" y="${n1(ty + h * 0.1)}" text-anchor="middle" dominant-baseline="central" font-family="${FONT}" font-size="${n1(w * 0.2)}" fill="${color}"${rotate ? ` transform="rotate(${rotate} ${n1(tx)} ${n1(ty)})"` : ""}>${suit}</text>`;
+
+  let out = `<g${faded ? ' opacity=".38"' : ""}>` +
+    `<rect x="${n1(x)}" y="${n1(y)}" width="${w}" height="${h}" rx="${n1(w * 0.1)}" fill="#fff" stroke="#c8d0d8" stroke-width="1.5"/>` +
+    corner(x + w * 0.16, y + h * 0.1) +
+    `<text x="${n1(cx)}" y="${n1(y + h * 0.46)}" text-anchor="middle" dominant-baseline="central" font-family="${FONT}" font-size="${n1(w * 0.52)}" fill="${color}">${suit}</text>` +
+    corner(x + w * 0.84, y + h * 0.9, 180);
+
+  if (badge) {
+    const bw = Math.max(26, badge.length * 5.6 + 10), bh = 14, by = y + h * 0.72;
+    out += `<rect x="${n1(cx - bw / 2)}" y="${n1(by)}" width="${n1(bw)}" height="${bh}" rx="7" fill="${TRUCO_BADGE}"/>` +
+      `<text x="${n1(cx)}" y="${n1(by + bh / 2)}" text-anchor="middle" dominant-baseline="central" font-family="${FONT}" font-size="9" font-weight="800" fill="${TRUCO_INK}">${esc(badge)}</text>`;
+  }
+
+  if (mark === "good" || mark === "sel") {
+    const stroke = mark === "sel" ? COLORS.sel : COLORS.good;
+    out += `<rect x="${n1(x - 3)}" y="${n1(y - 3)}" width="${w + 6}" height="${h + 6}" rx="${n1(w * 0.12)}" fill="none" stroke="${stroke}" stroke-width="3"/>`;
+  } else if (mark === "bad") {
+    out += crossMark(x + w - 11, y + 11, 10);
+  }
+  return out + "</g>";
+}
+
+/** Uma carta de truco avulsa. */
+export function trucoCardSvg(id, { label, faded = false, mark = "" } = {}) {
+  return svgOpen("cj-truco cj-truco-single", label, TRUCO_W + 12, TRUCO_H + 12) +
+    trucoCardBody(id, 6, 6, { faded, mark }) + "</svg>";
+}
+
+/** Fileira de cartas. `marks` = { id: "good"|"sel"|"bad" }, `faded` = ids esmaecidos. */
+export function trucoCardsSvg(ids, { label, marks = {}, faded = [] } = {}) {
+  const width = ids.length * (TRUCO_W + TRUCO_GAP) - TRUCO_GAP + 12;
+  const out = ids.map((id, i) =>
+    trucoCardBody(id, 6 + i * (TRUCO_W + TRUCO_GAP), 6, { faded: faded.includes(id), mark: marks[id] })).join("");
+  return svgOpen("cj-truco cj-truco-row", label, width, TRUCO_H + 12) + out + "</svg>";
+}
+
+/** Mesa + mão: as cartas jogadas na vaza à esquerda, a mão à direita, separadas por uma linha tracejada. */
+export function trucoTableSvg({ table = [], hand = [], marks = {}, label }) {
+  const pad = 8, gap = 18, step = TRUCO_W + TRUCO_GAP;
+  const rowW = n => (n ? n * step - TRUCO_GAP : 0);
+  const divider = table.length && hand.length;
+  const width = pad * 2 + rowW(table.length) + (divider ? gap * 2 + 2 : 0) + rowW(hand.length);
+  let x = pad, body = "";
+  table.forEach((id, i) => { body += trucoCardBody(id, x + i * step, pad, { mark: marks[id] }); });
+  if (divider) {
+    x += rowW(table.length) + gap;
+    body += `<line x1="${n1(x)}" y1="${n1(pad + 6)}" x2="${n1(x)}" y2="${n1(pad + TRUCO_H - 6)}" stroke="#9aa7b4" stroke-width="1.5" stroke-dasharray="5 5"/>`;
+    x += gap + 2;
+  } else if (table.length) {
+    x += rowW(table.length);
+  }
+  hand.forEach((id, i) => { body += trucoCardBody(id, x + i * step, pad, { mark: marks[id] }); });
+  return svgOpen("cj-truco cj-truco-scene", label, width, TRUCO_H + pad * 2) + body + "</svg>";
 }
 
 /* ----------------------------------- dados ----------------------------------- */
