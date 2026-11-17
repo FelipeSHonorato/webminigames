@@ -42,6 +42,7 @@ const els = {
   gate: $("gate"), gateTitle: $("gateTitle"), gateText: $("gateText"), gateBtn: $("gateBtn"),
   result: $("result"), resultIcon: $("resultIcon"), resultTitle: $("resultTitle"), resultText: $("resultText"),
   resultList: $("resultList"), rematch: $("rematch"), backSetup: $("backSetup"),
+  trucoFx: $("trucoFx"), trucoFxKicker: $("trucoFxKicker"), trucoFxTitle: $("trucoFxTitle"), trucoFxText: $("trucoFxText"),
 };
 
 const session = getSession();
@@ -261,6 +262,8 @@ function renderTable(view, bottomSeat) {
   renderTableCards(view);
   renderActions(view);
   renderHand(view);
+  animateTablePlays(view);
+  syncTrucoFx(view);
 }
 
 /* ===================== jogadores e placar ===================== */
@@ -274,6 +277,7 @@ function playerBar(view, seat, role) {
     + (isTeamGame(view) ? ` team-${team === 0 ? "a" : "b"}` : "")
     + (view.turn === seat ? " turn" : "")
     + (entry.out ? " out" : "");
+  node.dataset.seat = String(seat);
 
   const profile = document.createElement("div");
   profile.className = "opponent-profile";
@@ -418,6 +422,245 @@ function emptyTableSlot(text = "Mesa vazia") {
   return slot;
 }
 
+/* ===================== efeitos: carta voando e truco na tela =====================
+   Dois efeitos públicos, um para cada jogador da mesa:
+   • a carta sai da mão/avatar e voa até o lugar dela na mesa (.card-flight);
+   • truco, aumento, aceite, corrida e mão de onze tomam a tela com um aviso grande (#trucoFx).
+   O modo local espera os dois terminarem antes de abrir a tela de "passar o aparelho" ou o resultado. */
+
+const FLIGHT_MS = 430;
+const FX_MS = 1700;
+const FX_ACTIONS = new Set(["truco", "raise", "accept", "mao"]);
+
+let flightOrigins = [];                 // [{ seat, card, rect }] — retângulo de onde a carta saiu
+let playWatcher = { ready: false, key: null };
+let flightPromises = new Set();
+let flightsIdle = Promise.resolve();
+let trucoFxIdle = Promise.resolve();
+let trucoFxTimer = 0;
+let shakeTimer = 0;
+let fxKeys = { last: null, hand: null, first: true };
+
+function reducedMotion() {
+  return typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/** Resolve quando o voo das cartas e o efeito de truco (se houver) terminam. */
+function fxWait() {
+  return Promise.allSettled([flightsIdle, trucoFxIdle]);
+}
+
+function resetFx() {
+  flightOrigins = [];
+  playWatcher = { ready: false, key: null };
+  fxKeys = { last: null, hand: null, first: true };
+  clearTimeout(trucoFxTimer);
+  clearTimeout(shakeTimer);
+  flightsIdle = Promise.resolve();
+  trucoFxIdle = Promise.resolve();
+  els.trucoFx.classList.remove("show");
+  els.trucoFx.setAttribute("aria-hidden", "true");
+  els.tableGrid.classList.remove("truco-shake");
+}
+
+/* ---------- carta saindo da mão ---------- */
+
+function recordFlightOrigin(seat, card, node) {
+  const rect = node?.getBoundingClientRect?.();
+  if (!rect || !rect.width) return;
+  flightOrigins.push({ seat, card, rect, at: performance.now() });
+  if (flightOrigins.length > 6) flightOrigins.splice(0, flightOrigins.length - 6);
+}
+
+function takeFlightOrigin(seat, card) {
+  const index = flightOrigins.findIndex(origin => origin.seat === seat && origin.card === card);
+  if (index < 0) return null;
+  const [origin] = flightOrigins.splice(index, 1);
+  return performance.now() - origin.at > 8000 ? null : origin.rect;   // jogada recusada: origem expira
+}
+
+function seatRect(seat) {
+  const bar = document.querySelector(`.table-grid .opponent[data-seat="${seat}"]`);
+  const avatar = bar?.querySelector(".opponent-avatar") ?? bar;
+  return avatar ? avatar.getBoundingClientRect() : null;
+}
+
+function handRect() {
+  const rect = els.hand.getBoundingClientRect();
+  if (!rect.width) return null;
+  return { left: rect.left + rect.width / 2 - 34, top: rect.top + 10, width: 68, height: 102 };
+}
+
+/** De onde a carta saiu: a mão de quem jogou, ou o avatar do assento (adversários no online). */
+function originFor(view, seat, card) {
+  const recorded = takeFlightOrigin(seat, card);
+  if (recorded) return recorded;
+  if (seat === view.seat) return handRect() ?? seatRect(seat);
+  return seatRect(seat);
+}
+
+function flyCard(card, from, to) {
+  if (!from || !to || !to.width) return null;
+  const width = to.width;
+  const height = to.height;
+  const clone = document.createElement("div");
+  clone.className = "card-flight";
+  clone.setAttribute("aria-hidden", "true");
+  clone.style.width = `${width}px`;
+  clone.style.height = `${height}px`;
+  clone.style.left = `${from.left + from.width / 2 - width / 2}px`;
+  clone.style.top = `${from.top + from.height / 2 - height / 2}px`;
+  clone.append(cardNode(card));
+  document.body.append(clone);
+  if (typeof clone.animate !== "function") { clone.remove(); return null; }
+
+  const dx = to.left + to.width / 2 - (from.left + from.width / 2);
+  const dy = to.top + to.height / 2 - (from.top + from.height / 2);
+  const scale = Math.max(0.6, Math.min(1.35, from.width / width));
+  const animation = clone.animate([
+    { transform: `translate3d(0,0,0) scale(${scale}) rotate(-14deg)`, opacity: 0.55 },
+    { transform: `translate3d(${dx * 0.55}px,${dy * 0.55}px,0) scale(${(scale + 1) / 2}) rotate(-5deg)`, opacity: 1, offset: 0.6 },
+    { transform: `translate3d(${dx}px,${dy}px,0) scale(1) rotate(0deg)`, opacity: 1 },
+  ], { duration: FLIGHT_MS, easing: "cubic-bezier(.24,.86,.3,1)", fill: "both" });
+
+  const done = animation.finished.catch(() => {}).then(() => clone.remove());
+  flightPromises.add(done);
+  done.finally(() => flightPromises.delete(done));
+  flightsIdle = Promise.allSettled([...flightPromises]).then(() => {});
+  return done;
+}
+
+/** Compara o último lance público com o anterior e anima a carta que acabou de cair na mesa. */
+function latestPlay(view) {
+  const plays = Array.isArray(view.plays) ? view.plays : [];
+  for (let i = plays.length - 1; i >= 0; i--) {
+    const play = plays[i];
+    if (play?.action === "play" && play.card) return play;
+  }
+  return null;
+}
+
+function tableCenterRect() {
+  const box = els.tableCards.getBoundingClientRect();
+  if (!box.width) return null;
+  return { left: box.left + box.width / 2 - 46, top: box.top + box.height / 2 - 69, width: 92, height: 138 };
+}
+
+function animateTablePlays(view) {
+  const play = latestPlay(view);
+  const key = play ? [view.handNo, play.seat, play.card, play.round].join(":") : null;
+  const first = !playWatcher.ready;
+  playWatcher.ready = true;
+  if (!key || key === playWatcher.key) return;
+  playWatcher.key = key;
+  if (first || reducedMotion()) return;                 // entrada no meio da mão: sem voo retroativo
+
+  /* A mesa guarda a carta jogada; quando a mão fecha, a mesa já foi limpa e o voo vai para o centro. */
+  const board = els.tableCards.querySelector(`[data-card="${play.card}"][data-seat="${play.seat}"]`);
+  const target = board ? board.getBoundingClientRect() : tableCenterRect();
+  const flight = flyCard(play.card, originFor(view, play.seat, play.card), target);
+  if (!flight || !board) return;
+  board.style.visibility = "hidden";                    // a carta real aparece quando o voo chega
+  flight.then(() => { board.style.visibility = ""; });
+}
+
+/* ---------- efeito de truco ---------- */
+
+function fxName(seat) {
+  if (seat == null) return "Jogador";
+  if (mode === "online" && seat === online?.mySeat) return "Você";
+  return playerName(seat);
+}
+
+function trucoCopy(view, last) {
+  const name = fxName(last.seat);
+  const responder = view.pending?.responder;
+  const answer = responder != null ? ` Falta ${fxName(responder)} responder.` : "";
+  if (last.action === "truco") {
+    const label = TRUCO_NAMES[last.value] ?? "Truco";
+    return { tone: "call", kicker: `${name} pediu`, title: label.toUpperCase(), text: `Aposta de ${last.value} pontos.${answer}` };
+  }
+  if (last.action === "raise") {
+    const label = TRUCO_NAMES[last.value] ?? `Vale ${last.value}`;
+    return { tone: "raise", kicker: `${name} aumentou`, title: label.toUpperCase(), text: `Aposta em ${last.value} pontos.${answer}` };
+  }
+  if (last.action === "accept") {
+    return { tone: "accept", kicker: `${name} aceitou`, title: `VALE ${last.value}`, text: `A mão vale ${last.value} pontos.` };
+  }
+  return { tone: "mao", kicker: "Mão de onze", title: "VALE 3", text: `${name} decidiu jogar a mão valendo 3.` };
+}
+
+function foldCopy(view, hand) {
+  const name = fxName(hand.foldedBy);
+  const points = hand.points ?? 1;
+  const winner = isTeamGame(view) && hand.team != null ? teamLabel(hand.team) : fxName(hand.winner);
+  return {
+    tone: "fold",
+    kicker: hand.reason === "mao_fold" ? `${name} correu da mão de onze` : `${name} correu`,
+    title: `+${points}`,
+    text: `${winner} leva ${plural(points, "ponto", "pontos")}.`,
+  };
+}
+
+function showTrucoFx({ tone = "call", kicker = "", title = "", text = "" }) {
+  if (!els.trucoFx || !title) return;
+  clearTimeout(trucoFxTimer);
+  clearTimeout(shakeTimer);
+  els.trucoFx.className = `truco-fx ${tone}`;
+  els.trucoFx.setAttribute("aria-hidden", "false");
+  els.trucoFxKicker.textContent = kicker;
+  els.trucoFxTitle.textContent = title;
+  els.trucoFxText.textContent = text;
+  void els.trucoFx.offsetWidth;                          // reinicia a animação mesmo em eventos seguidos
+  els.trucoFx.classList.add("show");
+
+  if (!reducedMotion()) {
+    els.tableGrid.classList.remove("truco-shake");
+    void els.tableGrid.offsetWidth;
+    els.tableGrid.classList.add("truco-shake");
+    shakeTimer = setTimeout(() => els.tableGrid.classList.remove("truco-shake"), 620);
+  }
+
+  trucoFxIdle = new Promise(resolve => {
+    trucoFxTimer = setTimeout(() => {
+      els.trucoFx.classList.remove("show");
+      els.trucoFx.setAttribute("aria-hidden", "true");
+      resolve();
+    }, reducedMotion() ? 900 : FX_MS);
+  });
+}
+
+function lastSignature(view) {
+  const last = view?.last;
+  if (!last) return "";
+  return [view.handNo, last.action, last.seat, last.value, last.choice, last.round, last.winner, last.tie].join(":");
+}
+
+function handSignature(hand) {
+  if (!hand) return "";
+  return [hand.handNo, hand.reason, hand.points, hand.winner, hand.team, hand.foldedBy].join(":");
+}
+
+/** Dispara o efeito uma única vez por evento, para todos os clientes (o estado público traz last/lastHand). */
+function syncTrucoFx(view) {
+  const nextKeys = { last: lastSignature(view), hand: handSignature(view.lastHand), first: false };
+  const previous = fxKeys;
+  fxKeys = nextKeys;
+  if (previous.first) return;
+
+  const hand = view.lastHand;
+  if (nextKeys.hand && nextKeys.hand !== previous.hand && hand?.foldedBy != null
+    && (hand.reason === "fold" || hand.reason === "mao_fold")) {
+    showTrucoFx(foldCopy(view, hand));
+    return;
+  }
+
+  const last = view.last;
+  if (!nextKeys.last || nextKeys.last === previous.last || !last || !FX_ACTIONS.has(last.action)) return;
+  if (last.action === "mao" && last.choice !== "play") return;
+  showTrucoFx(trucoCopy(view, last));
+}
+
 function renderTableCards(view) {
   const cards = Array.isArray(view.table) ? view.table : [];
   const seats = view.counts?.length ?? 2;
@@ -429,6 +672,8 @@ function renderTableCards(view) {
     const wrapper = document.createElement("div");
     wrapper.className = "played-card";
     const board = cardNode(play.card);
+    board.dataset.card = play.card;
+    board.dataset.seat = String(play.seat);
     const label = document.createElement("span");
     label.className = "played-by";
     label.textContent = playerName(play.seat);
@@ -599,8 +844,9 @@ function renderHand(view) {
   const nodes = hand.map(id => {
     const playable = active && view.canPlay;
     const node = cardNode(id, { playable });
+    node.dataset.card = id;
     if (playable) {
-      node.addEventListener("click", () => onCard(id, view));
+      node.addEventListener("click", event => onCard(id, view, event.currentTarget));
       node.title = cardShort(id);
     } else {
       node.title = cardName(id);
@@ -653,8 +899,9 @@ function renderTimer() {
 
 /* ===================== lances ===================== */
 
-function onCard(id, view) {
+function onCard(id, view, node) {
   if (!canAct(view) || !view.canPlay) return;
+  recordFlightOrigin(view.seat, id, node);
   move({ action: "play", card: id });
 }
 
@@ -670,16 +917,27 @@ function localMove(input) {
   const result = partyMove(local.state, actor, input, ctxOf(local.state));
   if (!result) { flash("Jogada inválida."); return; }
   local.state = result.state;
-  if (result.ranking) { finishLocal(result.ranking, result.reason); return; }
+  /* A mesa fica no jogador que jogou até o voo da carta e o efeito de truco terminarem; o relógio do
+     próximo turno só começa depois disso, para a animação não custar tempo de jogada a ninguém. */
+  local.viewSeat = actor;
+  local.deadline = 0;
+  render();
+  const wait = fxWait();
+
+  if (result.ranking) { wait.then(() => finishLocal(result.ranking, result.reason)); return; }
 
   const next = result.turn;
-  local.viewSeat = next;
-  if (next === actor) {
-    local.deadline = performance.now() + local.seconds * 1000;
-    render();
-  } else {
-    openGate(next);
-  }
+  if (next == null) return;
+  wait.then(() => {
+    if (!local || local.ended || local.state.turn !== next) return;
+    local.viewSeat = next;
+    if (next === actor) {
+      local.deadline = performance.now() + local.seconds * 1000;
+      render();
+    } else {
+      openGate(next);
+    }
+  });
 }
 
 async function onlineMove(input) {
@@ -733,16 +991,29 @@ function localTimeout() {
   const next = timeoutTurn(local.state, seat, ctxOf(local.state));
   if (!next) return;
   local.state = next;
-  if (next.ranking) { finishLocal(next.ranking, next.lastHand?.reason ?? "timeout"); return; }
+  local.viewSeat = seat;
+  local.deadline = 0;
+  render();
+  const wait = fxWait();
+
+  if (next.ranking) {
+    wait.then(() => finishLocal(next.ranking, next.lastHand?.reason ?? "timeout"));
+    flash(`${playerName(seat)} não jogou a tempo: a jogada automática foi feita.`);
+    return;
+  }
 
   const nextSeat = next.turn;
-  local.viewSeat = nextSeat;
-  if (nextSeat === seat) {
-    local.deadline = performance.now() + local.seconds * 1000;
-    render();
-  } else {
-    openGate(nextSeat);
-  }
+  if (nextSeat == null) return;
+  wait.then(() => {
+    if (!local || local.ended || local.state.turn !== nextSeat) return;
+    local.viewSeat = nextSeat;
+    if (nextSeat === seat) {
+      local.deadline = performance.now() + local.seconds * 1000;
+      render();
+    } else {
+      openGate(nextSeat);
+    }
+  });
   flash(`${playerName(seat)} não jogou a tempo: a jogada automática foi feita.`);
 }
 
@@ -813,6 +1084,7 @@ function clearLocal() {
   gateOpen = false;
   gateSeat = null;
   els.gate.hidden = true;
+  resetFx();
 }
 
 function startLocalGame() {
@@ -895,6 +1167,7 @@ function onlineResultLabel({ outcome, placement }) {
 
 function startOnline() {
   if (online) return online;
+  resetFx();
   online = createPartySession();
   partyUi = mountPartyUi(els.partyHost, online, {
     title: "Truco Paulista",
