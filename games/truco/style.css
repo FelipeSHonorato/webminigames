@@ -1,4 +1,4 @@
-/* Truco Paulista 1×1 — mesa de feltro, placar grande, cartas desenhadas em CSS e ações de truco. */
+/* Truco Paulista 2–4 jogadores — mesa de feltro, placar grande, cartas desenhadas em CSS e ações de truco. */
 :root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
 --bg:#e9eef3;--fg:#14213d;--surface:#fff;--line:#c3ced9;--grid:#c3ced9;--muted:#5b6b7e;--accent:#b33a2f;--accent-fg:#fff;
 --chip:#eef2f7;--bad:#d64545;--good:#0f766e;--gold:#e0a824;--felt-1:#246d4d;--felt-2:#14442f;--felt-line:rgba(255,255,255,.16);
@@ -30,6 +30,7 @@ button{font:inherit;color:inherit}
 .pick legend{padding:0;margin:0 0 9px;font-weight:800;font-size:.9rem;color:var(--muted)}
 .setup-hint{margin:8px 0 0;color:var(--muted);font-size:.74rem;line-height:1.4}
 .format-lock{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:13px 14px;border:2px solid var(--accent);border-radius:12px;background:var(--chip)}
+.option-grid + .format-lock{margin-top:10px}
 .format-lock b{font-size:1.35rem;letter-spacing:.02em;color:var(--accent)}
 .format-lock small{color:var(--muted);font-size:.78rem;line-height:1.4}
 .option-grid{display:grid;gap:9px}
@@ -62,8 +63,15 @@ button{font:inherit;color:inherit}
 .game-head h1{margin:0}
 .status{margin:0 0 6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--surface);font-size:.84rem;font-weight:800;color:var(--accent);max-width:100%;text-align:right}
 
-.table-grid{display:grid;grid-template-columns:minmax(0,1fr);grid-template-areas:"top" "center" "bottom";gap:10px}
-.slot-top{grid-area:top}.slot-center{grid-area:center}.slot-bottom{grid-area:bottom}
+/* Mesma geometria do UNO: colunas laterais com a espessura de uma barra de jogador. No 1×1 as laterais somem. */
+.table-grid{--mini-w:clamp(17px,3vw,24px);--avatar:38px;--bar-pad:7px;--bar-pad-long:11px;
+  --bar-t:calc(max(calc(var(--mini-w) * 1.5),var(--avatar)) + var(--bar-pad) * 2 + 2px);
+  display:grid;grid-template-columns:var(--bar-t) minmax(0,1fr) var(--bar-t);
+  grid-template-areas:"left top right" "left center right" "left bottom right";gap:10px;align-items:stretch}
+.table-grid.two-players{grid-template-columns:minmax(0,1fr);grid-template-areas:"top" "center" "bottom"}
+.table-grid.two-players .slot-left,.table-grid.two-players .slot-right{display:none}
+.slot-left{grid-area:left}.slot-top{grid-area:top}.slot-right{grid-area:right}.slot-center{grid-area:center}.slot-bottom{grid-area:bottom}
+.slot-left,.slot-right{display:flex;min-width:0}
 .opponent-host{display:flex;width:100%;min-width:0}
 .opponent-host:empty{display:none}
 
@@ -74,9 +82,10 @@ button{font:inherit;color:inherit}
 
 .scoreboard{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;gap:clamp(16px,6vw,46px);padding:4px 10px}
 .score-side{display:flex;flex-direction:column;align-items:center;gap:0;min-width:88px}
-.score-side span{font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,255,248,.72);max-width:16ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.score-side span{font-size:.72rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:rgba(244,255,248,.72);max-width:18ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .score-side b{font-size:clamp(2.4rem,8vw,3.5rem);line-height:1;font-variant-numeric:tabular-nums;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.35)}
-.score-top b{color:#ffe9a8}
+.score-side.team-a span{color:#ffc2b5}
+.score-side.team-b span{color:#ffe9a8}
 .score-x{font-size:1.4rem;font-weight:900;color:rgba(255,255,255,.45)}
 .score-side.at-eleven b{color:var(--gold);text-shadow:0 0 18px rgba(224,168,36,.55)}
 
@@ -85,7 +94,7 @@ button{font:inherit;color:inherit}
 .turn-timer{margin-left:auto;padding:2px 9px;border-radius:999px;background:rgba(0,0,0,.22);font-variant-numeric:tabular-nums}
 .turn-timer.low{background:var(--bad);color:#fff}
 
-.table-cards{position:relative;z-index:1;display:flex;align-items:flex-end;justify-content:center;gap:clamp(14px,5vw,34px);min-height:150px;width:100%}
+.table-cards{position:relative;z-index:1;display:flex;align-items:flex-end;justify-content:center;flex-wrap:wrap;gap:clamp(12px,4vw,30px);row-gap:8px;min-height:150px;width:100%}
 .played-card{display:flex;flex-direction:column;align-items:center;gap:5px}
 .played-by{font-size:.62rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:rgba(244,255,248,.72);max-width:12ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .played-card.winner .truco-card{box-shadow:0 0 0 3px var(--gold),0 8px 18px rgba(0,0,0,.3)}
@@ -96,21 +105,35 @@ button{font:inherit;color:inherit}
 .table-actions .primary,.table-actions .secondary{padding:9px 15px;font-size:.86rem}
 .table-hint{position:relative;z-index:1;margin:0;min-height:1.3em;max-width:52ch;text-align:center;font-size:.78rem;line-height:1.35;color:rgba(244,255,248,.8)}
 
-.opponent{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:10px;width:100%;min-width:0;padding:8px 12px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.opponent{display:flex;flex-direction:column;align-items:center;gap:6px;width:100%;min-width:0;padding:8px;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:0 2px 8px rgba(0,0,0,.05)}
+.opponent.top,.opponent.bottom{flex-direction:row;align-items:center;justify-content:space-between;gap:10px;padding:var(--bar-pad) var(--bar-pad-long);min-height:var(--bar-t)}
+.opponent.team-a{--team-color:var(--accent)}
+.opponent.team-b{--team-color:var(--gold)}
+.opponent.team-a,.opponent.team-b{border-color:color-mix(in srgb,var(--team-color) 55%,var(--line))}
+.opponent.team-a .opponent-count,.opponent.team-b .opponent-count{color:var(--team-color)}
 .opponent.turn{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 28%,transparent)}
 .opponent.out{opacity:.5}
 .opponent-profile{display:flex;align-items:center;gap:8px;min-width:0}
-.opponent-avatar{display:grid;place-items:center;width:38px;height:38px;flex:none;border-radius:50%;overflow:hidden;background:var(--chip);border:2px solid var(--line);color:var(--muted)}
+.opponent-avatar{display:grid;place-items:center;width:var(--avatar);height:var(--avatar);flex:none;border-radius:50%;overflow:hidden;background:var(--chip);border:2px solid var(--line);color:var(--muted)}
 .opponent-avatar .avatar{display:block;width:100%;height:100%;border-radius:50%;object-fit:cover}
 .opponent-meta{display:flex;flex-direction:column;min-width:0;line-height:1.15}
 .opponent-name{font-size:.82rem;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .opponent-count{font-size:.68rem;color:var(--muted);font-weight:700;white-space:nowrap}
 .opponent-count.eleven{color:var(--accent)}
 .opponent-hand{display:flex;align-items:center;justify-content:flex-end;min-width:0;overflow:hidden;padding-left:6px}
-.mini-back{display:block;width:clamp(17px,3vw,24px);aspect-ratio:2/3;border-radius:4px;border:1px solid rgba(255,255,255,.5);
+.mini-back{display:block;width:var(--mini-w);aspect-ratio:2/3;border-radius:4px;border:1px solid rgba(255,255,255,.5);
   background:repeating-linear-gradient(45deg,#8f2b25 0 3px,#b33a2f 3px 6px);box-shadow:0 1px 3px rgba(0,0,0,.25)}
 .mini-back + .mini-back{margin-left:-8px}
 .opponent-hand .more{font-size:.68rem;font-weight:800;color:var(--muted);margin-left:5px;white-space:nowrap}
+/* Laterais = a barra do topo girada 90°: o texto inteiro lê de cima para baixo e as cartas ficam empilhadas. */
+.opponent.side{justify-content:space-between;padding:var(--bar-pad-long) var(--bar-pad)}
+.opponent.side .opponent-profile{flex-direction:column;gap:6px;text-align:center}
+.opponent.side .opponent-meta{writing-mode:vertical-rl;text-orientation:mixed;align-items:flex-start;gap:3px}
+.opponent.side .opponent-name{max-height:120px;font-weight:500}
+.opponent.side .opponent-count{font-weight:400}
+.opponent.side .opponent-hand{flex-direction:column;justify-content:flex-start;align-items:center;padding:0;overflow:visible}
+.opponent.side .mini-back + .mini-back{margin-left:0;margin-top:-8px}
+.opponent.side .more{margin:5px 0 0}
 
 /* ---------- cartas ---------- */
 .truco-card{position:relative;display:flex;flex:none;flex-direction:column;width:clamp(68px,12vw,92px);aspect-ratio:2/3;padding:0;border:2px solid var(--card-line);border-radius:10px;background:#fff;color:#18212b;box-shadow:0 5px 14px rgba(0,0,0,.24);overflow:hidden;cursor:default;-webkit-tap-highlight-color:transparent}
@@ -154,13 +177,19 @@ button.truco-card:disabled{cursor:not-allowed;filter:brightness(.75) saturate(.7
 
 @media (max-width:640px){
   main{padding:14px 10px 30px}
+  .table-grid{--mini-w:16px;--avatar:32px;--bar-pad:6px;--bar-pad-long:8px;gap:6px}
   .table-center{min-height:350px;padding:14px 10px;border-radius:16px}
   .table-center::after{inset:5px;border-radius:11px}
-  .score-side{min-width:70px}
-  .table-cards{min-height:132px;gap:14px}
-  .opponent{padding:7px 9px;border-radius:11px}
+  .scoreboard{gap:clamp(10px,4vw,24px);padding:4px 2px}
+  .score-side{min-width:64px}
+  .score-side span{font-size:.64rem;max-width:15ch}
+  .table-cards{min-height:132px;gap:12px}
+  .table-cards .truco-card{width:clamp(58px,15vw,78px)}
+  .opponent{padding:6px;border-radius:11px}
   .opponent-name{font-size:.74rem}
   .opponent-count{font-size:.62rem}
+  .opponent.side .opponent-name{max-height:92px}
+  .opponent.side .opponent-meta{gap:2px}
   .table-actions .primary,.table-actions .secondary{flex:1 1 120px}
   .status{font-size:.76rem;text-align:left}
   .turn-timer{margin-left:0}

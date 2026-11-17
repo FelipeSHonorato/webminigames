@@ -565,7 +565,7 @@ test("Edge: só UNO e Truco declaram PARTY (converter jogo antigo mudaria as reg
   assert.equal(PARTIES.uno.maxPlayers, 4);
   assert.equal(PARTIES.uno.order, "turns");
   assert.equal(PARTIES.truco.minPlayers, 2);
-  assert.equal(PARTIES.truco.maxPlayers, 2, "Truco Paulista é 1×1");
+  assert.equal(PARTIES.truco.maxPlayers, 4, "Truco Paulista vai até duplas 2×2");
   assert.equal(PARTIES.truco.order, "turns");
   assert.equal(PARTIES.truco.onTimeout, "out");
   assert.equal(partyOf("chess"), null);

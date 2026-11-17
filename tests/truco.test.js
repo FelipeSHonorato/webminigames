@@ -3,8 +3,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  PARTY, TARGET, buildDeck, cardName, cardOf, cardShort, isManilha, manilhaName,
-  nextTrucoValue, partyMove, partyStart, partyView, placements, strengthOf, timeoutTurn,
+  PARTY, TARGET, TEAM_NAMES, buildDeck, cardName, cardOf, cardShort, isManilha, manilhaName,
+  nextTrucoValue, partyMove, partyStart, partyView, placements, strengthOf, teamOf, timeoutTurn,
 } from "../games/truco/domain.js";
 import { makeRng } from "../shared/rng.js";
 
@@ -33,10 +33,34 @@ const stateOf = (over = {}) => ({
   lastHand: null,
   plays: [],
   winner: null,
+  winnerTeam: null,
   ranking: null,
   seed: 123456789,
   ...over,
 });
+
+/** Mesa de 4 jogadores em duplas (1 & 3 contra 2 & 4). */
+const stateOf4 = (over = {}) => stateOf({
+  hands: [
+    ["3-clubs", "2-hearts", "A-clubs"],
+    ["2-clubs", "A-hearts", "K-clubs"],
+    ["3-hearts", "2-spades", "K-hearts"],
+    ["4-diamonds", "5-hearts", "6-clubs"],
+  ],
+  ...over,
+});
+
+/** Joga uma vaza com um lance por assento, na ordem dada. */
+const playSeats = (state, plays, ctx = {}) => {
+  let current = state;
+  let result = null;
+  for (const [seat, card] of plays) {
+    result = partyMove(current, seat, { action: "play", card }, ctx);
+    assert.ok(result, `carta inválida: assento ${seat}, ${card}`);
+    current = result.state;
+  }
+  return result;
+};
 
 /** Joga uma vaza inteira (assento 1 e depois o assento 2, ou vice-versa). */
 const playRound = (state, firstSeat, firstCard, secondSeat, secondCard) => {
@@ -110,10 +134,32 @@ test("truco: 1×1 recebe 3 cartas cada, sem repetir e com seed no estado", () =>
   }
 });
 
-test("truco: partyStart recusa mesas fora de 1×1 e sem rng", () => {
+test("truco: 2×2 recebe 3 cartas para cada um dos 4 assentos, sem repetir", () => {
+  for (let seed = 1; seed <= 40; seed++) {
+    const { state, turn } = partyStart({ seats: [1, 2, 3, 4], rng: makeRng(seed) });
+    assert.equal(state.hands.length, 4);
+    assert.ok(state.hands.every(hand => hand.length === 3), "cada jogador recebe 3 cartas");
+    assert.equal(new Set(state.hands.flat()).size, 12, "nenhuma carta repete na distribuição de 4 jogadores");
+    assert.ok(state.hands.flat().every(id => cardOf(id)));
+    assert.deepEqual(state.points, [0, 0], "o placar é por dupla");
+    assert.deepEqual(state.roundWins, [0, 0]);
+    assert.equal(state.handNo, 1);
+    assert.equal(state.handValue, 1);
+    assert.equal(state.turn, 1);
+    assert.equal(turn, 1);
+    assert.equal(state.phase, "playing");
+    assert.ok(Number.isInteger(state.seed));
+  }
+});
+
+test("truco: partyStart aceita só mesas de 2 ou 4 jogadores e exige rng", () => {
   assert.throws(() => partyStart({ seats: [1], rng: makeRng(1) }), /bad_players/);
   assert.throws(() => partyStart({ seats: [1, 2, 3], rng: makeRng(1) }), /bad_players/);
+  assert.throws(() => partyStart({ seats: [1, 2, 3, 4, 5], rng: makeRng(1) }), /bad_players/);
+  assert.throws(() => partyStart({ seats: [2, 3], rng: makeRng(1) }), /bad_players/, "assentos precisam ser 1..n");
   assert.throws(() => partyStart({ seats: [1, 2] }), /rng/);
+  assert.ok(partyStart({ seats: [1, 2], rng: makeRng(1) }).state);
+  assert.ok(partyStart({ seats: [1, 2, 3, 4], rng: makeRng(1) }).state);
 });
 
 /* ---------- vazas, empates e pontos ---------- */
@@ -349,7 +395,10 @@ test("truco: a visão entrega a própria mão e a mesa, sem seed nem mão alheia
   const view = partyView(state, 1);
   assert.deepEqual(view.hand, ["3-clubs", "4-hearts", "5-clubs"]);
   assert.deepEqual(view.points, [0, 0]);
-  assert.deepEqual(view.counts, [{ seat: 1, cards: 3, out: false }, { seat: 2, cards: 3, out: false }]);
+  assert.deepEqual(view.counts, [
+    { seat: 1, team: 0, cards: 3, out: false },
+    { seat: 2, team: 1, cards: 3, out: false },
+  ]);
   assert.deepEqual(view.table, [{ seat: 2, card: "6-clubs" }]);
   const json = JSON.stringify(view);
   assert.ok(!json.includes("seed"), "a seed nunca vai para a view");
@@ -378,12 +427,251 @@ test("truco: estouro de tempo joga a carta mais fraca; em truco ou mão de onze,
 
 /* ---------- contrato PARTY ---------- */
 
-test("truco: contrato PARTY declara 1×1, por turnos, tempo e eliminação no estouro", () => {
+test("truco: contrato PARTY declara 2 ou 4 jogadores, por turnos, tempo e eliminação no estouro", () => {
   assert.equal(PARTY.minPlayers, 2);
-  assert.equal(PARTY.maxPlayers, 2);
+  assert.equal(PARTY.maxPlayers, 4);
+  assert.deepEqual(PARTY.playerCounts, [2, 4], "a mesa só existe em 1×1 ou duplas 2×2");
   assert.equal(PARTY.order, "turns");
   assert.equal(PARTY.onTimeout, "out");
   assert.equal(TARGET, 12);
   assert.ok(PARTY.turnOptions.includes(PARTY.turnSeconds));
   assert.ok(PARTY.maxSeconds >= 30);
+});
+
+/* ---------- duplas 2×2 ---------- */
+
+test("truco: duplas têm parceiros opostos e nomes próprios", () => {
+  assert.equal(teamOf(1), 0);
+  assert.equal(teamOf(2), 1);
+  assert.equal(teamOf(3), 0);
+  assert.equal(teamOf(4), 1);
+  assert.equal(teamOf(null), null);
+  assert.deepEqual(TEAM_NAMES, ["Dupla A", "Dupla B"]);
+});
+
+test("truco: no 2×2 a vaza é da dupla da carta mais alta e os pontos são compartilhados", () => {
+  const state = stateOf4({
+    hands: [
+      ["3-clubs", "3-spades", "A-clubs"],
+      ["2-clubs", "2-hearts", "K-clubs"],
+      ["3-hearts", "2-diamonds", "K-hearts"],
+      ["4-diamonds", "5-hearts", "6-clubs"],
+    ],
+  });
+  const round1 = playSeats(state, [[1, "3-clubs"], [2, "2-clubs"], [3, "3-hearts"], [4, "4-diamonds"]]);
+  assert.equal(round1.state.round, 2);
+  assert.equal(round1.state.roundResults[0].team, 0, "assentos 1 e 3 formam a dupla vencedora");
+  assert.equal(round1.state.roundResults[0].winner, 1);
+  assert.deepEqual(round1.state.roundWins, [1, 0]);
+  assert.equal(round1.turn, 1, "quem venceu a vaza abre a próxima");
+
+  const round2 = playSeats(round1.state, [[1, "3-spades"], [2, "2-hearts"], [3, "2-diamonds"], [4, "5-hearts"]]);
+  assert.equal(round2.state.lastHand.rounds[1].team, 0, "a segunda vaza também é da dupla A");
+  assert.equal(round2.state.points[0], 1, "a dupla A soma 1 ponto da mão");
+  assert.equal(round2.state.points[1], 0);
+  assert.equal(round2.state.lastHand.team, 0);
+  assert.equal(round2.state.lastHand.winner, 1);
+  assert.equal(round2.state.handNo, 2);
+});
+
+test("truco: no 2×2 dois parceiros no topo da vaza ainda dão a vaza à dupla", () => {
+  const state = stateOf4({
+    hands: [
+      ["3-clubs", "2-hearts", "A-clubs"],
+      ["4-diamonds", "5-hearts", "6-clubs"],
+      ["3-hearts", "2-spades", "K-hearts"],
+      ["4-hearts", "5-clubs", "6-hearts"],
+    ],
+  });
+  const round1 = playSeats(state, [[1, "3-clubs"], [2, "4-diamonds"], [3, "3-hearts"], [4, "4-hearts"]]);
+  assert.equal(round1.state.roundResults[0].tie, false);
+  assert.equal(round1.state.roundResults[0].team, 0);
+  assert.equal(round1.state.roundResults[0].winner, 1, "o assento 1 é o representante da dupla na vaza");
+  assert.deepEqual(round1.state.roundWins, [1, 0]);
+});
+
+test("truco: no 2×2 empate na 1ª vaza entre as duplas deixa a 2ª decidir a mão", () => {
+  const state = stateOf4({
+    hands: [
+      ["3-clubs", "2-hearts", "A-clubs"],
+      ["3-hearts", "3-diamonds", "2-diamonds"],
+      ["2-spades", "K-hearts", "A-diamonds"],
+      ["4-diamonds", "5-hearts", "6-clubs"],
+    ],
+    points: [0, 0],
+  });
+  const round1 = playSeats(state, [[1, "3-clubs"], [2, "3-hearts"], [3, "2-spades"], [4, "4-diamonds"]]);
+  assert.equal(round1.state.roundResults[0].tie, true, "3♣ e 3♥ empatam entre as duplas");
+  assert.equal(round1.turn, 1, "quem abriu a vaza empatada abre a próxima");
+
+  const round2 = playSeats(round1.state, [[1, "2-hearts"], [2, "3-diamonds"], [3, "K-hearts"], [4, "5-hearts"]]);
+  assert.equal(round2.state.lastHand.rounds[1].tie, false);
+  assert.equal(round2.state.lastHand.rounds[1].team, 1, "a dupla B vence a segunda vaza");
+  assert.equal(round2.state.points[1], 1, "1ª empatada, 2ª vencida: a dupla B leva a mão");
+  assert.equal(round2.state.lastHand.team, 1);
+});
+
+test("truco: no 2×2 a terceira vaza decide a mão quando cada dupla venceu uma", () => {
+  const state = stateOf4({
+    hands: [
+      ["3-clubs", "2-hearts", "A-clubs"],
+      ["4-diamonds", "3-diamonds", "2-diamonds"],
+      ["2-spades", "K-hearts", "3-spades"],
+      ["5-clubs", "5-hearts", "6-clubs"],
+    ],
+  });
+  const round1 = playSeats(state, [[1, "3-clubs"], [2, "4-diamonds"], [3, "2-spades"], [4, "5-clubs"]]);
+  assert.equal(round1.state.roundResults[0].team, 0);
+  const round2 = playSeats(round1.state, [[1, "2-hearts"], [2, "3-diamonds"], [3, "K-hearts"], [4, "5-hearts"]]);
+  assert.equal(round2.state.roundResults[1].team, 1);
+  assert.equal(round2.state.round, 3);
+  const round3 = playSeats(round2.state, [[2, "2-diamonds"], [3, "3-spades"], [4, "6-clubs"], [1, "A-clubs"]]);
+  assert.equal(round3.state.lastHand.rounds[2].team, 0);
+  assert.equal(round3.state.points[0], 1);
+  assert.equal(round3.state.lastHand.team, 0);
+});
+
+test("truco: no 2×2 o truco vai para o próximo adversário e o aceite mantém a vez", () => {
+  const state = stateOf4();
+  const ask = partyMove(state, 1, { action: "truco" });
+  assert.ok(ask);
+  assert.equal(ask.turn, 2, "o adversário do assento 1 é o assento 2");
+  assert.deepEqual(ask.state.pending, { seat: 1, responder: 2, value: 3, stake: 1, resumeTurn: 1 });
+
+  const accept = partyMove(ask.state, 2, { action: "accept" });
+  assert.equal(accept.turn, 1);
+  assert.equal(accept.state.handValue, 3);
+  assert.equal(accept.state.nextRaiser, 2, "quem aceitou controla o próximo aumento");
+
+  const play = partyMove(accept.state, 1, { action: "play", card: "3-clubs" });
+  assert.equal(play.turn, 2);
+  const raise = partyMove(play.state, 2, { action: "truco" });
+  assert.ok(raise, "depois de jogar, o adversário pode pedir o próximo aumento");
+  assert.equal(raise.turn, 3, "o pedido do assento 2 vai para o assento 3 (próximo adversário)");
+  assert.deepEqual(raise.state.pending, { seat: 2, responder: 3, value: 6, stake: 3, resumeTurn: 2 });
+});
+
+test("truco: no 2×2 correr no retruco entrega o valor à dupla adversária", () => {
+  const state = stateOf4({ handValue: 3 });
+  const ask = partyMove(state, 1, { action: "truco" });
+  const retruco = partyMove(ask.state, 2, { action: "raise" });
+  assert.equal(retruco.turn, 3, "o retruco do assento 2 vai para o assento 3");
+  const fold = partyMove(retruco.state, 3, { action: "fold" });
+  assert.equal(fold.state.points[1], 6, "a dupla B recebe os 6 pontos que o retruco colocou em jogo");
+  assert.equal(fold.state.lastHand.reason, "fold");
+  assert.equal(fold.state.lastHand.team, 1);
+});
+
+test("truco: no 2×2 quem chega a 11 dá a mão de onze a um representante da dupla", () => {
+  const state = stateOf4({
+    points: [10, 5],
+    hands: [
+      ["3-clubs", "3-spades", "A-clubs"],
+      ["2-clubs", "2-hearts", "K-clubs"],
+      ["3-hearts", "2-diamonds", "K-hearts"],
+      ["4-diamonds", "5-hearts", "6-clubs"],
+    ],
+  });
+  const round1 = playSeats(state, [[1, "3-clubs"], [2, "2-clubs"], [3, "3-hearts"], [4, "4-diamonds"]]);
+  const round2 = playSeats(round1.state, [[1, "3-spades"], [2, "2-hearts"], [3, "2-diamonds"], [4, "5-hearts"]]);
+  assert.equal(round2.state.points[0], 11);
+  assert.equal(round2.state.phase, "mao");
+  assert.equal(round2.state.maoDeOnze, 1, "o assento 1 representa a dupla que cruzou 11");
+  assert.equal(round2.state.maoDeOnzeSeat, 1);
+  assert.equal(round2.state.handValue, 3);
+  assert.equal(round2.state.trucoLocked, true);
+  assert.equal(partyView(round2.state, 1).canChooseMao, true);
+  assert.equal(partyView(round2.state, 3).canChooseMao, false, "só o representante decide");
+});
+
+test("truco: no 2×2 as duas duplas em 11 jogam a mão de ferro valendo 3", () => {
+  const state = stateOf4({
+    points: [11, 10],
+    hands: [
+      ["2-clubs", "2-hearts", "K-clubs"],
+      ["3-clubs", "3-diamonds", "A-hearts"],
+      ["4-diamonds", "5-hearts", "6-clubs"],
+      ["5-clubs", "6-hearts", "4-hearts"],
+    ],
+  });
+  const round1 = playSeats(state, [[1, "2-clubs"], [2, "3-clubs"], [3, "4-diamonds"], [4, "5-clubs"]]);
+  const round2 = playSeats(round1.state, [[2, "3-diamonds"], [3, "5-hearts"], [4, "6-hearts"], [1, "2-hearts"]]);
+  assert.deepEqual(round2.state.points, [11, 11]);
+  assert.equal(round2.state.maoDeFerro, true);
+  assert.equal(round2.state.handValue, 3);
+  assert.equal(round2.state.trucoLocked, true);
+  assert.equal(round2.state.phase, "playing");
+});
+
+test("truco: no 2×2 a partida termina em 12 e o ranking agrupa as duplas", () => {
+  const state = stateOf4({
+    points: [10, 0],
+    handValue: 3,
+    hands: [
+      ["3-clubs", "3-spades", "A-clubs"],
+      ["2-clubs", "2-hearts", "K-clubs"],
+      ["3-hearts", "2-diamonds", "K-hearts"],
+      ["4-diamonds", "5-hearts", "6-clubs"],
+    ],
+  });
+  const round1 = playSeats(state, [[1, "3-clubs"], [2, "2-clubs"], [3, "3-hearts"], [4, "4-diamonds"]]);
+  const round2 = playSeats(round1.state, [[1, "3-spades"], [2, "2-hearts"], [3, "2-diamonds"], [4, "5-hearts"]]);
+  assert.equal(round2.state.points[0], 13);
+  assert.equal(round2.state.winnerTeam, 0);
+  assert.equal(round2.state.winner, 1);
+  assert.equal(round2.state.phase, "over");
+  assert.deepEqual(round2.state.ranking, [[1, 3], [2, 4]]);
+  assert.deepEqual(placements(round2.state.ranking), { 1: 1, 3: 1, 2: 3, 4: 3 });
+});
+
+test("truco: no 2×2 a view mostra a dupla, o time dos assentos e nenhuma mão alheia", () => {
+  const state = stateOf4();
+  const view = partyView(state, 1);
+  assert.equal(view.team, 0);
+  assert.deepEqual(view.teams, [[1, 3], [2, 4]]);
+  assert.deepEqual(view.points, [0, 0]);
+  assert.deepEqual(view.counts.map(entry => entry.seat), [1, 2, 3, 4]);
+  assert.deepEqual(view.counts.map(entry => entry.team), [0, 1, 0, 1]);
+  assert.deepEqual(view.hand, state.hands[0]);
+  assert.equal(view.canPlay, true);
+  const json = JSON.stringify(view);
+  assert.ok(!json.includes("seed"), "a seed nunca vai para a view");
+  for (const hand of state.hands.slice(1)) {
+    for (const card of hand) assert.ok(!json.includes(card), `carta alheia vazou: ${card}`);
+  }
+});
+
+test("truco: no 2×2 quem sai faz a dupla perder a partida no lance seguinte", () => {
+  const state = stateOf4();
+  const view = partyView(state, 1, { out: [2] });
+  assert.equal(view.phase, "playing", "o domínio ainda não fechou: o banco não conhece as duplas");
+  assert.equal(view.counts.find(entry => entry.seat === 2).out, true);
+
+  assert.equal(partyMove(state, 2, { action: "play", card: "2-clubs" }, { out: [2] }), null, "eliminado não joga");
+  const finished = partyMove(state, 1, { action: "play", card: "3-clubs" }, { out: [2] });
+  assert.ok(finished);
+  assert.equal(finished.reason, "elimination");
+  assert.equal(finished.state.phase, "over");
+  assert.equal(finished.state.winnerTeam, 0, "a dupla A continua com dois jogadores e vence");
+  assert.deepEqual(finished.state.ranking, [[1, 3], [4]]);
+  assert.equal(finished.state.lastHand.reason, "elimination");
+  assert.deepEqual(finished.state.lastHand.out, [2]);
+});
+
+test("truco: no 2×2 se as duas duplas perdem um jogador, a partida termina empatada", () => {
+  const state = stateOf4();
+  const finished = partyMove(state, 3, { action: "play", card: "3-hearts" }, { out: [1, 2] });
+  assert.ok(finished);
+  assert.equal(finished.reason, "elimination");
+  assert.equal(finished.state.winnerTeam, null);
+  assert.equal(finished.state.winner, null);
+  assert.deepEqual(finished.state.ranking, [[3, 4]]);
+});
+
+test("truco: no 2×2 o estouro local joga a carta mais fraca de quem está na vez", () => {
+  const state = stateOf4();
+  const timed = timeoutTurn(state, 1);
+  assert.equal(timed.table[0].card, "A-clubs", "A é a carta mais fraca da mão do assento 1");
+  assert.equal(timed.turn, 2);
+  assert.deepEqual(timed.table, [{ seat: 1, card: "A-clubs" }]);
 });

@@ -1,6 +1,7 @@
-/* TRUCO PAULISTA 1×1 — mesa, mão e ações de truco no navegador.
+/* TRUCO PAULISTA 2–4 JOGADORES — mesa, mão e ações de truco no navegador.
+   2 jogadores jogam 1×1; 4 jogadores jogam em duplas 2×2, com parceiros em assentos opostos.
    Toda a regra vem de ./domain.js (código puro, testado). Dois modos usam a MESMA mesa:
-   • local (hot-seat): os dois jogadores no mesmo aparelho; a mesa gira para o jogador da vez ficar embaixo e
+   • local (hot-seat): 2 ou 4 jogadores no mesmo aparelho; a mesa gira para o jogador da vez ficar embaixo e
      uma tela de "passar o dispositivo" esconde a mão entre um turno e outro;
    • online: sala por código; mãos, vez, tempo e ranking são decididos pela Edge + Postgres
      (shared/party-session.js + shared/party-ui.js). O navegador só recebe a visão do próprio assento. */
@@ -15,9 +16,9 @@ import { ACCEPT_EVENT } from "../../shared/duel-invites.js";
 import { avatarNode } from "../../shared/avatar.js";
 import { isDuelCode, normalizeCode } from "../../shared/duel-hub.js";
 import {
-  PARTY, RED_SUITS, SUIT_SYMBOLS, TRUCO_NAMES,
+  PARTY, RED_SUITS, SUIT_SYMBOLS, TEAM_NAMES, TRUCO_NAMES,
   cardName, cardOf, cardShort, isManilha, manilhaName, nextTrucoValue,
-  partyMove, partyStart, partyView, placements, timeoutTurn,
+  partyMove, partyStart, partyView, placements, teamOf, timeoutTurn,
 } from "./domain.js";
 
 const GAME_ID = "truco";
@@ -26,12 +27,13 @@ const CLOCK_TICK = 250;
 
 const $ = id => document.getElementById(id);
 const els = {
-  setup: $("setup"), timeOptions: $("timeOptions"), roomOptions: $("roomOptions"),
+  setup: $("setup"), playerOptions: $("playerOptions"), timeOptions: $("timeOptions"), roomOptions: $("roomOptions"),
+  formatTitle: $("formatTitle"), formatNote: $("formatNote"),
   startLocal: $("startLocal"), createRoom: $("createRoom"), duelNotice: $("duelNotice"),
   partyHost: $("partyHost"), game: $("game"), status: $("status"), main: document.querySelector("main"),
-  topPlayer: $("topPlayer"), bottomPlayer: $("bottomPlayer"),
-  scoreBottomName: $("scoreBottomName"), scoreBottomValue: $("scoreBottomValue"),
-  scoreTopName: $("scoreTopName"), scoreTopValue: $("scoreTopValue"),
+  tableGrid: document.querySelector(".table-grid"),
+  leftPlayer: $("leftPlayer"), topPlayer: $("topPlayer"), rightPlayer: $("rightPlayer"), bottomPlayer: $("bottomPlayer"),
+  scoreboard: $("scoreboard"),
   handNo: $("handNo"), handValue: $("handValue"), roundInfo: $("roundInfo"), turnTimer: $("turnTimer"),
   tableCards: $("tableCards"), roundResult: $("roundResult"), hint: $("hint"),
   trucoBtn: $("trucoBtn"), acceptBtn: $("acceptBtn"), raiseBtn: $("raiseBtn"), foldBtn: $("foldBtn"),
@@ -49,7 +51,7 @@ Music.play(GAME_ID);
 /* ===================== estado ===================== */
 
 let mode = "local";                                   // "local" (hot-seat) | "online"
-let settings = { seconds: PARTY.turnSeconds, open: true };
+let settings = { players: 2, seconds: PARTY.turnSeconds, open: true };
 let local = null;                                     // { state, viewSeat, seconds, deadline, ended, ranking, reason }
 let gateOpen = false;                                 // tela de passar o aparelho aberta (só local)
 let gateSeat = null;
@@ -59,9 +61,12 @@ let sending = false;                                  // lance online em trânsi
 let flashTimer = 0;
 
 const otherSeat = seat => (seat === 1 ? 2 : 1);
-const ctxOf = state => ({ seats: Array.from({ length: state.hands.length }, (_, i) => i + 1), out: [] });
+const seatsOf = n => Array.from({ length: Math.max(0, n | 0) }, (_, i) => i + 1);
+const ctxOf = state => ({ seats: seatsOf(state.hands.length), out: [] });
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const canOnline = () => Boolean(session && Cloud.active && Cloud.uid);
+const isTeamGame = view => (view?.counts?.length ?? 0) === 4;
+const teamLabel = team => TEAM_NAMES[team] ?? "Dupla";
 
 const ONLINE_MESSAGES = {
   duel_not_found: "Sala não encontrada. Confira o código com quem te convidou.",
@@ -74,7 +79,7 @@ const ONLINE_MESSAGES = {
   not_party_duel: "Essa sala não é de Truco.",
   bad_code: "Código inválido. Confira com quem te convidou.",
   bad_duel: "Sala inválida.",
-  bad_players: "A sala precisa ter exatamente dois jogadores.",
+  bad_players: "A sala precisa ter a quantidade de jogadores escolhida: 2 (1×1) ou 4 (duplas 2×2).",
   closed_room: "Essa sala é fechada: só entra com o código do convite.",
   too_many_open: "Você já tem uma sala aberta. Abra-a em Salas Online ou saia dela antes de criar outra.",
   invalid_move: "Jogada inválida. A mesa já foi atualizada.",
@@ -98,13 +103,29 @@ const onlineMessage = e => {
 /* ===================== opções do setup ===================== */
 
 function syncOptions() {
+  for (const button of els.playerOptions.querySelectorAll("[data-players]")) {
+    button.setAttribute("aria-pressed", String(Number(button.dataset.players) === settings.players));
+  }
   for (const button of els.timeOptions.querySelectorAll("[data-seconds]")) {
     button.setAttribute("aria-pressed", String(Number(button.dataset.seconds) === settings.seconds));
   }
   for (const button of els.roomOptions.querySelectorAll("[data-open]")) {
     button.setAttribute("aria-pressed", String((button.dataset.open === "true") === settings.open));
   }
+  const teams = settings.players === 4;
+  els.formatTitle.textContent = teams ? "Duplas 2 × 2" : "1 × 1";
+  els.formatNote.textContent = teams
+    ? "Parceiros em assentos opostos (1 e 3 contra 2 e 4) · placar da dupla · partida até 12 pontos"
+    : "Truco Paulista · 40 cartas · cada um por si · partida até 12 pontos";
 }
+
+els.playerOptions.addEventListener("click", event => {
+  const button = event.target.closest("[data-players]");
+  if (!button) return;
+  const players = Number(button.dataset.players);
+  if (PARTY.playerCounts.includes(players)) settings.players = players;
+  syncOptions();
+});
 
 els.timeOptions.addEventListener("click", event => {
   const button = event.target.closest("[data-seconds]");
@@ -216,11 +237,26 @@ function renderOnline() {
   renderTable(online.view, online.mySeat ?? online.view.seat);
 }
 
+/** Posições ao redor da mesa, na mesma ordem do UNO: sozinho no topo ou esquerda, topo e direita. */
+function positionSeats(view, bottom) {
+  const n = view.counts?.length ?? 2;
+  if (n <= 2) return { top: otherSeat(bottom) };
+  const positions = ["left", "top", "right"];
+  const seats = {};
+  positions.forEach((position, index) => {
+    seats[position] = ((bottom - 1 + index + 1) % n) + 1;
+  });
+  return seats;
+}
+
 function renderTable(view, bottomSeat) {
-  const topSeat = otherSeat(bottomSeat);
-  renderPlayer(view, topSeat, "top");
+  els.tableGrid.classList.toggle("two-players", (view.counts?.length ?? 2) <= 2);
+  const around = positionSeats(view, bottomSeat);
+  renderPlayer(view, around.left, "left");
+  renderPlayer(view, around.top, "top");
+  renderPlayer(view, around.right, "right");
   renderPlayer(view, bottomSeat, "bottom");
-  renderScore(view, bottomSeat, topSeat);
+  renderScore(view, bottomSeat);
   renderMatchInfo(view);
   renderTableCards(view);
   renderActions(view);
@@ -231,8 +267,13 @@ function renderTable(view, bottomSeat) {
 
 function playerBar(view, seat, role) {
   const entry = countOf(view, seat);
+  const team = teamOf(seat);
+  const points = view.points?.[team] ?? 0;
   const node = document.createElement("div");
-  node.className = "opponent" + (view.turn === seat ? " turn" : "") + (entry.out ? " out" : "");
+  node.className = "opponent " + (role === "top" || role === "bottom" ? role : "side")
+    + (isTeamGame(view) ? ` team-${team === 0 ? "a" : "b"}` : "")
+    + (view.turn === seat ? " turn" : "")
+    + (entry.out ? " out" : "");
 
   const profile = document.createElement("div");
   profile.className = "opponent-profile";
@@ -245,12 +286,12 @@ function playerBar(view, seat, role) {
   name.className = "opponent-name";
   name.textContent = role === "bottom" && mode === "online" ? "Você" : displayName(seat);
   const count = document.createElement("span");
-  count.className = "opponent-count" + ((view.points?.[seat - 1] ?? 0) >= 11 ? " eleven" : "");
-  count.textContent = `${plural(view.points?.[seat - 1] ?? 0, "ponto", "pontos")} · ${countText(entry)}`;
+  count.className = "opponent-count" + (points >= 11 ? " eleven" : "");
+  count.textContent = `${plural(points, "ponto", "pontos")} · ${countText(entry)}`;
   meta.append(name, count);
   profile.append(avatar, meta);
 
-  if (role === "top") {
+  if (role !== "bottom") {
     const hand = document.createElement("div");
     hand.className = "opponent-hand";
     const shown = Math.min(entry.cards, 4);
@@ -270,26 +311,52 @@ function playerBar(view, seat, role) {
   } else {
     const side = document.createElement("span");
     side.className = "opponent-count";
-    side.textContent = "Sua mão";
+    side.textContent = isTeamGame(view) ? `${teamLabel(team)} · sua mão` : "Sua mão";
     node.append(profile, side);
   }
   return node;
 }
 
 function renderPlayer(view, seat, role) {
-  const host = role === "top" ? els.topPlayer : els.bottomPlayer;
-  host.replaceChildren(playerBar(view, seat, role));
+  const host = role === "left" ? els.leftPlayer
+    : role === "top" ? els.topPlayer
+      : role === "right" ? els.rightPlayer
+        : els.bottomPlayer;
+  host.replaceChildren();
+  if (seat != null) host.append(playerBar(view, seat, role));
 }
 
-function renderScore(view, bottomSeat, topSeat) {
-  const bottomPoints = view.points?.[bottomSeat - 1] ?? 0;
-  const topPoints = view.points?.[topSeat - 1] ?? 0;
-  els.scoreBottomName.textContent = mode === "online" ? "Você" : displayName(bottomSeat);
-  els.scoreTopName.textContent = displayName(topSeat);
-  els.scoreBottomValue.textContent = String(bottomPoints);
-  els.scoreTopValue.textContent = String(topPoints);
-  els.scoreBottomValue.parentElement.classList.toggle("at-eleven", bottomPoints >= 11);
-  els.scoreTopValue.parentElement.classList.toggle("at-eleven", topPoints >= 11);
+function scoreSide(label, points, className, team) {
+  const side = document.createElement("div");
+  side.className = `score-side ${className} team-${team === 0 ? "a" : "b"}`;
+  if (points >= 11) side.classList.add("at-eleven");
+  const name = document.createElement("span");
+  name.textContent = label;
+  const value = document.createElement("b");
+  value.textContent = String(points);
+  side.append(name, value);
+  return side;
+}
+
+function renderScore(view, bottomSeat) {
+  const bottomTeam = teamOf(bottomSeat);
+  const topTeam = 1 - bottomTeam;
+  const teamPoints = team => view.points?.[team] ?? 0;
+  const labelFor = team => {
+    if (isTeamGame(view)) return team === bottomTeam ? `${teamLabel(team)} (sua)` : teamLabel(team);
+    const seat = view.counts.find(entry => entry.team === team)?.seat ?? (team === bottomTeam ? bottomSeat : otherSeat(bottomSeat));
+    return team === bottomTeam && mode === "online" ? "Você" : displayName(seat);
+  };
+
+  const cross = document.createElement("span");
+  cross.className = "score-x";
+  cross.setAttribute("aria-hidden", "true");
+  cross.textContent = "×";
+  els.scoreboard.replaceChildren(
+    scoreSide(labelFor(bottomTeam), teamPoints(bottomTeam), "score-bottom", bottomTeam),
+    cross,
+    scoreSide(labelFor(topTeam), teamPoints(topTeam), "score-top", topTeam),
+  );
 }
 
 function renderMatchInfo(view) {
@@ -353,47 +420,58 @@ function emptyTableSlot(text = "Mesa vazia") {
 
 function renderTableCards(view) {
   const cards = Array.isArray(view.table) ? view.table : [];
+  const seats = view.counts?.length ?? 2;
   const lastRound = view.roundResults?.at(-1) ?? null;
+  const roundDone = cards.length > 0 && cards.length === seats;
   const nodes = [];
-  if (!cards.length) {
-    nodes.push(emptyTableSlot(), emptyTableSlot());
-  } else {
-    for (const play of cards) {
-      const wrapper = document.createElement("div");
-      wrapper.className = "played-card";
-      const board = cardNode(play.card);
-      const label = document.createElement("span");
-      label.className = "played-by";
-      label.textContent = playerName(play.seat);
-      wrapper.append(board, label);
-      nodes.push(wrapper);
-    }
-    if (cards.length === 1) nodes.push(emptyTableSlot("Aguardando a 2ª carta"));
-    if (cards.length === 2 && lastRound) {
-      const winner = lastRound.winner;
-      if (winner) nodes[cards.findIndex(play => play.seat === winner)]?.classList.add("winner");
-    }
+
+  for (const play of cards) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "played-card";
+    const board = cardNode(play.card);
+    const label = document.createElement("span");
+    label.className = "played-by";
+    label.textContent = playerName(play.seat);
+    wrapper.append(board, label);
+    nodes.push(wrapper);
+  }
+  for (let i = cards.length; i < seats; i++) {
+    nodes.push(emptyTableSlot(cards.length ? "" : i === 0 ? "Mesa vazia" : ""));
+  }
+  if (roundDone && lastRound?.winner) {
+    const index = cards.findIndex(play => play.seat === lastRound.winner);
+    if (index >= 0) nodes[index]?.classList.add("winner");
   }
   els.tableCards.replaceChildren(...nodes);
 
-  if (cards.length === 2 && lastRound) {
-    els.roundResult.textContent = lastRound.tie
-      ? `Rodada ${lastRound.round} empatada.`
-      : `${playerName(lastRound.winner)} venceu a rodada ${lastRound.round}.`;
+  if (roundDone && lastRound) {
+    if (lastRound.tie) {
+      els.roundResult.textContent = `Rodada ${lastRound.round} empatada.`;
+    } else if (isTeamGame(view) && lastRound.team != null) {
+      els.roundResult.textContent = `${teamLabel(lastRound.team)} venceu a rodada ${lastRound.round}.`;
+    } else {
+      els.roundResult.textContent = `${playerName(lastRound.winner)} venceu a rodada ${lastRound.round}.`;
+    }
     return;
   }
-  if (cards.length === 1) {
-    els.roundResult.textContent = "Aguardando a segunda carta da rodada.";
+  if (cards.length) {
+    els.roundResult.textContent = "Aguardando as cartas da rodada.";
     return;
   }
   const hand = view.lastHand;
   if (hand) {
-    els.roundResult.textContent = hand.winner
-      ? `${playerName(hand.winner)} fez ${plural(hand.points, "ponto", "pontos")} e venceu a mão.`
-      : "Mão empatada: ninguém pontuou.";
+    if (hand.winner == null) {
+      els.roundResult.textContent = "Mão empatada: ninguém pontuou.";
+    } else if (isTeamGame(view) && hand.team != null) {
+      els.roundResult.textContent = `${teamLabel(hand.team)} fez ${plural(hand.points, "ponto", "pontos")} e venceu a mão.`;
+    } else {
+      els.roundResult.textContent = `${playerName(hand.winner)} fez ${plural(hand.points, "ponto", "pontos")} e venceu a mão.`;
+    }
     return;
   }
-  els.roundResult.textContent = view.maoDeFerro ? "Mão de ferro: os dois em 11." : "";
+  els.roundResult.textContent = view.maoDeFerro
+    ? "Mão de ferro: as duas duplas em 11."
+    : isTeamGame(view) ? "Duplas 2 × 2: parceiros em assentos opostos." : "";
 }
 
 /* ===================== ações ===================== */
@@ -440,10 +518,18 @@ function renderActions(view) {
   setButton(els.maoFoldBtn, {
     hidden: !showMao,
     disabled: !active || !view.canChooseMao,
-    text: `Correr (+1 para ${playerName(otherSeat(view.seat))})`,
+    text: `Correr (+1 para ${rivalLabel(view)})`,
   });
 
   els.hint.textContent = hintText(view);
+}
+
+/** Nome do adversário direto: a dupla contrária no 2×2, o outro jogador no 1×1. */
+function rivalLabel(view) {
+  const rivalTeam = 1 - teamOf(view.seat);
+  if (isTeamGame(view)) return teamLabel(rivalTeam);
+  const seat = view.counts.find(entry => entry.team === rivalTeam)?.seat ?? otherSeat(view.seat);
+  return playerName(seat);
 }
 
 function hintText(view) {
@@ -451,10 +537,13 @@ function hintText(view) {
   if (view.phase === "over" || view.ranking) return "Partida encerrada.";
   if (mode === "local" && gateOpen) return "Passe o aparelho para o próximo jogador.";
   if (mode === "online" && !online?.started) return "Aguardando a largada…";
+  const teams = isTeamGame(view);
 
   if (view.phase === "mao") {
     if (view.maoDeOnze === view.seat) {
-      return "Você chegou a 11: jogue valendo 3 ou corra e dê 1 ponto ao adversário.";
+      return teams
+        ? "Sua dupla chegou a 11: jogue valendo 3 ou corra e dê 1 ponto à dupla adversária."
+        : "Você chegou a 11: jogue valendo 3 ou corra e dê 1 ponto ao adversário.";
     }
     return `Aguardando ${playerName(view.maoDeOnze)} decidir a mão de onze.`;
   }
@@ -467,8 +556,13 @@ function hintText(view) {
     return `Aguardando ${playerName(view.pending.responder)} responder ao pedido.`;
   }
 
-  if (view.turn !== view.seat) return `Vez de ${playerName(view.turn)}.`;
-  if (view.maoDeFerro) return "Mão de ferro: os dois estão em 11 e a mão vale 3.";
+  if (view.turn !== view.seat) {
+    const partner = teams && teamOf(view.turn) === teamOf(view.seat);
+    return `Vez de ${playerName(view.turn)}${partner ? " (sua dupla)" : ""}.`;
+  }
+  if (view.maoDeFerro) return teams
+    ? "Mão de ferro: as duas duplas estão em 11 e a mão vale 3."
+    : "Mão de ferro: os dois estão em 11 e a mão vale 3.";
   if (view.maoDeOnzeHand) return "Mão de onze: vale 3 e não aceita truco. Escolha uma carta.";
   if (view.canPlay) return view.canTruco ? "Escolha uma carta ou peça truco." : "Escolha uma carta para jogar.";
   return "Aguardando…";
@@ -488,9 +582,10 @@ function renderHand(view) {
 
   const hand = Array.isArray(view.hand) ? view.hand : [];
   const entry = countOf(view, view.seat);
+  const team = isTeamGame(view) ? ` · ${teamLabel(teamOf(view.seat))}` : "";
   els.handLabel.textContent = mode === "local"
-    ? `${displayName(view.seat)} · ${plural(hand.length, "carta", "cartas")}`
-    : `Sua mão · ${plural(hand.length, "carta", "cartas")}`;
+    ? `${displayName(view.seat)}${team} · ${plural(hand.length, "carta", "cartas")}`
+    : `Sua mão${team} · ${plural(hand.length, "carta", "cartas")}`;
 
   if (!hand.length) {
     const empty = document.createElement("p");
@@ -667,17 +762,30 @@ function finishLocal(ranking, reason) {
 
 function showLocalResult(ranking) {
   const placeOf = placements(ranking);
-  const winner = ranking[0]?.length === 1 ? ranking[0][0] : null;
+  const first = ranking[0] ?? [];
+  const winner = first.length === 1 ? first[0] : null;
+  const championTeam = first.length && first.every(seat => teamOf(seat) === teamOf(first[0]))
+    ? teamOf(first[0])
+    : null;
+  const teamWin = first.length > 1 && championTeam != null;
   const points = local.state.points;
-  els.resultIcon.textContent = winner ? String(points[winner - 1]) : "Fim";
-  els.resultTitle.textContent = winner ? `${displayName(winner)} venceu!` : "Partida encerrada";
-  els.resultText.textContent = winner
-    ? `${displayName(winner)} fez ${plural(points[winner - 1], "ponto", "pontos")} e venceu a partida.`
-    : "A partida terminou sem vencedor.";
+
+  els.resultIcon.textContent = teamWin
+    ? String(points[championTeam] ?? 0)
+    : winner ? String(points[teamOf(winner)] ?? 0) : "Fim";
+  els.resultTitle.textContent = teamWin
+    ? `${teamLabel(championTeam)} venceu!`
+    : winner ? `${displayName(winner)} venceu!` : "Partida encerrada";
+  els.resultText.textContent = teamWin
+    ? `${teamLabel(championTeam)} fez ${plural(points[championTeam] ?? 0, "ponto", "pontos")} e venceu a partida.`
+    : winner
+      ? `${displayName(winner)} fez ${plural(points[teamOf(winner)] ?? 0, "ponto", "pontos")} e venceu a partida.`
+      : "A partida terminou sem vencedor.";
 
   const rows = [];
   for (const group of ranking) {
     for (const seat of group) {
+      const team = teamOf(seat);
       const li = document.createElement("li");
       li.className = "result-row" + (placeOf[seat] === 1 ? " first" : "");
       const place = document.createElement("span");
@@ -685,10 +793,10 @@ function showLocalResult(ranking) {
       place.textContent = `${placeOf[seat]}º`;
       const name = document.createElement("span");
       name.className = "result-name";
-      name.textContent = displayName(seat);
+      name.textContent = isTeamGame(currentView()) ? `${displayName(seat)} · ${teamLabel(team)}` : displayName(seat);
       const score = document.createElement("span");
       score.className = "result-cards";
-      score.textContent = plural(points[seat - 1] ?? 0, "ponto", "pontos");
+      score.textContent = plural(points[team] ?? 0, "ponto", "pontos");
       li.append(place, avatarNode(null), name, score);
       rows.push(li);
     }
@@ -710,7 +818,7 @@ function clearLocal() {
 function startLocalGame() {
   teardownOnline();
   clearLocal();
-  const start = partyStart({ seats: [1, 2], rng: Math.random });
+  const start = partyStart({ seats: seatsOf(settings.players), rng: Math.random });
   local = {
     state: start.state,
     viewSeat: start.turn,
@@ -768,11 +876,29 @@ function showOnlineShell() {
   els.result.hidden = true;
 }
 
+/** Título do resultado online: no 2×2 o ranking vem agrupado por dupla (dois assentos em 1º). */
+function onlineResultLabel({ outcome, placement }) {
+  const first = online?.ranking?.[0] ?? [];
+  const teamWin = first.length > 1 && first.every(seat => teamOf(seat) === teamOf(first[0]));
+  if (teamWin) {
+    const team = teamOf(first[0]);
+    const mine = online?.me?.();
+    return mine && teamOf(mine.seat) === team
+      ? `${teamLabel(team)} venceu!`
+      : `${teamLabel(team)} venceu a partida.`;
+  }
+  if (outcome === "win") return "Você venceu!";
+  if (outcome === "tie") return "Empate no 1º lugar.";
+  if (outcome === "cancelled") return "Partida cancelada.";
+  return placement ? `Você ficou em ${placement}º lugar.` : "Partida encerrada.";
+}
+
 function startOnline() {
   if (online) return online;
   online = createPartySession();
   partyUi = mountPartyUi(els.partyHost, online, {
-    title: "Truco Paulista · 1×1",
+    title: "Truco Paulista",
+    resultLabel: onlineResultLabel,
     onStart: () => {
       mode = "online";
       showOnlineShell();
@@ -847,10 +973,11 @@ async function createOnlineRoom() {
   els.createRoom.disabled = true;
   try {
     startOnline();
-    /* 1×1: o tamanho exato da sala é 2 e a partida só larga com os dois assentos prontos e dentro. */
+    /* O tamanho da sala é exatamente o escolhido (2 no 1×1, 4 nas duplas 2×2) e a partida só larga com
+       todos os assentos prontos e dentro. */
     await online.create(GAME_ID, {
-      minPlayers: 2,
-      maxPlayers: 2,
+      minPlayers: settings.players,
+      maxPlayers: settings.players,
       turnSeconds: settings.seconds,
       open: settings.open,
     });
@@ -999,7 +1126,7 @@ if (inviteKind === "code") {
   attachOnlineRoom(invite);
 } else {
   if (inviteKind === "new") {
-    noticeSetup("Clique em “Criar sala online” e compartilhe o código com o adversário. A sala é sempre 1×1.");
+    noticeSetup("Clique em “Criar sala online” e compartilhe o código. Escolha 2 jogadores (1×1) ou 4 (duplas 2×2).");
   }
   resumeActiveRoom();
 }

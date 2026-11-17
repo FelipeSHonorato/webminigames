@@ -524,14 +524,14 @@ test("como jogar · UNO (multijogador) também tem o link ao lado do título do 
   assert.match(nav, /<strong>UNO<\/strong><span class="mode-tag">2–4 jogadores<\/span>/);
 });
 
-test("como jogar · Truco (1×1) também tem o link ao lado do título do setup", () => {
+test("como jogar · Truco (2–4 jogadores) também tem o link ao lado do título do setup", () => {
   const html = read("games/truco/index.html");
   assert.match(html, /<a class="howto-link" href="\.\.\/\.\.\/como-jogar\.html#truco" aria-label="Como jogar Truco"><span>Como jogar<\/span><\/a>/);
   assert.match(html, /<div class="setup-title-row"><h1 id="setupTitle">Truco Paulista<\/h1><a class="howto-link"[^>]*><span>Como jogar<\/span><\/a><\/div>/);
   assert.match(read("games/truco/style.css"), /--grid:/, "o link usa var(--grid) como borda");
   const nav = html.match(/<nav class="sitebar">[\s\S]*?<\/nav>/)?.[0] ?? "";
   assert.doesNotMatch(nav, /howto-link/, "o link não fica no sitebar");
-  assert.match(nav, /<strong>Truco<\/strong><span class="mode-tag">1×1<\/span>/);
+  assert.match(nav, /<strong>Truco<\/strong><span class="mode-tag">2–4 jogadores<\/span>/);
 });
 
 test("como jogar · celular: o rótulo 'Como jogar' continua visível e o texto dos passos flui na mesma linha", () => {

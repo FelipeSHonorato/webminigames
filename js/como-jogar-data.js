@@ -899,15 +899,15 @@ function trucoGuide() {
   return {
     id: "truco", name: "Truco", glyph: "♠",
     title: "Como jogar Truco Paulista",
-    lead: "O truco brasileiro para <b>dois jogadores</b>: três cartas na mão, melhor de três vazas e uma partida até <b>12 pontos</b>. Peça truco, aumente a aposta e saiba a hora de correr.",
-    chips: chips(["1 × 1", "40 cartas", "3 cartas por mão", "Partida até 12 pontos"]),
+    lead: "O truco brasileiro para <b>2 jogadores</b> (1×1) ou <b>4 em duplas 2×2</b>: três cartas na mão, melhor de três vazas e uma partida até <b>12 pontos</b>. Peça truco, aumente a aposta e saiba a hora de correr.",
+    chips: chips(["2 ou 4 jogadores", "40 cartas", "3 cartas por mão", "Partida até 12 pontos"]),
     legend: LEGEND_TRUCO,
     sections: [
       {
         id: "objetivo", title: "O objetivo: chegar a 12 pontos",
         body: [
-          "O <b>Truco Paulista</b> é jogado <b>um contra um</b> com um baralho de <b>40 cartas</b>. Cada jogador recebe <b>3 cartas</b> e a mão é disputada em até <b>três vazas</b>.",
-          "Quem vence a mão soma o <b>valor em disputa</b> — <b>1 ponto</b> sem truco — e a partida vai até <b>12 pontos</b>. Quem corre entrega o valor que estava valendo ao adversário.",
+          "O <b>Truco Paulista</b> usa um baralho de <b>40 cartas</b>. Cada jogador recebe <b>3 cartas</b> e a mão é disputada em até <b>três vazas</b>. Na mesa de <b>2 jogadores</b> cada um joga por si; na de <b>4 jogadores</b> a partida é em <b>duplas 2×2</b>, com parceiros em assentos opostos (1 e 3 contra 2 e 4).",
+          "Quem vence a mão soma o <b>valor em disputa</b> — <b>1 ponto</b> sem truco — e a partida vai até <b>12 pontos</b>. O placar é <b>da dupla</b>: os dois parceiros compartilham os mesmos pontos. Quem corre entrega o valor que estava valendo ao adversário.",
         ],
         figures: [fig(cards(T.hand, { label: "Mão de truco com Q de copas, J de espadas e 5 de ouros", marks: { "Q-hearts": "sel" } }),
           "Sua mão tem <b>três cartas</b>: Q♥, J♠ e 5♦. Em cada vaza você joga uma delas — e a que ficar na mão não vale nada.")],
@@ -934,7 +934,7 @@ function trucoGuide() {
       {
         id: "vazas", title: "As três vazas e os empates",
         body: [
-          "Cada jogador baixa <b>uma carta</b> por vaza. A mais forte leva a vaza e quem venceu <b>começa a próxima</b>. Quem fizer <b>duas vazas</b> vence a mão.",
+          "Cada jogador baixa <b>uma carta</b> por vaza. Na mesa de 4, a vaza é da <b>dupla</b> da carta mais alta e só empata quando as duas duplas têm a mesma maior força. Quem venceu <b>começa a próxima</b> e quem fizer <b>duas vazas</b> leva a mão.",
           "<b>Empates:</b> se a <b>1ª</b> vaza empatar, a <b>2ª</b> decide; se a <b>2ª</b> empatar, vence quem ganhou a <b>1ª</b>; se <b>1ª e 2ª</b> empatarem, a <b>3ª</b> decide; se a <b>3ª</b> empatar, vence quem ganhou a <b>1ª</b>. Se as <b>três</b> empatarem, ninguém pontua.",
         ],
         figures: [fig(trucoTableSvg({
@@ -945,7 +945,7 @@ function trucoGuide() {
       {
         id: "truco", title: "Truco, retruco, vale quatro e vale cinco",
         body: [
-          "Na sua vez, <b>antes de jogar uma carta</b>, você pode pedir <b>truco</b> e a mão passa a valer <b>3</b>. O adversário escolhe <b>aceitar</b>, <b>aumentar</b> ou <b>correr</b>.",
+          "Na sua vez, <b>antes de jogar uma carta</b>, você pode pedir <b>truco</b> e a mão passa a valer <b>3</b>. O adversário escolhe <b>aceitar</b>, <b>aumentar</b> ou <b>correr</b>. No 2×2, quem responde é o <b>próximo adversário</b> na ordem dos assentos.",
           "Os aumentos sobem <b>1 → 3 → 6 → 9 → 12</b>: truco, retruco, vale quatro e vale cinco. Quem <b>corre</b> entrega o valor que estava valendo antes do último pedido — correr de um truco custa <b>1 ponto</b>; correr de um retruco custa <b>3</b>.",
           "O direito de aumentar <b>alterna</b>: fica com quem aceitou o último pedido, e só volta a valer <b>depois de jogar uma carta</b>.",
         ],
@@ -956,7 +956,7 @@ function trucoGuide() {
       {
         id: "onze", title: "A mão de onze",
         body: [
-          "Quando um jogador chega a <b>11 pontos</b> (vindo de menos de 11), ele decide antes da mão: <b>jogar a mão de onze</b>, que vale <b>3 pontos</b> e não aceita truco, ou <b>correr</b> e dar <b>1 ponto</b> ao adversário.",
+          "Quando um jogador — ou uma dupla — chega a <b>11 pontos</b> (vindo de menos de 11), ele decide antes da mão: <b>jogar a mão de onze</b>, que vale <b>3 pontos</b> e não aceita truco, ou <b>correr</b> e dar <b>1 ponto</b> ao adversário. No 2×2, um <b>representante da dupla</b> toma a decisão.",
           "Se correr, o adversário soma 1 e a partida segue. Se jogar e vencer, soma 3 e chega a 14 — o que passa de 12, mas o que importa é <b>fechar a partida</b>.",
         ],
         figures: [fig(cards(T.eleven, { label: "Mão de onze com 3 de espadas, 2 de paus e K de ouros" }),
@@ -965,7 +965,7 @@ function trucoGuide() {
       {
         id: "ferro", title: "A mão de ferro",
         body: [
-          "Se <b>os dois</b> chegarem a <b>11 pontos</b>, a mão vira <b>mão de ferro</b>: vale <b>3 pontos</b> e <b>não aceita truco</b>.",
+          "Se <b>os dois</b> — ou <b>as duas duplas</b> — chegarem a <b>11 pontos</b>, a mão vira <b>mão de ferro</b>: vale <b>3 pontos</b> e <b>não aceita truco</b>.",
           "Na mão de ferro as cartas são <b>normais e visíveis para quem está jogando</b> — não há cartas escondidas nem aposta extra. Quem vencer a mão fecha a partida.",
         ],
         figures: [fig(trucoTableSvg({
@@ -976,9 +976,9 @@ function trucoGuide() {
       {
         id: "tela", title: "Tempo, telas e fim de partida",
         body: [
-          "<b>Tempo:</b> cada jogada tem <b>30, 40 ou 60 segundos</b> (o padrão é 40). No <b>mesmo aparelho</b>, o tempo esgotado joga a carta mais fraca (ou corre do truco e da mão de onze). <b>Online</b>, quem estoura o tempo é <b>eliminado</b> e o adversário vence.",
+          "<b>Tempo:</b> cada jogada tem <b>30, 40 ou 60 segundos</b> (o padrão é 40). No <b>mesmo aparelho</b>, o tempo esgotado joga a carta mais fraca (ou corre do truco e da mão de onze). <b>Online</b>, quem estoura o tempo é <b>eliminado</b>: no 1×1 o adversário vence; no 2×2 a <b>dupla do eliminado perde a partida</b>, que fecha no lance seguinte.",
           "<b>Mesmo aparelho:</b> a mesa gira para o jogador da vez e uma tela de <b>“passar o dispositivo”</b> esconde a mão até ele confirmar.",
-          "<b>Online:</b> a sala é sempre <b>1 × 1</b>. Crie uma sala <b>aberta</b> (aparece na lista) ou <b>fechada</b> (só com o código), marque <b>Estou pronto</b> e jogue. No fim aparecem as colocações e o botão <b>Revanche</b>.",
+          "<b>Online:</b> escolha <b>2 jogadores</b> (1×1) ou <b>4</b> (duplas 2×2). A sala lotada só larga quando todos estão prontos e dentro. Crie uma sala <b>aberta</b> (aparece na lista) ou <b>fechada</b> (só com o código) e jogue. No fim aparecem as colocações e o botão <b>Revanche</b>.",
         ],
         figures: [],
       },
@@ -986,12 +986,12 @@ function trucoGuide() {
     screen: {
       title: "Como jogar na tela",
       steps: [
-        ["Escolha o tempo e a sala", "Selecione <b>30s</b>, <b>40s</b> ou <b>60s</b> por jogada e se a sala online é <b>Aberta</b> ou <b>Fechada</b>. A sala é sempre de <b>dois jogadores</b>."],
+        ["Escolha os jogadores, o tempo e a sala", "Selecione <b>2</b> jogadores (1×1) ou <b>4</b> (duplas 2×2), o tempo de <b>30s</b>, <b>40s</b> ou <b>60s</b> por jogada e se a sala online é <b>Aberta</b> ou <b>Fechada</b>."],
         ["Jogue no mesmo aparelho ou crie a sala", "Em <b>Jogar no mesmo dispositivo</b>, o aparelho passa de mão em mão. Em <b>Criar sala online</b>, compartilhe o código com o adversário e os dois marcam <b>Estou pronto</b>."],
-        ["Jogue uma carta", "Sua mão fica embaixo. Toque em uma carta para baixá-la na mesa. A carta mais forte leva a vaza e o placar mostra os pontos de cada um."],
+        ["Jogue uma carta", "Sua mão fica embaixo. Toque em uma carta para baixá-la na mesa. A carta mais forte leva a vaza e o placar mostra os pontos de cada um; no 2×2 ele mostra os pontos da dupla."],
         ["Peça truco ou responda", "Use <b>Trucar</b> na sua vez, antes de jogar. Quando o adversário pede, escolha <b>Aceitar</b>, <b>Aumentar</b> ou <b>Correr</b> — os botões mostram o valor em jogo."],
         ["Decida a mão de onze", "Ao chegar a <b>11</b>, escolha <b>Jogar valendo 3</b> ou <b>Correr (+1)</b>. A mesa mostra <b>Mão de onze</b> ou <b>Mão de ferro</b> no lugar do valor normal."],
-        ["Confira o resultado", "No fim aparece quem venceu e os pontos. <b>Revanche</b> começa outra partida; <b>Voltar ao início</b> troca o tempo ou a sala."],
+        ["Confira o resultado", "No fim aparece quem venceu — o jogador no 1×1 ou a dupla no 2×2 — e os pontos. <b>Revanche</b> começa outra partida; <b>Voltar ao início</b> troca a quantidade de jogadores, o tempo ou a sala."],
       ],
     },
     cta: { label: "Jogar Truco", href: GAMES.truco.path },

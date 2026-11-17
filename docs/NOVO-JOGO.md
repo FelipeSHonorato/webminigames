@@ -117,7 +117,7 @@ o cron `duel_cleanup` (a cada 5 min) é a rede de segurança para salas abandona
 
 ### 2.6 Partidas com 2 ou mais jogadores (multijogador, `party`)
 
-A estrutura para jogos de **2, 3, 4, 6… jogadores** existe: o **UNO** (`games/uno/`) foi a primeira partida (2 a 4 jogadores) e o **Truco Paulista** (`games/truco/`) é o primeiro 1×1. Os dois são por turnos, com tempo por jogada. Como no duelo, **só jogos criados para o modo** a usam: nenhum jogo antigo declara `PARTY`.
+A estrutura para jogos de **2, 3, 4, 6… jogadores** existe: o **UNO** (`games/uno/`) foi a primeira partida (2 a 4 jogadores) e o **Truco Paulista** (`games/truco/`) joga 1×1 (2 jogadores) ou em duplas 2×2 (4 jogadores). Os dois são por turnos, com tempo por jogada. Como no duelo, **só jogos criados para o modo** a usam: nenhum jogo antigo declara `PARTY`.
 
 **Decisão de arquitetura.** A sala continua sendo `duels` + `duel_players` (código, aberta/fechada, presença,
 Realtime `duel:<id>`, Salas Online, expiração em 15 min). A sala ganhou `kind = 'party'`,
@@ -568,7 +568,7 @@ carrossel não tinha essa reserva (agora tem, mas a reserva é só um paliativo:
 
 Todo jogo de duelo tem uma aba em `como-jogar.html` (Xadrez, Dama, Gamão, Go e Onitama são o modelo). A página é a mesma para
 todos: abas por hash (`#xadrez`, `#dama`, `#gamao`, `#go`, `#onitama`), figuras em SVG e um passo a passo de como usar a tela.
-O **UNO** (multijogador, 2–4) e o **Truco Paulista** (1×1) usam o mesmo guia e o mesmo link no setup, com as abas `#uno` e `#truco`.
+O **UNO** (multijogador, 2–4) e o **Truco Paulista** (2–4, em 1×1 ou duplas 2×2) usam o mesmo guia e o mesmo link no setup, com as abas `#uno` e `#truco`.
 
 | Arquivo | Papel |
 |---|---|

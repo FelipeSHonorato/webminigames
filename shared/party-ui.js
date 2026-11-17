@@ -58,7 +58,7 @@ const button = (label, cls) => {
  * Monta o painel em `host` e liga nos eventos da sessão.
  * @returns {{ render: () => void, destroy: () => void }}
  */
-export function mountPartyUi(host, session, { title = "Multijogador", onStart, onFinish, onExit } = {}) {
+export function mountPartyUi(host, session, { title = "Multijogador", resultLabel, onStart, onFinish, onExit } = {}) {
   if (!host) return null;
   const offs = [];
   let timer = null, noteTimer = null;
@@ -212,7 +212,10 @@ export function mountPartyUi(host, session, { title = "Multijogador", onStart, o
       banner.textContent = turnBanner(session);
     }
     if (view === "result") {
-      resultTitle.textContent = outcomeText(session.outcome, session.me()?.placement);
+      const label = typeof resultLabel === "function"
+        ? resultLabel({ outcome: session.outcome, placement: session.me()?.placement, session })
+        : null;
+      resultTitle.textContent = label || outcomeText(session.outcome, session.me()?.placement);
       table.replaceChildren(...session.standings.map(row => {
         const li = node("li", "party-standing" + (row.me ? " me" : ""));
         li.append(node("span", "party-place", `${row.place}º`), node("span", "party-name", row.nickname));

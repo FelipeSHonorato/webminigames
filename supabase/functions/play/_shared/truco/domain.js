@@ -1,13 +1,20 @@
-/* TRUCO PAULISTA — regras completas para 1×1. Código puro (sem DOM, sem rede, sem Math.random/Date.now):
-   roda igual no navegador, na Edge Function (Deno) e nos testes do Node.
+/* TRUCO PAULISTA — regras completas para 2 jogadores (1×1) ou 4 jogadores em duplas (2×2).
+   Código puro (sem DOM, sem rede, sem Math.random/Date.now): roda igual no navegador, na Edge Function (Deno)
+   e nos testes do Node.
 
    Baralho convencional de 40 cartas (sem 8, 9 e 10), 3 cartas para cada jogador e melhor de 3 vazas.
    Manilhas fixas (Paulista): 4♣ zap > 7♥ copeta > A♠ espadilha > 7♦ pica-fumo > 3 > 2 > A > K > J > Q > 7 > 6 > 5 > 4.
    A partida vai até 12 pontos. O truco sobe 1 → 3 → 6 → 9 → 12; quem corre entrega o valor que estava valendo.
 
+   Mesas:
+     • 2 jogadores: cada um por si (dupla = um assento).
+     • 4 jogadores: duplas 2×2 com parceiros em assentos opostos (1 & 3 contra 2 & 4). Os pontos são da dupla:
+       os dois membros compartilham o mesmo placar. A vaza é da dupla da carta mais alta; empate só quando as
+       duas duplas têm a mesma maior força. Quem pede truco é respondido pelo próximo adversário (a vez alterna).
+
    Estado (JSON puro):
      hands        mãos; índice = assento - 1 (assento 1 ocupa hands[0])
-     points       pontos de cada assento
+     points       pontos de cada DUPLA (índice 0 = assentos 1 e 3; índice 1 = assentos 2 e 4)
      handNo       número da mão (1, 2, 3…)
      handValue    quanto vale a mão agora (1, 3, 6, 9 ou 12)
      pending      null | { seat, responder, value, stake, resumeTurn } (pedido de truco aguardando resposta)
@@ -15,20 +22,20 @@
      maoDeOnze    assento que precisa decidir jogar/correr na mão de onze (null fora dela)
      maoDeOnzeSeat assento dono da mão de onze (continua durante a mão)
      maoDeOnzeHand mão atual é a mão de onze (vale 3 e não aceita truco)
-     maoDeFerro   mão atual é a mão de ferro (os dois em 11; vale 3 e não aceita truco)
+     maoDeFerro   mão atual é a mão de ferro (as duas duplas em 11; vale 3 e não aceita truco)
      trucoLocked  true nas mãos especiais (sem novos pedidos de truco)
-     nextRaiser   null | assento que pode pedir o próximo aumento (alterna para quem aceitou)
+     nextRaiser   null | assento que pode pedir o próximo aumento (o parceiro desse assento também pode)
      raiseReady   false logo depois de aceitar; um carta jogada libera o próximo aumento
      leader       assento que começa a mão
      turn         assento da vez (inclui quem responde truco e quem decide a mão de onze)
      round        1..3
      roundLeader  assento que abriu a vaza atual
-     roundWins    vazas ganhas por assento
+     roundWins    vazas ganhas por DUPLA (índice 0 = assentos 1 e 3; índice 1 = assentos 2 e 4)
      table        cartas da vaza atual (ou da última vaza resolvida, até o próximo lance)
-     roundResults histórico público das vazas desta mão
+     roundResults histórico público das vazas desta mão (cada vaza tem `team` vencedora ou null no empate)
      lastHand     resumo público da última mão encerrada
      last / plays último lance e histórico público
-     winner / ranking preenchidos só quando a partida acaba
+     winner / winnerTeam / ranking preenchidos só quando a partida acaba
      seed         semente do embaralhamento determinístico das próximas mãos (nunca vai para a view)
 
    Cartas (ids únicos, strings): "<valor>-<naipe>", por exemplo "3-clubs", "7-hearts", "A-spades".
@@ -36,12 +43,14 @@
 
 export const PARTY = {
   minPlayers: 2,
-  maxPlayers: 2,
+  maxPlayers: 4,
+  /* A mesa só existe com 2 (1×1) ou 4 (duplas 2×2); a Edge usa esta lista ao criar a sala. */
+  playerCounts: [2, 4],
   order: "turns",
   turnSeconds: 40,
   turnOptions: [30, 40, 60],
-  /* Com 1×1, estourar o tempo elimina quem estourou (a partida termina na hora). O `skip` genérico
-     só passaria a vez no banco sem atualizar o domínio e quebraria a mão em andamento. */
+  /* Estourar o tempo elimina quem estourou. No 1×1 a partida termina na hora; no 2×2 a dupla do eliminado
+     perde a partida (o domínio fecha no lance seguinte), porque o banco não conhece as duplas. */
   onTimeout: "out",
   maxSeconds: 1800,
 };
@@ -52,6 +61,9 @@ export const SUITS = ["clubs", "hearts", "spades", "diamonds"];
 export const SUIT_NAMES = { clubs: "paus", hearts: "copas", spades: "espadas", diamonds: "ouros" };
 export const SUIT_SYMBOLS = { clubs: "♣", hearts: "♥", spades: "♠", diamonds: "♦" };
 export const RED_SUITS = ["hearts", "diamonds"];
+
+/** Nome da dupla na mesa de 4. No 1×1 a interface usa o nome do próprio jogador. */
+export const TEAM_NAMES = ["Dupla A", "Dupla B"];
 
 /** Força base (sem manilha): 4 < 5 < 6 < 7 < Q < J < K < A < 2 < 3. */
 const BASE_STRENGTH = { "4": 1, "5": 2, "6": 3, "7": 4, Q: 5, J: 6, K: 7, A: 8, "2": 9, "3": 10 };
@@ -68,9 +80,39 @@ const MANILHAS = {
 export const TRUCO_NAMES = { 3: "Truco", 6: "Retruco", 9: "Vale quatro", 12: "Vale cinco" };
 
 const isInt = value => Number.isInteger(value);
-const otherSeat = seat => (seat === 1 ? 2 : 1);
 const seatsFromState = state => Array.from({ length: state.hands.length }, (_, i) => i + 1);
 const handOf = (state, seat) => (isInt(seat) && seat >= 1 && seat <= state.hands.length ? state.hands[seat - 1] : []);
+
+/** Dupla do assento: 1 e 3 → 0 (Dupla A); 2 e 4 → 1 (Dupla B). No 1×1, 1 → 0 e 2 → 1. */
+export const teamOf = seat => (isInt(seat) && seat >= 1 ? (seat - 1) % 2 : null);
+
+/** Assentos ativos (fora = eliminados pelo servidor). */
+function activeSeatsOf(state, ctx = {}) {
+  const out = Array.isArray(ctx.out) ? ctx.out : [];
+  return seatsFromState(state).filter(seat => !out.includes(seat));
+}
+
+/** Próximo assento ativo depois de `from` (circular). */
+function nextActiveSeat(state, from, ctx = {}) {
+  const active = activeSeatsOf(state, ctx);
+  if (!active.length) return null;
+  return active.find(seat => seat > (from ?? 0)) ?? active[0];
+}
+
+/** Próximo adversário ativo (a dupla contrária) depois de `from`. */
+function nextOpponentSeat(state, from, ctx = {}) {
+  const team = teamOf(from);
+  const rivals = activeSeatsOf(state, ctx).filter(seat => teamOf(seat) !== team);
+  if (!rivals.length) return null;
+  return rivals.find(seat => seat > from) ?? rivals[0];
+}
+
+/** Assento ativo que representa a dupla (preferindo `prefer`, se ainda estiver em jogo). */
+function teamRepresentative(state, team, ctx = {}, prefer = null) {
+  const active = activeSeatsOf(state, ctx);
+  if (isInt(prefer) && active.includes(prefer) && teamOf(prefer) === team) return prefer;
+  return active.find(seat => teamOf(seat) === team) ?? null;
+}
 
 /** Carta a partir do id. Devolve null para id inválido. */
 export function cardOf(id) {
@@ -158,11 +200,24 @@ export const nextTrucoValue = value => {
 
 const pushPlay = (plays, entry) => [...(plays ?? []), entry].slice(-80);
 
+/** A vaza já tem a carta de todos os assentos ativos? */
+function roundComplete(state, ctx = {}) {
+  if (!state.table.length) return false;
+  const active = activeSeatsOf(state, ctx);
+  if (!active.length) return false;
+  const played = new Set(state.table.map(card => card.seat));
+  return active.every(seat => played.has(seat));
+}
+
 /** Entrega 3 cartas para cada jogador e prepara a mão com o valor/estado pedido. */
-function dealHand(state, { value, leader, phase = "playing", maoDeOnze = null, maoDeOnzeSeat = null, maoDeOnzeHand = false, maoDeFerro = false }) {
+function dealHand(state, { value, leader, phase = "playing", maoDeOnze = null, maoDeOnzeSeat = null, maoDeOnzeHand = false, maoDeFerro = false }, ctx = {}) {
+  const seats = seatsFromState(state);
+  const active = activeSeatsOf(state, ctx);
+  const safeLeader = active.includes(leader) ? leader : active[0] ?? seats[0];
   const shuffled = seededShuffle(buildDeck(), state.seed);
-  const hands = [sortHand(shuffled.list.slice(0, 3)), sortHand(shuffled.list.slice(3, 6))];
+  const hands = seats.map((_, index) => sortHand(shuffled.list.slice(index * 3, index * 3 + 3)));
   const handNo = state.handNo + 1;
+  const safeMao = isInt(maoDeOnze) && active.includes(maoDeOnze) ? maoDeOnze : null;
   return {
     ...state,
     hands,
@@ -171,31 +226,33 @@ function dealHand(state, { value, leader, phase = "playing", maoDeOnze = null, m
     handValue: value,
     pending: null,
     phase,
-    maoDeOnze,
-    maoDeOnzeSeat,
+    maoDeOnze: safeMao,
+    maoDeOnzeSeat: isInt(maoDeOnzeSeat) && active.includes(maoDeOnzeSeat) ? maoDeOnzeSeat : safeMao,
     maoDeOnzeHand,
     maoDeFerro,
     trucoLocked: maoDeOnzeHand || maoDeFerro,
     nextRaiser: null,
     raiseReady: true,
-    leader,
-    turn: leader,
+    leader: safeLeader,
+    turn: phase === "mao" ? safeMao ?? safeLeader : safeLeader,
     round: 1,
-    roundLeader: leader,
+    roundLeader: safeLeader,
     roundWins: [0, 0],
     table: [],
     roundResults: [],
-    last: { action: "deal", handNo, value, leader, maoDeOnze, maoDeFerro },
+    last: { action: "deal", handNo, value, leader: safeLeader, maoDeOnze: safeMao, maoDeFerro },
   };
 }
 
-/** Partida nova. `seats` = [1, 2]; `rng` = função 0..1 (no servidor, a seed secreta). */
+/** Partida nova. `seats` = [1,2] (1×1) ou [1,2,3,4] (2×2); `rng` = função 0..1 (no servidor, a seed secreta). */
 export function partyStart({ seats, rng } = {}) {
-  if (!Array.isArray(seats) || seats.length !== PARTY.minPlayers || seats.length !== PARTY.maxPlayers) throw new Error("bad_players");
+  const n = Array.isArray(seats) ? seats.length : 0;
+  const valid = (n === 2 || n === 4) && seats.every((seat, index) => seat === index + 1);
+  if (!valid) throw new Error("bad_players");
   if (typeof rng !== "function") throw new Error("rng obrigatório");
   const seed = Math.floor(rng() * 0x100000000) >>> 0;
   const base = {
-    hands: [[], []],
+    hands: seats.map(() => []),
     points: [0, 0],
     handNo: 0,
     handValue: 1,
@@ -219,6 +276,7 @@ export function partyStart({ seats, rng } = {}) {
     lastHand: null,
     plays: [],
     winner: null,
+    winnerTeam: null,
     ranking: null,
     seed,
   };
@@ -226,50 +284,99 @@ export function partyStart({ seats, rng } = {}) {
   return { state, turn: state.turn };
 }
 
-/** Decide a mão a partir das vazas: assento vencedor, null quando ninguém pontua, undefined quando ainda não acabou.
+/** Decide a mão a partir das vazas. Devolve a DUPLA vencedora, null quando ninguém pontua,
+    undefined quando ainda não acabou.
     Regras de empate adotadas: 1ª empatada → vence a 2ª; 2ª empatada → vence a 1ª; 1ª e 2ª empatadas → vence a 3ª;
     3ª empatada → vence a 1ª; as três empatadas → ninguém pontua. */
 function decidedHand(roundResults) {
-  const w = roundResults.map(result => result.winner);
-  if (w.length === 2) {
-    if (w[0] && w[1]) return w[0] === w[1] ? w[0] : undefined;
-    if (w[0] && w[1] === null) return w[0];
-    if (w[0] === null && w[1]) return w[1];
+  const t = roundResults.map(result => result.team ?? null);
+  if (t.length === 2) {
+    if (t[0] != null && t[1] != null) return t[0] === t[1] ? t[0] : undefined;
+    if (t[0] != null && t[1] == null) return t[0];
+    if (t[0] == null && t[1] != null) return t[1];
     return undefined;
   }
-  if (w.length >= 3) {
-    if (w[2]) return w[2];
-    if (w[0] && w[1] && w[0] !== w[1]) return w[0];
+  if (t.length >= 3) {
+    if (t[2] != null) return t[2];
+    if (t[0] != null && t[1] != null && t[0] !== t[1]) return t[0];
     return null;
   }
   return undefined;
 }
 
-/** Encerra a partida com ranking simples de 1×1. */
-function finishMatch(state, winner, lastHand) {
-  const loser = otherSeat(winner);
+/** Encerra a partida com o ranking das duplas (assentos ativos, melhor primeiro). */
+function finishMatch(state, winner, lastHand, ctx = {}) {
+  const active = activeSeatsOf(state, ctx);
+  const winnerTeam = winner == null ? null : teamOf(winner);
+  const group = winnerTeam == null
+    ? active
+    : active.filter(seat => teamOf(seat) === winnerTeam);
+  const losers = winnerTeam == null
+    ? []
+    : active.filter(seat => teamOf(seat) !== winnerTeam);
+  const ranking = winnerTeam == null ? [group] : [group, losers].filter(list => list.length);
+  const safeWinner = winnerTeam == null ? null : (group.includes(winner) ? winner : group[0] ?? null);
   return {
     ...state,
     phase: "over",
-    winner,
-    ranking: [[winner], [loser]],
+    winner: safeWinner,
+    winnerTeam,
+    ranking,
     turn: null,
     pending: null,
     maoDeOnze: null,
     lastHand,
-    last: { action: "match", winner, handNo: lastHand.handNo, points: state.points.slice() },
-    plays: pushPlay(state.plays, { action: "match", winner, handNo: lastHand.handNo, points: state.points.slice() }),
+    last: { action: "match", winner: safeWinner, winnerTeam, handNo: lastHand?.handNo ?? state.handNo, points: state.points.slice() },
+    plays: pushPlay(state.plays, { action: "match", winner: safeWinner, winnerTeam, handNo: lastHand?.handNo ?? state.handNo, points: state.points.slice() }),
+  };
+}
+
+/** Alguém saiu/estourou o tempo: a dupla que ficou com menos jogadores perde a partida.
+    Em 2×2 o Postgres elimina só o jogador (não conhece as duplas); o domínio fecha no lance seguinte.
+    Se as duas duplas perderem um jogador, a partida termina empatada. */
+function finishByElimination(state, ctx = {}) {
+  const active = activeSeatsOf(state, ctx);
+  const byTeam = [0, 1].map(team => active.filter(seat => teamOf(seat) === team));
+  const draw = byTeam[0].length === byTeam[1].length && byTeam[0].length > 0;
+  const winnerTeam = draw ? null : (byTeam[0].length > byTeam[1].length ? 0 : 1);
+  const winner = winnerTeam == null ? null : byTeam[winnerTeam][0] ?? null;
+  const ranking = winnerTeam == null
+    ? [active]
+    : [byTeam[winnerTeam], byTeam[1 - winnerTeam]].filter(list => list.length);
+  const handRecord = {
+    handNo: state.handNo,
+    winner,
+    team: winnerTeam,
+    points: 0,
+    reason: "elimination",
+    rounds: [],
+    out: Array.isArray(ctx.out) ? ctx.out.slice() : [],
+  };
+  return {
+    ...state,
+    phase: "over",
+    winner,
+    winnerTeam,
+    ranking,
+    turn: null,
+    pending: null,
+    maoDeOnze: null,
+    lastHand: handRecord,
+    last: { action: "match", winner, winnerTeam, handNo: state.handNo, points: state.points.slice(), reason: "elimination" },
+    plays: pushPlay(state.plays, { action: "match", winner, winnerTeam, handNo: state.handNo, points: state.points.slice(), reason: "elimination" }),
   };
 }
 
 /** Fecha a mão, soma os pontos e prepara a próxima (mão de onze, mão de ferro ou mão normal). */
-function finishHand(state, winner, awarded, reason, extra = {}) {
+function finishHand(state, winner, awarded, reason, extra = {}, ctx = {}) {
   const previous = state.points.slice();
   const points = state.points.slice();
-  if (winner) points[winner - 1] += awarded;
+  const winnerTeam = winner == null ? null : teamOf(winner);
+  if (winnerTeam != null) points[winnerTeam] += awarded;
   const handRecord = {
     handNo: state.handNo,
     winner: winner ?? null,
+    team: winnerTeam,
     points: awarded,
     reason,
     rounds: state.roundResults.map(result => ({ ...result, cards: result.cards.map(card => ({ ...card })) })),
@@ -283,37 +390,44 @@ function finishHand(state, winner, awarded, reason, extra = {}) {
     plays: pushPlay(state.plays, { action: "hand", ...handRecord, pointsAfter: points.slice() }),
   };
 
-  if (winner && points[winner - 1] >= TARGET) return finishMatch(next, winner, handRecord);
+  if (winner != null && winnerTeam != null && points[winnerTeam] >= TARGET) return finishMatch(next, winner, handRecord, ctx);
+
+  const active = activeSeatsOf(state, ctx);
+  const fallbackLeader = nextActiveSeat(state, state.leader, ctx) ?? active[0] ?? 1;
+  const winningLeader = winner != null && active.includes(winner) ? winner : fallbackLeader;
 
   if (points[0] >= 11 && points[1] >= 11) {
-    return dealHand(next, { value: 3, leader: winner ?? otherSeat(state.leader), maoDeFerro: true });
+    return dealHand(next, { value: 3, leader: winningLeader, maoDeFerro: true }, ctx);
   }
 
-  const crossing = [0, 1].find(index => points[index] >= 11 && previous[index] < 11);
+  const crossing = [0, 1].find(team => points[team] >= 11 && previous[team] < 11);
   if (crossing != null) {
-    const seat = crossing + 1;
+    const decider = teamRepresentative(state, crossing, ctx, winningLeader);
     return dealHand(next, {
       value: 3,
-      leader: seat,
+      leader: decider ?? winningLeader,
       phase: "mao",
-      maoDeOnze: seat,
-      maoDeOnzeSeat: seat,
+      maoDeOnze: decider,
+      maoDeOnzeSeat: decider,
       maoDeOnzeHand: true,
-    });
+    }, ctx);
   }
 
-  return dealHand(next, { value: 1, leader: winner ?? otherSeat(state.leader) });
+  return dealHand(next, { value: 1, leader: winningLeader }, ctx);
 }
 
-/** Corre da mão de onze: entrega 1 ponto ao adversário e prepara a próxima mão. */
-function runMaoFold(state, seat) {
-  const opponent = otherSeat(seat);
+/** Corre da mão de onze: entrega 1 ponto à dupla adversária e prepara a próxima mão. */
+function runMaoFold(state, seat, ctx = {}) {
+  const team = teamOf(seat);
+  const opponentTeam = team == null ? 0 : 1 - team;
+  const opponent = teamRepresentative(state, opponentTeam, ctx, nextOpponentSeat(state, seat, ctx));
   const previous = state.points.slice();
   const points = state.points.slice();
-  points[opponent - 1] += 1;
+  points[opponentTeam] += 1;
   const handRecord = {
     handNo: state.handNo,
     winner: opponent,
+    team: opponentTeam,
     points: 1,
     reason: "mao_fold",
     rounds: [],
@@ -326,46 +440,56 @@ function runMaoFold(state, seat) {
     maoDeOnze: null,
     lastHand: handRecord,
     plays: pushPlay(
-      pushPlay(state.plays, { seat, action: "mao", choice: "fold", to: opponent, points: 1 }),
+      pushPlay(state.plays, { seat, action: "mao", choice: "fold", to: opponent, team: opponentTeam, points: 1 }),
       { action: "hand", ...handRecord, pointsAfter: points.slice() },
     ),
   };
 
-  if (points[opponent - 1] >= TARGET) return finishMatch(withAction, opponent, handRecord);
-  if (points[0] >= 11 && points[1] >= 11) return dealHand(withAction, { value: 3, leader: opponent, maoDeFerro: true });
+  if (points[opponentTeam] >= TARGET) return finishMatch(withAction, opponent, handRecord, ctx);
+  if (points[0] >= 11 && points[1] >= 11) {
+    return dealHand(withAction, { value: 3, leader: opponent ?? 1, maoDeFerro: true }, ctx);
+  }
 
-  /* A pessoa que correu continua em 11, mas a mão de onze não se repete: só o cruzamento de 10 para 11 a ativa. */
-  return dealHand(withAction, { value: 1, leader: opponent });
+  /* A pessoa que correu continua com a dupla em 11, mas a mão de onze não se repete:
+     só o cruzamento de 10 para 11 a ativa. */
+  return dealHand(withAction, { value: 1, leader: opponent ?? 1 }, ctx);
 }
 
-/** Resolve a vaza quando as duas cartas estão na mesa. */
-function resolveRound(state) {
-  const [first, second] = state.table;
-  const firstStrength = strengthOf(first.card);
-  const secondStrength = strengthOf(second.card);
-  const winner = firstStrength > secondStrength ? first.seat : secondStrength > firstStrength ? second.seat : null;
-  const entry = { round: state.round, cards: state.table.slice(), winner, tie: winner === null };
+/** Resolve a vaza quando todos os assentos ativos já jogaram. */
+function resolveRound(state, ctx = {}) {
+  const active = activeSeatsOf(state, ctx);
+  const plays = state.table.filter(play => active.includes(play.seat));
+  const best = plays.reduce((max, play) => Math.max(max, strengthOf(play.card)), 0);
+  const top = plays.filter(play => strengthOf(play.card) === best);
+  const topTeams = [...new Set(top.map(play => teamOf(play.seat)))];
+  const winnerTeam = topTeams.length === 1 ? topTeams[0] : null;
+  const winner = winnerTeam == null ? null : top.find(play => teamOf(play.seat) === winnerTeam)?.seat ?? null;
+  const lastSeat = state.table.at(-1)?.seat ?? null;
+  const entry = { round: state.round, cards: state.table.slice(), winner, team: winnerTeam, tie: winner === null };
   const roundResults = [...state.roundResults, entry];
   const roundWins = state.roundWins.slice();
-  if (winner) roundWins[winner - 1] += 1;
-  const nextLeader = winner ?? state.roundLeader;
+  if (winnerTeam != null) roundWins[winnerTeam] += 1;
+  const nextLeader = winner ?? (active.includes(state.roundLeader) ? state.roundLeader : nextActiveSeat(state, state.roundLeader, ctx) ?? state.roundLeader);
   const resolved = {
     ...state,
     roundResults,
     roundWins,
-    last: { action: "round", round: state.round, winner, tie: winner === null, seat: second.seat },
-    plays: pushPlay(state.plays, { action: "round", round: state.round, winner, tie: winner === null, seat: second.seat }),
+    last: { action: "round", round: state.round, winner, team: winnerTeam, tie: winner === null, seat: lastSeat },
+    plays: pushPlay(state.plays, { action: "round", round: state.round, winner, team: winnerTeam, tie: winner === null, seat: lastSeat }),
   };
 
   const decided = decidedHand(roundResults);
   if (decided !== undefined) {
-    const finished = finishHand(resolved, decided, decided ? resolved.handValue : 0, decided ? "hand" : "tie");
+    const decidedSeat = decided == null
+      ? null
+      : roundResults.find(result => result.team === decided)?.winner ?? null;
+    const finished = finishHand(resolved, decidedSeat, decidedSeat ? resolved.handValue : 0, decidedSeat ? "hand" : "tie", {}, ctx);
     return {
       state: finished,
       turn: finished.turn,
       ranking: finished.ranking,
       move: resolved.last,
-      reason: finished.ranking ? (decided ? "hand" : "tie") : null,
+      reason: finished.ranking ? (decidedSeat ? "hand" : "tie") : null,
     };
   }
 
@@ -384,6 +508,14 @@ export function partyMove(state, seat, input, ctx = {}) {
   const out = Array.isArray(ctx.out) ? ctx.out : [];
   if (!seats.includes(seat) || out.includes(seat)) return null;
   if (state.winner != null || state.phase === "over") return null;
+
+  /* Em 2×2, o banco elimina o jogador que estourou/saiu, mas não sabe das duplas. A dupla que perdeu
+     um jogador não continua: a partida fecha no lance seguinte. No 1×1 o banco já encerra antes. */
+  if (out.length) {
+    const next = finishByElimination(state, ctx);
+    return { state: next, turn: null, ranking: next.ranking, move: next.last, reason: "elimination" };
+  }
+
   if (state.turn !== seat) return null;
 
   const action = input?.action;
@@ -403,8 +535,8 @@ export function partyMove(state, seat, input, ctx = {}) {
       return { state: next, turn: next.turn, ranking: null, move: next.last, reason: null };
     }
     if (input?.choice === "fold") {
-      const next = runMaoFold(state, seat);
-      return { state: next, turn: next.turn, ranking: next.ranking, move: { seat, action: "mao", choice: "fold" }, reason: next.ranking ? "mao_fold" : null };
+      const next = runMaoFold(state, seat, ctx);
+      return { state: next, turn: next.turn, ranking: next.ranking, move: { seat, action: "mao", choice: "fold" }, reason: next.ranking ? (next.lastHand?.reason ?? "mao_fold") : null };
     }
     return null;
   }
@@ -430,7 +562,7 @@ export function partyMove(state, seat, input, ctx = {}) {
     if (action === "fold") {
       const challenger = pending.seat;
       const folded = { ...state, pending: null, handValue: pending.stake };
-      const next = finishHand(folded, challenger, pending.stake, "fold", { foldedBy: seat });
+      const next = finishHand(folded, challenger, pending.stake, "fold", { foldedBy: seat }, ctx);
       return {
         state: next,
         turn: next.turn,
@@ -443,7 +575,8 @@ export function partyMove(state, seat, input, ctx = {}) {
     if (action === "raise") {
       const value = nextTrucoValue(pending.value);
       if (!value) return null;
-      const responder = otherSeat(seat);
+      const responder = nextOpponentSeat(state, seat, ctx);
+      if (responder == null) return null;
       const next = {
         ...state,
         pending: { seat, responder, value, stake: pending.value, resumeTurn: pending.resumeTurn },
@@ -459,10 +592,11 @@ export function partyMove(state, seat, input, ctx = {}) {
 
   if (action === "truco") {
     if (state.phase !== "playing" || state.trucoLocked || !state.raiseReady) return null;
-    if (state.nextRaiser != null && state.nextRaiser !== seat) return null;
+    if (state.nextRaiser != null && teamOf(state.nextRaiser) !== teamOf(seat)) return null;
     const value = nextTrucoValue(state.handValue);
     if (!value) return null;
-    const responder = otherSeat(seat);
+    const responder = nextOpponentSeat(state, seat, ctx);
+    if (responder == null) return null;
     const next = {
       ...state,
       pending: { seat, responder, value, stake: state.handValue, resumeTurn: state.turn },
@@ -483,14 +617,14 @@ export function partyMove(state, seat, input, ctx = {}) {
   hands[seat - 1] = hand.filter(id => id !== card);
   let table = state.table.slice();
   let roundLeader = state.roundLeader;
-  if (table.length >= 2) {       // a vaza anterior terminou: a mesa vira para a próxima
+  if (roundComplete(state, ctx)) {       // a vaza anterior terminou: a mesa vira para a próxima
     table = [];
     roundLeader = seat;
   }
   if (!table.length) roundLeader = seat;
   table = [...table, { seat, card }];
   const playRecord = { seat, action: "play", card, round: state.round };
-  const next = {
+  let next = {
     ...state,
     hands,
     table,
@@ -500,16 +634,18 @@ export function partyMove(state, seat, input, ctx = {}) {
     plays: pushPlay(state.plays, playRecord),
   };
 
-  if (table.length === 1) {
-    next.turn = otherSeat(seat);
+  const active = activeSeatsOf(state, ctx);
+  const played = new Set(table.map(play => play.seat));
+  if (!active.every(activeSeat => played.has(activeSeat))) {
+    next.turn = nextActiveSeat(state, seat, ctx);
     return { state: next, turn: next.turn, ranking: null, move: next.last, reason: null };
   }
 
-  return resolveRound(next);
+  return resolveRound(next, ctx);
 }
 
 /** Estouro de tempo no modo local: joga a carta mais fraca, aceita? não — corre de truco/mão de onze.
-    A Edge/Postgres cuidam do tempo no online (onTimeout: "out" elimina quem estourou). */
+    No online (onTimeout: "out") o servidor elimina quem estourou; no 2×2 a dupla perde no lance seguinte. */
 export function timeoutTurn(state, seat, ctx = {}) {
   const seats = Array.isArray(ctx.seats) && ctx.seats.length ? ctx.seats : seatsFromState(state);
   const out = Array.isArray(ctx.out) ? ctx.out : [];
@@ -529,12 +665,18 @@ export function partyView(state, seat, ctx = {}) {
   const active = state.winner == null && state.phase !== "over" && !out.includes(seat);
   const pending = state.pending ?? null;
   const canRespond = active && state.phase === "playing" && pending?.responder === seat;
+  const viewTurn = state.turn != null && !out.includes(state.turn)
+    ? state.turn
+    : (state.phase === "playing" && state.turn != null ? nextActiveSeat(state, state.turn, ctx) : state.turn ?? null);
+  const teams = [0, 1].map(team => seats.filter(s => teamOf(s) === team));
   return {
     seat,
-    turn: state.turn ?? null,
+    team: teamOf(seat),
+    teams,
+    turn: viewTurn,
     phase: state.phase,
     hand,
-    counts: seats.map(s => ({ seat: s, cards: handOf(state, s).length, out: out.includes(s) })),
+    counts: seats.map(s => ({ seat: s, team: teamOf(s), cards: handOf(state, s).length, out: out.includes(s) })),
     points: state.points.slice(),
     target: TARGET,
     handNo: state.handNo,
@@ -556,10 +698,11 @@ export function partyView(state, seat, ctx = {}) {
     lastHand: state.lastHand ?? null,
     plays: (state.plays ?? []).slice(-12),
     winner: state.winner ?? null,
+    winnerTeam: state.winnerTeam ?? (state.winner == null ? null : teamOf(state.winner)),
     ranking: state.ranking ?? null,
-    canPlay: active && state.phase === "playing" && !pending && state.turn === seat,
-    canTruco: active && state.phase === "playing" && !pending && !state.trucoLocked && state.turn === seat
-      && state.handValue < 12 && state.raiseReady && (state.nextRaiser == null || state.nextRaiser === seat),
+    canPlay: active && state.phase === "playing" && !pending && viewTurn === seat,
+    canTruco: active && state.phase === "playing" && !pending && !state.trucoLocked && viewTurn === seat
+      && state.handValue < 12 && state.raiseReady && (state.nextRaiser == null || teamOf(state.nextRaiser) === teamOf(seat)),
     canAccept: canRespond,
     canFold: canRespond,
     canRaise: canRespond && nextTrucoValue(pending.value) != null,
