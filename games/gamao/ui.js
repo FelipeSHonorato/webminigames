@@ -5,6 +5,7 @@
 import "../../shared/backend/boot.js";
 import { getSession } from "../../shared/session.js";
 import { mountUserBar } from "../../js/userbar.js";
+import { mountTemplatePicker } from "../../shared/template-picker.js";
 import { Music } from "../../shared/music.js";
 import { Cloud } from "../../shared/backend/cloud.js";
 import { createGamaoSession } from "../../shared/gamao-session.js";
@@ -80,6 +81,7 @@ const els = {
 
 const session = getSession();
 mountUserBar($("userbar"), { base: "../../" });
+mountTemplatePicker({ game: GAME_ID });
 Music.play(GAME_ID);
 
 /* ===================== estado da partida ===================== */

@@ -1156,7 +1156,47 @@ seção **3.2** (catálogo → domínio → migração/tabela → Edge → sess�
 
 ---
 
-## 13. Referência rápida: onde mexer para…
+## 13. Templates visuais (duelo e multijogador)
+
+Todo jogo de **duelo** (`duel: true`) ou **multijogador** (`party: true`) tem o botão **Template**, ao lado de
+**Criar sala online** na tela de setup. Ele abre um pop-up com os espaços do jogo — **Tabuleiro** e **Peças**
+(Xadrez, Dama, Gamão, Go; no Go as peças são "Pedras"), **Tabuleiro, Peças e Cartas** (Onitama) ou **Mesa e
+Cartas** (Truco, UNO) — e, em cada espaço, uma lista com a prévia de cada template. Hoje a lista só tem a
+**Default** (o visual original). O padrão a seguir para os próximos é o da pasta `games/uno/cards/`: um arquivo
+por item, com nome fixo.
+
+**Template é só apresentação.** Ele nunca toca no `domain.js` (que é copiado para a Edge com teste de paridade),
+não muda regra nem estado e não passa pelo servidor: a escolha fica no navegador (`localStorage`, chave
+`wmg.templates`) e cada jogador vê o *seu* visual. Aplicar o template ao tabuleiro/cartas vem numa etapa
+seguinte; por ora o pop-up só guarda a escolha e dispara `wmg:template-change`.
+
+| Arquivo | Papel |
+|---|---|
+| `shared/templates.js` | registro puro: `TEMPLATE_GAMES` (espaços de cada jogo), `TEMPLATES` (opções), `getSelected`/`setSelected`/`selectionOf` |
+| `shared/template-previews.js` | prévias da Default em SVG/HTML (usam as variáveis do jogo, com valor de reserva; sem `<defs>`/`url(#)`) |
+| `shared/template-picker.js` | `mountTemplatePicker({ game })`: o `<dialog>` e a ligação do botão `#templateBtn` |
+| `css/template-picker.css` | visual do pop-up (só tokens que todos esses jogos definem) |
+| `tests/templates.test.js` | registro, seleção, prévias e a ligação em cada página |
+
+**Jogo novo de duelo ou multijogador** — além do checklist da seção 6/3.2.9:
+
+1. Em `shared/templates.js`, acrescente o jogo em `TEMPLATE_GAMES` com os espaços (`board`, `pieces`, `cards`).
+2. Em `shared/template-previews.js`, desenhe a prévia da Default de cada `kind` (`PREVIEWS[<id>]`).
+3. No `index.html`, logo depois do botão `#createRoom`:
+   `<button id="templateBtn" class="secondary" type="button" aria-haspopup="dialog">Template</button>`
+   e carregue `../../css/template-picker.css`.
+4. No `ui.js`: `import { mountTemplatePicker } from "../../shared/template-picker.js";` e, depois de
+   `mountUserBar(...)`, `mountTemplatePicker({ game: GAME_ID });` (UNO e qualquer jogo com imagens próprias
+   passam `base` se a página não estiver na pasta do jogo).
+5. `tests/templates.test.js` falha se um jogo `duel`/`party` do catálogo ficar sem seletor.
+
+**Template novo para um espaço:** acrescente o item em `TEMPLATES[<jogo>][<espaço>]` (hoje gerado só com a
+Default), com `id`, `name` e `description`, e dê a ele uma prévia em `renderPreview`. O pop-up lista sozinho.
+Não copie arte oficial de terceiros (veja `THIRD_PARTY.md`).
+
+---
+
+## 14. Referência rápida: onde mexer para…
 
 | Preciso… | Vá em |
 |---|---|
@@ -1173,5 +1213,6 @@ seção **3.2** (catálogo → domínio → migração/tabela → Edge → sess�
 | relógio e lance do Xadrez | `chess_games` + `chess_move`/`chess_state` (migração `20261038000000_chess_duel.sql`) |
 | mudar o tempo por dica | `daily_hint_seconds()` (migração nova) |
 | mudar o teto de acúmulo | `daily_backlog_days()` / `daily_backlog_start()` (migração nova) |
+| mudar o visual (templates) de um jogo de duelo/multijogador | seção 13; `shared/templates.js` + `shared/template-picker.js` |
 | criar o tutorial animado | `shared/tutorial.js` + `css/tutorial.css` (seção 5.1); modelos em qualquer um dos onze jogos (o Zip é o piloto) |
 | explicar dificuldades e níveis | `shared/level-help.js` (`mountLevelHelp`) + `css/tutorial.css` (seção 5.1) |

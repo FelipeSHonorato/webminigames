@@ -1,0 +1,74 @@
+/* Pop-up "Template" dos jogos de duelo e multijogador (shared/template-picker.js).
+   Usa só os tokens que todos esses jogos já definem: --surface, --bg, --fg, --muted, --line, --accent, --accent-fg. */
+
+.tpl-dialog{width:min(640px,calc(100% - 24px));max-height:calc(100dvh - 24px);padding:0;overflow:auto;
+  border:1px solid var(--line,#c3ced9);border-radius:20px;background:var(--surface,#fff);color:var(--fg,#14213d);
+  box-shadow:0 30px 80px rgba(0,0,0,.45)}
+.tpl-dialog::backdrop{background:rgba(6,12,18,.62);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+
+.tpl-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px 6px}
+.tpl-head h2{margin:0;font-size:1.1rem;letter-spacing:-.01em}
+.tpl-close{flex:0 0 auto;display:grid;place-items:center;width:34px;height:34px;padding:0;font:inherit;font-size:1.4rem;line-height:1;
+  border-radius:50%;cursor:pointer;color:var(--muted,#5b6b7e);background:transparent;border:2px solid transparent}
+.tpl-close:hover{color:var(--fg,#14213d);border-color:var(--line,#c3ced9)}
+
+.tpl-body{padding:4px 18px 6px}
+.tpl-intro{margin:0 0 14px;color:var(--muted,#5b6b7e);font-size:.88rem;line-height:1.45}
+.tpl-section{margin:0 0 16px}
+.tpl-heading{margin:0 0 8px;font-size:.78rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted,#5b6b7e)}
+.tpl-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+
+.tpl-option{position:relative;display:flex;flex-direction:column;gap:8px;width:auto;padding:8px;font:inherit;text-align:left;cursor:pointer;
+  color:var(--fg,#14213d);background:var(--surface,#fff);border:2px solid var(--line,#c3ced9);border-radius:14px;
+  transition:border-color .15s,box-shadow .15s}
+.tpl-option:hover{border-color:var(--accent,#0f766e)}
+.tpl-option.on{border-color:var(--accent,#0f766e);box-shadow:inset 0 0 0 1px var(--accent,#0f766e)}
+.tpl-option:focus-visible,.tpl-close:focus-visible,.tpl-done:focus-visible{outline:3px solid var(--accent,#0f766e);outline-offset:2px}
+
+.tpl-preview{position:relative;display:grid;place-items:center;width:100%;aspect-ratio:4/3;overflow:hidden;border-radius:9px;
+  background:var(--bg,#e9eef3);border:1px solid var(--line,#c3ced9)}
+.tpl-preview[data-kind="pieces"]{aspect-ratio:2/1}
+.tpl-preview[data-kind="cards"]{aspect-ratio:3/2}
+.tpl-preview svg{display:block;width:100%;height:100%}
+.tpl-meta{display:flex;flex-direction:column;gap:1px;min-width:0;padding:0 2px 2px}
+.tpl-meta b{font-size:.95rem}
+.tpl-meta small{color:var(--muted,#5b6b7e);font-size:.76rem;line-height:1.3}
+.tpl-check{position:absolute;top:14px;right:14px;display:none;place-items:center;width:22px;height:22px;border-radius:50%;
+  background:var(--accent,#0f766e);color:var(--accent-fg,#fff);font-size:.8rem;font-weight:800;line-height:1;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.tpl-option.on .tpl-check{display:grid}
+
+/* Mesas de feltro (Truco e UNO) e leque de cartas do UNO: preenchem a caixa da prévia (inset:0), assim
+   a altura das imagens é uma porcentagem definida e nada transborda. O fundo do feltro vem inline,
+   igual ao `.table-center` do jogo. */
+.tpl-preview > .tpl-felt,.tpl-preview > .tpl-uno-fan{position:absolute;inset:0}
+.tpl-felt{display:grid;place-items:center}
+.tpl-felt svg{width:100%;height:100%}
+.tpl-uno-table{display:flex;align-items:center;justify-content:center}
+.tpl-uno-ring{display:flex;align-items:center;justify-content:center;gap:12px;height:100%}
+.tpl-uno-ring img{height:64%;width:auto;border-radius:6px;box-shadow:0 4px 10px rgba(0,0,0,.35)}
+.tpl-uno-ring img:first-child{transform:rotate(-6deg)}
+.tpl-uno-ring img:last-child{transform:rotate(5deg)}
+.tpl-uno-fan{display:flex;align-items:center;justify-content:center}
+.tpl-uno-fan img{height:76%;width:auto;margin-left:-24px;border-radius:5px;box-shadow:0 3px 8px rgba(0,0,0,.35)}
+.tpl-uno-fan img:first-child{margin-left:0;transform:rotate(-11deg)}
+.tpl-uno-fan img:nth-child(2){transform:rotate(-4deg)}
+.tpl-uno-fan img:nth-child(3){transform:rotate(4deg)}
+.tpl-uno-fan img:nth-child(4){transform:rotate(11deg)}
+
+.tpl-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 18px 18px}
+.tpl-note{margin:0;color:var(--muted,#5b6b7e);font-size:.78rem;line-height:1.4}
+.tpl-done{flex:0 0 auto;width:auto;padding:10px 18px;font:inherit;font-weight:800;cursor:pointer;color:var(--accent-fg,#fff);
+  background:var(--accent,#0f766e);border:2px solid var(--accent,#0f766e);border-radius:11px}
+.tpl-done:hover{filter:brightness(1.06)}
+
+@media (max-width:520px){
+  .tpl-head,.tpl-body,.tpl-foot{padding-left:13px;padding-right:13px}
+  .tpl-list{grid-template-columns:1fr}
+  /* Celular: prévia à esquerda e nome à direita, para o pop-up não ficar enorme. */
+  .tpl-option{flex-direction:row;align-items:center;gap:12px}
+  .tpl-option .tpl-preview{flex:0 0 46%;width:46%}
+  .tpl-meta{flex:1 1 auto;padding-right:30px}
+  .tpl-check{top:50%;right:12px;transform:translateY(-50%)}
+  .tpl-foot{flex-direction:column-reverse;align-items:stretch}
+  .tpl-done{width:100%}
+}
