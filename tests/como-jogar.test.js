@@ -10,10 +10,12 @@ import * as gamao from "../games/gamao/domain.js";
 import * as go from "../games/go/domain.js";
 import * as uno from "../games/uno/domain.js";
 import * as truco from "../games/truco/domain.js";
-import { CHESS, DAMA, GAMMON, GO, ONITAMA, UNO, TRUCO, GUIDES, GUIDE_IDS, chessReach, damaFromPosition, damaPosition, gammonPoints } from "../js/como-jogar-data.js";
+import * as domino from "../games/domino/domain.js";
+import { CHESS, DAMA, GAMMON, GO, ONITAMA, UNO, TRUCO, DOMINO, GUIDES, GUIDE_IDS, chessReach, damaFromPosition, damaPosition, gammonPoints } from "../js/como-jogar-data.js";
 import {
   chessBoard, damaBoard, gammonBoard, goBoard, onitamaBoard, onitamaCardSvg, unoCardSvg, unoCardsSvg, unoTableSvg,
   trucoCardSvg, trucoCardsSvg, trucoTableSvg,
+  dominoTileSvg, dominoTilesSvg, dominoTableSvg,
   goCoord, goPoint, goPosition, diceSvg, parseFen,
 } from "../js/como-jogar-art.js";
 
@@ -443,6 +445,41 @@ test("como jogar · truco: figuras desenhadas, acessíveis e sem recursos extern
   assert.doesNotMatch(row + scene + single, /<defs|url\(#|<script|<image|<foreignObject|https?:\/\//);
 });
 
+/* ==================================== DOMINÓ ==================================== */
+
+test("como jogar · dominó: toda pedra das figuras existe e os encaixes seguem o domínio", () => {
+  const ids = [
+    ...DOMINO.hand, ...DOMINO.board.map(entry => entry.tile), ...DOMINO.encaixe.hand,
+    ...DOMINO.batida.hand, ...DOMINO.batida.winner, ...DOMINO.fechado.hands.flat(),
+  ];
+  for (const id of ids) assert.ok(domino.tileOf(id), `${id} não é uma pedra de dominó`);
+
+  const ends = domino.endsOf(DOMINO.board);
+  assert.deepEqual(ends, DOMINO.ends, "as pontas da mesa são as do domínio");
+  const playable = DOMINO.encaixe.hand.filter(id => domino.legalEnds(id, ends).length);
+  assert.deepEqual(playable, ["1-3", "5-6"], "só 1–3 e 5–6 encaixam nas pontas 3 e 6");
+  assert.deepEqual(DOMINO.encaixe.hand.map(id => domino.legalEnds(id, ends)),
+    [["left"], ["right"], [], []], "1–3 entra à esquerda e 5–6 à direita");
+
+  assert.equal(DOMINO.batida.hand.reduce((sum, id) => sum + domino.pipsOf(id), 0), DOMINO.batida.points,
+    "as mãos que sobraram valem os pontos ditos na legenda");
+  assert.equal(domino.pipsOf("0-2"), domino.pipsOf("1-1"), "o exemplo de empate tem as duas mãos valendo o mesmo");
+
+  const single = dominoTileSvg("6-6", { label: "Carroção 6 e 6" });
+  assert.match(single, /aria-label="Carroção 6 e 6"/);
+  assert.throws(() => dominoTileSvg("6-5", { label: "x" }), /pedra de dominó inválida/, "6–5 não é id canônico");
+  const row = dominoTilesSvg(DOMINO.hand, { label: "Mão de dominó", marks: { "6-6": "sel" } });
+  assert.match(row, /cj-domino-row/);
+  assert.equal((row.match(/<circle/g) ?? []).length > 10, true, "as pedras desenham os pontos");
+  const scene = dominoTableSvg({
+    board: DOMINO.board, hand: DOMINO.encaixe.hand,
+    marks: { "1-3": "good", "5-6": "good", "0-2": "bad", "1-1": "bad" }, label: "Mesa com pontas 3 e 6",
+  });
+  assert.match(scene, /aria-label="Mesa com pontas 3 e 6"/);
+  assert.match(scene, /cj-domino-scene/);
+  assert.doesNotMatch(row + scene + single, /<defs|url\(#|<script|<image|<foreignObject|https?:\/\//);
+});
+
 /* ============================== figuras e página ============================== */
 
 test("como jogar · figuras: SVG acessível, sem <defs>, sem recursos externos", () => {
@@ -463,8 +500,8 @@ test("como jogar · figuras: peça em casa clara da dama e FEN inválido são re
   assert.equal((gammonBoard({ label: "x" }).match(/<polygon/g) ?? []).length >= 24, true);
 });
 
-test("como jogar · conteúdo: ids únicos, sete guias e links dos jogos", () => {
-  assert.deepEqual(GUIDE_IDS, ["xadrez", "dama", "gamao", "go", "onitama", "uno", "truco"]);
+test("como jogar · conteúdo: ids únicos, oito guias e links dos jogos", () => {
+  assert.deepEqual(GUIDE_IDS, ["xadrez", "dama", "gamao", "go", "onitama", "uno", "truco", "domino"]);
   const catalog = read("js/games.js");
   for (const g of GUIDES) {
     const ids = g.sections.map(s => s.id);
@@ -532,6 +569,16 @@ test("como jogar · Truco (2–4 jogadores) também tem o link ao lado do títul
   const nav = html.match(/<nav class="sitebar">[\s\S]*?<\/nav>/)?.[0] ?? "";
   assert.doesNotMatch(nav, /howto-link/, "o link não fica no sitebar");
   assert.match(nav, /<strong>Truco<\/strong><span class="mode-tag">2–4 jogadores<\/span>/);
+});
+
+test("como jogar · Dominó (2–4 jogadores) também tem o link ao lado do título do setup", () => {
+  const html = read("games/domino/index.html");
+  assert.match(html, /<a class="howto-link" href="\.\.\/\.\.\/como-jogar\.html#domino" aria-label="Como jogar Dominó"><span>Como jogar<\/span><\/a>/);
+  assert.match(html, /<div class="setup-title-row"><h1 id="setupTitle">Dominó<\/h1><a class="howto-link"[^>]*><span>Como jogar<\/span><\/a><\/div>/);
+  assert.match(read("games/domino/style.css"), /--grid:/, "o link usa var(--grid) como borda");
+  const nav = html.match(/<nav class="sitebar">[\s\S]*?<\/nav>/)?.[0] ?? "";
+  assert.doesNotMatch(nav, /howto-link/, "o link não fica no sitebar");
+  assert.match(nav, /<strong>Dominó<\/strong><span class="mode-tag">2–4 jogadores<\/span>/);
 });
 
 test("como jogar · celular: o rótulo 'Como jogar' continua visível e o texto dos passos flui na mesma linha", () => {

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dominó 2–4 jogadores</title>
+<link rel="icon" href="../../assets/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../../assets/email-logo.png" type="image/png" sizes="96x96">
+<link rel="apple-touch-icon" href="../../assets/email-logo.png">
+<script src="../../shared/theme-init.js"></script>
+<link rel="stylesheet" href="../../css/scrollbar.css">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../../css/gamebar.css">
+<link rel="stylesheet" href="../../css/party.css">
+<link rel="stylesheet" href="../../css/userbar.css">
+<link rel="stylesheet" href="../../css/template-picker.css">
+</head>
+<body>
+<nav class="sitebar"><a href="../../jogos.html">← Jogos</a><div class="gametitle"><strong>Dominó</strong><span class="mode-tag">2–4 jogadores</span></div><div id="userbar"></div></nav>
+
+<main>
+  <section id="setup" class="setup" aria-labelledby="setupTitle">
+    <header class="setup-head">
+      <p class="eyebrow">Multijogador</p>
+      <div class="setup-title-row"><h1 id="setupTitle">Dominó</h1><a class="howto-link" href="../../como-jogar.html#domino" aria-label="Como jogar Dominó"><span>Como jogar</span></a></div>
+      <p class="lead">O clássico dominó de 28 pedras para 2 a 4 jogadores. Encaixe as pedras nas pontas da mesa, compre no monte quando não houver jogada e seja o primeiro a bater.</p>
+    </header>
+
+    <div id="duelNotice" class="notice" role="status" hidden></div>
+
+    <fieldset class="pick">
+      <legend>Jogadores necessários para iniciar</legend>
+      <div id="playerOptions" class="option-grid three" role="radiogroup" aria-label="Quantidade de jogadores necessários para iniciar">
+        <button type="button" class="option-card" data-players="2" aria-pressed="false"><b>2</b><small>Mesa curta (14 no monte)</small></button>
+        <button type="button" class="option-card" data-players="3" aria-pressed="false"><b>3</b><small>Trio (7 no monte)</small></button>
+        <button type="button" class="option-card" data-players="4" aria-pressed="true"><b>4</b><small>Mesa cheia (sem monte)</small></button>
+      </div>
+      <p class="setup-hint">A partida local usa esta mesa. No modo online, a sala só começa quando esta quantidade de jogadores estiver presente e pronta.</p>
+    </fieldset>
+
+    <fieldset class="pick">
+      <legend>Tempo por jogada</legend>
+      <div id="timeOptions" class="option-grid three" role="radiogroup" aria-label="Tempo por jogada">
+        <button type="button" class="option-card" data-seconds="30" aria-pressed="false"><b>30s</b><small>Rápido</small></button>
+        <button type="button" class="option-card" data-seconds="40" aria-pressed="true"><b>40s</b><small>Padrão</small></button>
+        <button type="button" class="option-card" data-seconds="60" aria-pressed="false"><b>60s</b><small>Tranquilo</small></button>
+      </div>
+      <p class="setup-hint">No modo online, quem estoura o tempo é eliminado e a partida continua entre os que ficaram.</p>
+    </fieldset>
+
+    <fieldset class="pick">
+      <legend>Sala online</legend>
+      <div id="roomOptions" class="option-grid two" role="radiogroup" aria-label="Visibilidade da sala online">
+        <button type="button" class="option-card" data-open="true" aria-pressed="true"><b>Aberta</b><small>Qualquer jogador entra pela lista de salas</small></button>
+        <button type="button" class="option-card" data-open="false" aria-pressed="false"><b>Fechada</b><small>Só entra quem tiver o código do convite</small></button>
+      </div>
+    </fieldset>
+
+    <div class="setup-actions">
+      <button id="startLocal" class="primary" type="button">Jogar no mesmo dispositivo</button>
+      <button id="createRoom" class="secondary" type="button">Criar sala online</button>
+      <button id="templateBtn" class="secondary" type="button" aria-haspopup="dialog">Template</button>
+    </div>
+
+    <p class="setup-note">Cada jogador recebe 7 pedras. Quem tem o maior carroção abre a rodada automaticamente; as jogadas seguem no sentido horário. Encaixe uma pedra em qualquer uma das duas pontas da mesa. Sem pedra jogável, compre do monte até conseguir jogar; com o monte vazio, passe. Quem bate soma os pontos que ficaram nas mãos dos adversários. No jogo fechado, quem tem menos pontos na mão vence e leva a diferença. A partida vai até 100 pontos.</p>
+  </section>
+
+  <div id="partyHost" class="party-host" hidden></div>
+
+  <section id="game" class="game" aria-label="Partida de Dominó" hidden>
+    <div class="game-head">
+      <div class="game-title">
+        <p class="eyebrow">Mesa de dominó</p>
+        <h1>Dominó</h1>
+      </div>
+      <p id="status" class="status" role="status">Sua vez</p>
+    </div>
+
+    <div class="table-grid">
+      <div class="slot slot-left"><div id="leftPlayer" class="opponent-host"></div></div>
+      <div class="slot slot-top"><div id="topPlayer" class="opponent-host"></div></div>
+      <div class="slot slot-right"><div id="rightPlayer" class="opponent-host"></div></div>
+
+      <div class="slot slot-center">
+        <div class="table-center">
+          <div class="table-meta">
+            <span id="roundBadge" class="round-badge">Rodada 1</span>
+            <span class="meta-sep">·</span>
+            <span id="endsText" class="ends-text">Pontas: —</span>
+            <span id="boneyardCount" class="deck-count">0 no monte</span>
+            <span id="turnTimer" class="turn-timer" aria-label="Tempo da jogada">—</span>
+          </div>
+
+          <div class="board-wrap">
+            <div id="board" class="board" role="group" aria-label="Pedras na mesa"></div>
+          </div>
+
+          <p id="roundNote" class="round-note" role="status"></p>
+
+          <div class="table-actions">
+            <button id="drawBtn" class="primary" type="button" disabled>Comprar do monte</button>
+            <button id="passBtn" class="secondary" type="button" disabled>Passar</button>
+          </div>
+          <p id="hint" class="table-hint" role="status"></p>
+        </div>
+      </div>
+
+      <div class="slot slot-bottom"><div id="bottomPlayer" class="opponent-host"></div></div>
+    </div>
+
+    <div class="hand-area">
+      <p id="handLabel" class="hand-label">Sua mão</p>
+      <div id="hand" class="hand" role="group" aria-label="Sua mão"></div>
+    </div>
+  </section>
+</main>
+
+<div id="gate" class="overlay gate" hidden>
+  <div class="overlay-card" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
+    <p class="eyebrow">Passar o dispositivo</p>
+    <h2 id="gateTitle">Vez de Jogador 1</h2>
+    <p id="gateText" class="overlay-text">Passe o aparelho para o próximo jogador. Só ele deve olhar a mão.</p>
+    <button id="gateBtn" class="primary" type="button">Sou o próximo jogador</button>
+  </div>
+</div>
+
+<div id="endPick" class="overlay picker" hidden>
+  <div class="overlay-card" role="dialog" aria-modal="true" aria-labelledby="endTitle">
+    <p class="eyebrow">Encaixe</p>
+    <h2 id="endTitle">Onde jogar a pedra?</h2>
+    <p id="endText" class="overlay-text">Esta pedra serve nas duas pontas.</p>
+    <div class="end-choices">
+      <button type="button" class="end-choice" data-end="left"><span class="end-number">–</span><b>Ponta esquerda</b></button>
+      <button type="button" class="end-choice" data-end="right"><span class="end-number">–</span><b>Ponta direita</b></button>
+    </div>
+    <button id="cancelEnd" class="secondary" type="button">Cancelar</button>
+  </div>
+</div>
+
+<div id="result" class="overlay result" hidden>
+  <div class="overlay-card result-card" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+    <span id="resultIcon" class="result-icon" aria-hidden="true">Dominó</span>
+    <h2 id="resultTitle">Partida encerrada</h2>
+    <p id="resultText" class="overlay-text"></p>
+    <ol id="resultList" class="result-list" aria-label="Classificação final"></ol>
+    <div class="result-actions">
+      <button id="rematch" class="primary" type="button">Revanche</button>
+      <button id="backSetup" class="secondary" type="button">Trocar jogadores</button>
+    </div>
+  </div>
+</div>
+
+<script src="../../shared/file-warning.js"></script>
+<script type="module" src="./ui.js"></script>
+</body>
+</html>

@@ -106,6 +106,11 @@ const MOODS = {
     chords: [[0, 3, 7, 10], [-4, 0, 3, 7], [-2, 2, 5, 8], [-5, -1, 2, 5]],
     melody: 0.16, kick: 0.05, hat: 0.06, swing: 0.14,
   },
+  domino: {
+    bpm: 74, root: 43, scale: [0, 2, 4, 7, 9], pad: "sine", lead: "triangle",
+    chords: [[0, 4, 7, 9], [-3, 0, 4, 7], [-5, -1, 2, 7], [-2, 2, 4, 9]],
+    melody: 0.12, kick: 0.04, hat: 0.05, swing: 0.12,
+  },
 };
 
 let ctx = null, master = null, bus = null, noise = null, timer = null, bar = 0, nextBar = 0;

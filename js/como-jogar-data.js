@@ -1,7 +1,7 @@
-/* Conteúdo das páginas "Como jogar" (Xadrez, Dama, Gamão, Go, Onitama, UNO e Truco). Módulo puro: sem DOM, roda no navegador
+/* Conteúdo das páginas "Como jogar" (Xadrez, Dama, Gamão, Go, Onitama, UNO, Truco e Dominó). Módulo puro: sem DOM, roda no navegador
    e nos testes.
 
-   Os EXEMPLOS (CHESS, DAMA, GAMMON, GO, ONITAMA, UNO) ficam exportados porque `tests/como-jogar.test.js` confere cada
+   Os EXEMPLOS (CHESS, DAMA, GAMMON, GO, ONITAMA, UNO, DOMINO) ficam exportados porque `tests/como-jogar.test.js` confere cada
    um contra o domínio do jogo (ex.: o "mate do corredor" é mesmo xeque-mate; a captura dupla da Dama é mesmo a única
    válida; o grupo do Go tem mesmo aquelas liberdades). Assim a página nunca ensina uma regra diferente da que o jogo
    aplica.
@@ -11,7 +11,8 @@
 import { GAMES } from "./games.js";
 import {
   chessBoard, damaBoard, gammonBoard, goBoard, onitamaBoard, onitamaCardSvg, diceSvg, damaPosition, parseFen, parseSquare, squareName,
-  unoCardSvg, unoCardsSvg, unoTableSvg, trucoCardSvg, trucoCardsSvg, trucoTableSvg, GAMMON_START,
+  unoCardSvg, unoCardsSvg, unoTableSvg, trucoCardSvg, trucoCardsSvg, trucoTableSvg,
+  dominoTileSvg, dominoTilesSvg, dominoTableSvg, GAMMON_START,
 } from "./como-jogar-art.js";
 import { CARDS as ONITAMA_CARDS } from "../games/onitama/domain.js";
 import { COLOR_NAMES as UNO_COLOR_NAMES, canPlayCard as unoCanPlay, cardName as unoCardName } from "../games/uno/domain.js";
@@ -151,6 +152,20 @@ export const TRUCO = Object.freeze({
   round: { table: ["3-hearts", "2-hearts"], hand: ["K-clubs"] },
   truco: ["3-clubs", "2-spades", "A-diamonds"],
   eleven: ["3-spades", "2-clubs", "K-diamonds"],
+});
+
+/* DOMINÓ: exemplos usados nas figuras; o teste confere cada pedra e os encaixes no domínio. */
+export const DOMINO = Object.freeze({
+  hand: ["6-6", "5-6", "4-4", "1-3", "0-5"],
+  board: [
+    { tile: "3-3", left: 3, right: 3 },
+    { tile: "3-6", left: 3, right: 6 },
+    { tile: "6-6", left: 6, right: 6 },
+  ],
+  ends: [3, 6],
+  encaixe: { hand: ["1-3", "5-6", "0-2", "1-1"] },
+  batida: { hand: ["2-4", "0-3"], winner: ["5-6"], points: 9 },
+  fechado: { hands: [["0-2"], ["1-1"]], points: 0 },
 });
 
 /** Casas para onde a peça de `from` pode ir no xadrez (sem xeque/cravada: os exemplos foram escolhidos sem isso;
@@ -998,5 +1013,121 @@ function trucoGuide() {
   };
 }
 
-export const GUIDES = [chessGuide(), damaGuide(), gammonGuide(), goGuide(), onitamaGuide(), unoGuide(), trucoGuide()];
+/* ==================================== DOMINÓ =================================== */
+
+const LEGEND_DOMINO = [
+  ["good", "Pedra que encaixa"],
+  ["bad", "Pedra que não encaixa"],
+  ["sel", "Pedra escolhida"],
+  ["ring", "Ponta livre da mesa"],
+];
+
+function dominoGuide() {
+  const D = DOMINO;
+  const tiles = (ids, opts = {}) => dominoTilesSvg(ids, { label: opts.label ?? `Pedras ${ids.join(", ")}`, marks: opts.marks ?? {} });
+  const marksAll = (ids, kind) => Object.fromEntries(ids.map(id => [id, kind]));
+
+  return {
+    id: "domino", name: "Dominó", glyph: "🁫",
+    title: "Como jogar Dominó",
+    lead: "O clássico dominó de <b>28 pedras</b> para <b>2, 3 ou 4 jogadores</b>: encaixe as pedras nas duas pontas da mesa, compre no monte quando não houver jogada e seja o primeiro a <b>bater</b> para somar os pontos dos adversários.",
+    chips: chips(["2 a 4 jogadores", "28 pedras", "7 pedras por jogador", "Partida até 100 pontos"]),
+    legend: LEGEND_DOMINO,
+    sections: [
+      {
+        id: "objetivo", title: "O objetivo: bater e chegar a 100 pontos",
+        body: [
+          "O <b>dominó clássico</b> usa <b>28 pedras</b>, todas as combinações de <b>0 a 6</b>. Cada jogador recebe <b>7 pedras</b> e o objetivo de cada rodada é <b>bater</b>: ficar sem nenhuma pedra na mão.",
+          "Quando alguém bate, soma os pontos que ficaram nas mãos dos adversários. A partida é disputada até <b>100 pontos</b> — quem chegar lá primeiro vence. Se o jogo <b>fechar</b> (ninguém consegue jogar), a rodada é decidida pela menor mão.",
+        ],
+        figures: [fig(tiles(D.hand, { label: "Mão de dominó com cinco pedras" }),
+          "Uma mão de dominó: <b>6–6</b>, <b>5–6</b>, <b>4–4</b>, <b>1–3</b> e <b>0–5</b>. Cada pedra tem dois números, de 0 a 6.")],
+        tips: ["O <b>0</b> é o “branco” e vale zero ponto. O <b>6–6</b> é o maior carroção do jogo."],
+      },
+      {
+        id: "pedras", title: "As 28 pedras e os carroções",
+        body: [
+          "São <b>28 pedras</b>: do <b>0–0</b> ao <b>6–6</b>, sem repetir combinações. As pedras com os dois números iguais são os <b>sete carroções</b> (0–0, 1–1, 2–2, 3–3, 4–4, 5–5 e 6–6).",
+          "O valor de uma pedra é a <b>soma dos dois números</b>: o 2–4 vale 6, o 0–5 vale 5 e o 6–6 vale 12. Esses valores são os pontos que ficam na mão de quem não bateu.",
+        ],
+        figures: [fig(tiles(["6-6", "5-6", "4-4", "1-3", "0-0"], { label: "Pedras: carroções e pedras comuns" }),
+          "Da esquerda para a direita: <b>6–6</b>, <b>5–6</b>, <b>4–4</b>, <b>1–3</b> e <b>0–0</b>. Os carroções são as pedras de dois números iguais.")],
+      },
+      {
+        id: "abertura", title: "A abertura é automática",
+        body: [
+          "Quem tem o <b>maior carroção</b> abre a rodada jogando-o na mesa. Se ninguém recebeu uma pedra dupla, abre a <b>maior pedra</b> (o maior número e, no empate, a maior soma).",
+          "A abertura é feita pelo próprio jogo, então a vez começa no <b>jogador seguinte</b> ao que abriu. Como a pedra de abertura sai da mão de quem abriu, ele começa a rodada com <b>6 pedras</b> e os demais com 7.",
+        ],
+        figures: [fig(dominoTableSvg({ board: [D.board[2]], hand: D.hand, label: "Mesa aberta com o carroção 6–6 e uma mão de dominó" }),
+          "O <b>6–6</b> abre a mesa. As duas pontas ficam valendo <b>6</b> até alguém encaixar uma pedra com esse número.")],
+      },
+      {
+        id: "encaixe", title: "Encaixe em qualquer uma das duas pontas",
+        body: [
+          "Na sua vez, jogue uma pedra que tenha <b>um dos números das pontas</b> da mesa. A pedra entra virada para o lado certo, de modo que o número igual fique encostado na mesa.",
+          "Se a pedra servir nas <b>duas pontas</b>, o jogo pergunta de que lado ela entra. Você nunca é obrigado a jogar numa ponta específica: escolha a que deixar sua mão melhor.",
+        ],
+        figures: [fig(dominoTableSvg({
+          board: D.board, hand: D.encaixe.hand,
+          marks: { "1-3": "good", "5-6": "good", "0-2": "bad", "1-1": "bad" },
+          label: "Mesa com pontas 3 e 6, e uma mão com duas pedras que encaixam",
+        }), "A mesa tem pontas <b>3</b> e <b>6</b>. O <b>1–3</b> entra à esquerda, o <b>5–6</b> entra à direita; o <b>0–2</b> e o <b>1–1</b> não encaixam.")],
+        tips: ["Antes de jogar, conte os pontos da mão: às vezes vale guardar uma pedra alta para não entregar pontos ao adversário."],
+      },
+      {
+        id: "compra", title: "Sem pedra jogável: compre no monte",
+        body: [
+          "Se nenhuma pedra da sua mão encaixa, <b>compre do monte</b>. A compra continua sendo sua vez: se a pedra comprada servir, jogue-a; se não servir, compre de novo.",
+          "Quando o <b>monte acaba</b> e você continua sem pedra jogável, é a vez de <b>passar</b>. O jogo só deixa passar quando não há pedra na mão que encaixe e o monte está vazio.",
+          "Com <b>4 jogadores</b>, todas as 28 pedras são distribuídas e não há monte. Com <b>2 jogadores</b> sobram 14 pedras no monte; com <b>3</b>, sobram 7.",
+        ],
+        figures: [],
+      },
+      {
+        id: "batida", title: "Batida: some os pontos dos adversários",
+        body: [
+          "Quem fica sem pedras <b>bate</b> e soma os pontos que sobraram nas mãos de <b>todos os adversários</b>. Numa mesa de 4, os três outros jogadores contam; numa de 2, só o adversário.",
+          "Exemplo: você bate e os adversários ficam com <b>2–4</b> (6 pontos) e <b>0–3</b> (3 pontos). Você soma <b>9 pontos</b> e uma nova rodada começa.",
+        ],
+        figures: [fig(tiles([...D.batida.winner, ...D.batida.hand], {
+          label: "Pedra que bate e pedras que sobraram nas mãos dos adversários",
+          marks: { ...marksAll(D.batida.winner, "sel"), ...marksAll(D.batida.hand, "bad") },
+        }), "O <b>5–6</b> (destacado) é a última pedra da mão de quem bate. Os adversários ficam com <b>2–4</b> e <b>0–3</b>, que somam 9 pontos.")],
+      },
+      {
+        id: "fechado", title: "Jogo fechado: vence a menor mão",
+        body: [
+          "A rodada <b>fecha</b> quando todos passam em sequência: ninguém tem pedra jogável e o monte está vazio. Nesse caso, vence quem tem <b>menos pontos na mão</b>.",
+          "O vencedor do jogo fechado leva a <b>diferença</b>: soma os pontos dos adversários e desconta os próprios, repetidos por adversário. Numa mesa de 2, com mãos de <b>0–2</b> (2) e <b>1–1</b> (2), há <b>empate</b> e ninguém pontua. Com <b>0–0</b> (0) contra <b>1–1</b> (2), o dono do 0–0 soma 2 pontos.",
+        ],
+        figures: [fig(tiles(["0-2", "1-1"], { label: "Duas mãos empatadas em 2 pontos", marks: { "0-2": "good", "1-1": "good" } }),
+          "Jogo fechado com <b>0–2</b> e <b>1–1</b>: as duas mãos valem <b>2 pontos</b>, então a rodada empata e ninguém pontua.")],
+      },
+      {
+        id: "tela", title: "Tempo, telas e fim de partida",
+        body: [
+          "<b>Tempo:</b> cada jogada tem <b>30, 40 ou 60 segundos</b> (o padrão é 40). No <b>mesmo aparelho</b>, o tempo esgotado compra e joga a menor pedra jogável (ou passa). <b>Online</b>, quem estoura o tempo é <b>eliminado</b> e a partida continua entre os que ficaram; com um só jogador ativo, ela fecha por eliminação.",
+          "<b>Mesmo aparelho:</b> a mesa gira para o jogador da vez e uma tela de <b>“passar o dispositivo”</b> esconde a mão até ele confirmar.",
+          "<b>Online:</b> escolha <b>2</b>, <b>3</b> ou <b>4</b> jogadores. A sala só larga com todos os assentos ocupados, todos prontos e todos dentro. Crie uma sala <b>aberta</b> (aparece na lista) ou <b>fechada</b> (só com o código) e jogue. No fim aparecem as colocações e o botão <b>Revanche</b>.",
+        ],
+        figures: [],
+      },
+    ],
+    screen: {
+      title: "Como jogar na tela",
+      steps: [
+        ["Escolha os jogadores, o tempo e a sala", "Selecione <b>2</b>, <b>3</b> ou <b>4</b> jogadores, o tempo de <b>30s</b>, <b>40s</b> ou <b>60s</b> por jogada e se a sala online é <b>Aberta</b> ou <b>Fechada</b>."],
+        ["Jogue no mesmo aparelho ou crie a sala", "Em <b>Jogar no mesmo dispositivo</b>, o aparelho passa de mão em mão. Em <b>Criar sala online</b>, compartilhe o código e espere todos marcarem <b>Estou pronto</b>."],
+        ["Acompanhe as pontas da mesa", "No centro ficam as pedras na ordem em que foram jogadas, as <b>duas pontas</b> (destacadas), a <b>rodada</b>, quantas pedras restam no <b>monte</b> e o <b>relógio</b>. A mão dos adversários fica virada para baixo, com a contagem e os pontos."],
+        ["Jogue uma pedra", "Toque numa pedra iluminada da sua mão. Se ela servir nas duas pontas, escolha <b>esquerda</b> ou <b>direita</b>. As pedras apagadas não encaixam na mesa."],
+        ["Compre ou passe", "Sem pedra jogável, toque em <b>Comprar do monte</b>. Quando o monte esvaziar, o botão <b>Passar</b> fica disponível."],
+        ["Confira o resultado", "No fim aparece quem venceu com a pontuação de cada jogador. <b>Revanche</b> começa outra partida; <b>Trocar jogadores</b> volta ao início."],
+      ],
+    },
+    cta: { label: "Jogar Dominó", href: GAMES.domino.path },
+  };
+}
+
+export const GUIDES = [chessGuide(), damaGuide(), gammonGuide(), goGuide(), onitamaGuide(), unoGuide(), trucoGuide(), dominoGuide()];
 export const GUIDE_IDS = GUIDES.map(g => g.id);

@@ -10,6 +10,7 @@
    • quem usa precisa dar `label` (vira o aria-label da figura). */
 
 import { cardOf } from "../games/uno/domain.js";
+import { tileOf } from "../games/domino/domain.js";
 import {
   cardOf as trucoCard, isManilha as trucoIsManilha, manilhaName as trucoManilhaName,
   SUIT_SYMBOLS as TRUCO_SUITS, RED_SUITS as TRUCO_RED_SUITS,
@@ -666,6 +667,104 @@ export function trucoTableSvg({ table = [], hand = [], marks = {}, label }) {
   }
   hand.forEach((id, i) => { body += trucoCardBody(id, x + i * step, pad, { mark: marks[id] }); });
   return svgOpen("cj-truco cj-truco-scene", label, width, TRUCO_H + pad * 2) + body + "</svg>";
+}
+
+/* ----------------------------------- dominó ----------------------------------- */
+
+const DOMINO_SIDE = 48, DOMINO_GAP = 10;
+const DOMINO_BONE = "#f7f2e4", DOMINO_EDGE = "#b9ae94", DOMINO_PIP = "#1b2430";
+const DOMINO_DOTS = [
+  [], [4], [2, 6], [2, 4, 6], [0, 2, 6, 8], [0, 2, 4, 6, 8], [0, 2, 3, 5, 6, 8],
+];
+
+function dominoTileOrThrow(id) {
+  const tile = tileOf(id);
+  if (!tile) throw new Error(`pedra de dominó inválida: ${id}`);
+  return tile;
+}
+
+/** Meia pedra: os pontos de um valor em uma face quadrada de lado `S`. */
+function dominoFace(value, x, y, S) {
+  let out = "";
+  for (const pos of DOMINO_DOTS[value] ?? []) {
+    const cx = x + ((pos % 3) + 1) * S / 4;
+    const cy = y + (Math.floor(pos / 3) + 1) * S / 4;
+    out += `<circle cx="${n1(cx)}" cy="${n1(cy)}" r="${n1(S * 0.085)}" fill="${DOMINO_PIP}"/>`;
+  }
+  return out;
+}
+
+/** Pedra horizontal em (x, y), com as faces `left` e `right` já na orientação da mesa. */
+function dominoBody(left, right, x, y, { mark = "", vertical = false } = {}) {
+  const S = DOMINO_SIDE;
+  const w = vertical ? S : S * 2, h = vertical ? S * 2 : S;
+  const first = dominoFace(left, x, y, S);
+  const second = vertical ? dominoFace(right, x, y + S, S) : dominoFace(right, x + S, y, S);
+  const divider = vertical
+    ? `<line x1="${n1(x)}" y1="${n1(y + S)}" x2="${n1(x + S)}" y2="${n1(y + S)}" stroke="${DOMINO_EDGE}" stroke-width="2"/>`
+    : `<line x1="${n1(x + S)}" y1="${n1(y)}" x2="${n1(x + S)}" y2="${n1(y + S)}" stroke="${DOMINO_EDGE}" stroke-width="2"/>`;
+  let out = `<g><rect x="${n1(x)}" y="${n1(y)}" width="${w}" height="${h}" rx="6" fill="${DOMINO_BONE}" stroke="${DOMINO_EDGE}" stroke-width="2"/>` +
+    divider + first + second;
+  if (mark === "good" || mark === "sel" || mark === "end") {
+    const stroke = mark === "sel" ? COLORS.sel : mark === "end" ? "#f2c94c" : COLORS.good;
+    out += `<rect x="${n1(x - 3)}" y="${n1(y - 3)}" width="${w + 6}" height="${h + 6}" rx="8" fill="none" stroke="${stroke}" stroke-width="3"/>`;
+  } else if (mark === "bad") {
+    out += crossMark(x + w - 11, y + 11, 10);
+  }
+  return out + "</g>";
+}
+
+/** Uma pedra avulsa (horizontal). */
+export function dominoTileSvg(id, { label, mark = "", vertical = false } = {}) {
+  const tile = dominoTileOrThrow(id);
+  const w = vertical ? DOMINO_SIDE : DOMINO_SIDE * 2;
+  const h = vertical ? DOMINO_SIDE * 2 : DOMINO_SIDE;
+  return svgOpen("cj-domino cj-domino-single", label, w + 12, h + 12) +
+    dominoBody(tile.a, tile.b, 6, 6, { mark, vertical }) + "</svg>";
+}
+
+/** Fileira de pedras na mão. `marks` = { id: "good"|"sel"|"bad" }. */
+export function dominoTilesSvg(ids, { label, marks = {} } = {}) {
+  const step = DOMINO_SIDE * 2 + DOMINO_GAP;
+  const width = ids.length * step - DOMINO_GAP + 12;
+  const out = ids.map((id, i) => {
+    const tile = dominoTileOrThrow(id);
+    return dominoBody(tile.a, tile.b, 6 + i * step, 6, { mark: marks[id] });
+  }).join("");
+  return svgOpen("cj-domino cj-domino-row", label, width, DOMINO_SIDE + 12) + out + "</svg>";
+}
+
+/**
+ * Cena da mesa + mão: a linha da mesa (esquerda para a direita) e, após um tracejado, a mão.
+ * `board` aceita `{ tile, left, right }` (como no domínio) ou o id canônico; as pontas ganham destaque.
+ */
+export function dominoTableSvg({ board = [], hand = [], marks = {}, label }) {
+  const pad = 8, gap = 18, step = DOMINO_SIDE * 2 + DOMINO_GAP, tileW = DOMINO_SIDE * 2;
+  const entries = board.map(entry => {
+    if (typeof entry === "string") { const t = dominoTileOrThrow(entry); return { left: t.a, right: t.b }; }
+    dominoTileOrThrow(entry.tile);
+    return { left: entry.left, right: entry.right };
+  });
+  const rowW = n => (n ? n * step - DOMINO_GAP : 0);
+  const divider = entries.length && hand.length;
+  const width = pad * 2 + rowW(entries.length) + (divider ? gap * 2 + 2 : 0) + rowW(hand.length);
+  let x = pad, body = "";
+  entries.forEach((entry, i) => {
+    const mark = entries.length > 1 && (i === 0 || i === entries.length - 1) ? "end" : "";
+    body += dominoBody(entry.left, entry.right, x + i * step, pad, { mark });
+  });
+  if (divider) {
+    x += rowW(entries.length) + gap;
+    body += `<line x1="${n1(x)}" y1="${n1(pad + 6)}" x2="${n1(x)}" y2="${n1(pad + DOMINO_SIDE - 6)}" stroke="#9aa7b4" stroke-width="1.5" stroke-dasharray="5 5"/>`;
+    x += gap + 2;
+  } else if (entries.length) {
+    x += rowW(entries.length);
+  }
+  hand.forEach((id, i) => {
+    const tile = dominoTileOrThrow(id);
+    body += dominoBody(tile.a, tile.b, x + i * step, pad, { mark: marks[id] });
+  });
+  return svgOpen("cj-domino cj-domino-scene", label, Math.max(width, tileW + pad * 2), DOMINO_SIDE + pad * 2) + body + "</svg>";
 }
 
 /* ----------------------------------- dados ----------------------------------- */

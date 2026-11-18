@@ -64,6 +64,10 @@ export const TEMPLATE_GAMES = Object.freeze({
     { id: "board", kind: "board", label: "Mesa" },
     { id: "cards", kind: "cards", label: "Cartas" },
   ] },
+  domino: { title: "Dominó", slots: [
+    { id: "board", kind: "board", label: "Mesa" },
+    { id: "pieces", kind: "pieces", label: "Pedras" },
+  ] },
 });
 
 export const templateGameIds = () => Object.keys(TEMPLATE_GAMES);

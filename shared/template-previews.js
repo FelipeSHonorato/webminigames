@@ -263,6 +263,46 @@ function unoTable(base) {
     `<span class="tpl-uno-ring">${unoImg(base, "costa_cartas.png")}${unoImg(base, "amarelo_5.png")}</span></div>`;
 }
 
+/* ===================== Dominó ===================== */
+
+const DOMINO_DOTS = [
+  [], [4], [2, 6], [2, 4, 6], [0, 2, 6, 8], [0, 2, 4, 6, 8], [0, 2, 3, 5, 6, 8],
+];
+
+/** Face quadrada de uma pedra: os pontos de `value` dentro de um quadrado de lado `S`. */
+const dominoFace = (value, x, y, S) => (DOMINO_DOTS[value] ?? []).map(pos =>
+  `<circle cx="${x + ((pos % 3) + 1) * S / 4}" cy="${y + (Math.floor(pos / 3) + 1) * S / 4}" r="${S * 0.085}" fill="${v("--pip", "#1b2430")}"/>`,
+).join("");
+
+/** Pedra horizontal em (x, y): duas faces de lado `S`, com o vinco no meio. */
+const dominoTile = (left, right, x, y, S = 24) =>
+  `<rect x="${x}" y="${y}" width="${S * 2}" height="${S}" rx="4" fill="${v("--bone", "#f8f3e6")}" stroke="${v("--bone-line", "#b9ae94")}" stroke-width="1.4"/>` +
+  `<line x1="${x + S}" y1="${y + 1}" x2="${x + S}" y2="${y + S - 1}" stroke="${v("--bone-line", "#b9ae94")}" stroke-width="1.4"/>` +
+  dominoFace(left, x, y, S) + dominoFace(right, x + S, y, S);
+
+/** Mesa de dominó: feltro verde com a linha de pedras já encaixadas entre as duas pontas. */
+function dominoTable() {
+  const S = 26, row = ["6-6", "6-5", "5-4", "4-4"];
+  const tiles = row.map((id, i) => {
+    const [a, b] = id.split("-").map(Number);
+    return dominoTile(a, b, 24 + i * (S * 2 + 5), 42, S);
+  }).join("");
+  const inner = svg(240, 136, "Prévia da mesa de dominó: feltro verde com pedras encaixadas",
+    `<rect x="5" y="5" width="230" height="126" rx="10" fill="none" stroke="rgba(255,255,255,.16)" stroke-dasharray="4 4"/>` + tiles);
+  return `<div class="tpl-felt" style="${FELT}">${inner}</div>`;
+}
+
+/** Pedras da mão, incluindo os carroções (6–6, 5–5) e uma pedra branca (0–0). */
+function dominoPieces() {
+  const ids = ["6-6", "5-5", "0-0", "3-4"];
+  const out = `<rect width="200" height="80" fill="${v("--surface", "#fff")}"/>` +
+    ids.map((id, i) => {
+      const [a, b] = id.split("-").map(Number);
+      return dominoTile(a, b, 8 + i * 48, 24, 24);
+    }).join("");
+  return svg(200, 80, "Prévia das pedras de dominó: carroções, branco e uma pedra comum", out);
+}
+
 /* ===================== API ===================== */
 
 const PREVIEWS = {
@@ -273,6 +313,7 @@ const PREVIEWS = {
   onitama: { board: onitamaBoard, pieces: onitamaPieces, cards: onitamaCards },
   truco: { board: trucoTable, cards: trucoCards },
   uno: { board: unoTable, cards: unoCards },
+  domino: { board: dominoTable, pieces: dominoPieces },
 };
 
 /**

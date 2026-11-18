@@ -15,6 +15,7 @@ import * as chess from "../games/chess/domain.js";
 import * as crossmath from "../games/crossmath/domain.js";
 import * as cruzadas from "../games/cruzadas/domain.js";
 import * as dama from "../games/dama/domain.js";
+import * as domino from "../games/domino/domain.js";
 import * as onitama from "../games/onitama/domain.js";
 import * as gamao from "../games/gamao/domain.js";
 import * as go from "../games/go/domain.js";
@@ -34,7 +35,7 @@ const normPoints = s => s.replace(/"(?:\.\.\/)+(?:shared\/)?points\.js"/g, '"POI
 
 /* ---------- paridade entre games/ e a cópia usada pela Edge Function ---------- */
 test("cópias dos domínios na Edge Function batem com games/ (paridade)", () => {
-  for (const g of ["arrows", "canos", "chess", "crossmath", "cruzadas", "dama", "gamao", "go", "onitama", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "truco", "uno", "zip"]) {
+  for (const g of ["arrows", "canos", "chess", "crossmath", "cruzadas", "dama", "domino", "gamao", "go", "onitama", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "truco", "uno", "zip"]) {
     assert.equal(normPoints(read(`supabase/functions/play/_shared/${g}/domain.js`)), normPoints(read(`games/${g}/domain.js`)), `domain de ${g} divergiu`);
   }
   for (const g of ["cruzadas", "sopa", "texttwist"]) {
@@ -296,8 +297,8 @@ test("snapshot diário: o puzzle completo valida e a visão pública continua se
   assert.equal(validateSnapshot("crossmath", crossSnap.fullPuzzle, { nums: [] }), false);
 });
 
-test("GAMES agrupa os dezoito domínios e SOLO_GAMES deixa xadrez, dama, gamão, Go, Onitama, UNO e Truco de fora", () => {
-  assert.deepEqual(Object.keys(GAMES).sort(), ["arrows", "canos", "chess", "crossmath", "cruzadas", "dama", "gamao", "go", "onitama", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "truco", "uno", "zip"]);
+test("GAMES agrupa os dezenove domínios e SOLO_GAMES deixa xadrez, dama, gamão, Go, Onitama, UNO, Truco e Dominó de fora", () => {
+  assert.deepEqual(Object.keys(GAMES).sort(), ["arrows", "canos", "chess", "crossmath", "cruzadas", "dama", "domino", "gamao", "go", "onitama", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "truco", "uno", "zip"]);
   assert.deepEqual(Object.keys(SOLO_GAMES).sort(), ["arrows", "canos", "crossmath", "cruzadas", "patches", "queens", "sopa", "sudoku", "tango", "texttwist", "zip"]);
   assert.equal(typeof chess.generatePuzzle, "undefined", "xadrez não gera fase: só duelo");
   assert.equal(typeof dama.generatePuzzle, "undefined", "dama não gera fase: só duelo");
@@ -306,6 +307,7 @@ test("GAMES agrupa os dezoito domínios e SOLO_GAMES deixa xadrez, dama, gamão,
   assert.equal(typeof onitama.generatePuzzle, "undefined", "Onitama não gera fase: só duelo");
   assert.equal(typeof uno.generatePuzzle, "undefined", "UNO não gera fase: é partida");
   assert.equal(typeof truco.generatePuzzle, "undefined", "Truco não gera fase: é partida");
+  assert.equal(typeof domino.generatePuzzle, "undefined", "Dominó não gera fase: é partida");
 });
 
 test("a Edge aceita todo jogo SOLO do catálogo (lista vem do board, não fixa)", () => {
@@ -558,9 +560,9 @@ test("Edge: a cópia de shared/party.js é idêntica (a Edge e o navegador preci
   assert.doesNotMatch(read("shared/party.js"), /^import /m, "party.js é puro: sem imports, para a cópia ser idêntica");
 });
 
-test("Edge: só UNO e Truco declaram PARTY (converter jogo antigo mudaria as regras dele)", async () => {
+test("Edge: só Dominó, UNO e Truco declaram PARTY (converter jogo antigo mudaria as regras dele)", async () => {
   const { PARTIES, partyOf } = await import("../supabase/functions/play/_shared/board.js");
-  assert.deepEqual(Object.keys(PARTIES), ["truco", "uno"], "UNO e Truco são as partidas de 2+ jogadores (ordem do board)");
+  assert.deepEqual(Object.keys(PARTIES), ["domino", "truco", "uno"], "Dominó, Truco e UNO são as partidas de 2+ jogadores (ordem do board)");
   assert.equal(PARTIES.uno.minPlayers, 2);
   assert.equal(PARTIES.uno.maxPlayers, 4);
   assert.equal(PARTIES.uno.order, "turns");
@@ -568,6 +570,10 @@ test("Edge: só UNO e Truco declaram PARTY (converter jogo antigo mudaria as reg
   assert.equal(PARTIES.truco.maxPlayers, 4, "Truco Paulista vai até duplas 2×2");
   assert.equal(PARTIES.truco.order, "turns");
   assert.equal(PARTIES.truco.onTimeout, "out");
+  assert.equal(PARTIES.domino.minPlayers, 2);
+  assert.equal(PARTIES.domino.maxPlayers, 4, "Dominó clássico vai até 4 jogadores");
+  assert.equal(PARTIES.domino.order, "turns");
+  assert.equal(PARTIES.domino.onTimeout, "out");
   assert.equal(partyOf("chess"), null);
   assert.equal(partyOf("inexistente"), null);
   const { SOLO_GAMES } = await import("../supabase/functions/play/_shared/board.js");
