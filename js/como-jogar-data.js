@@ -943,10 +943,10 @@ function trucoGuide() {
         }), "O <b>3♥</b> bate o <b>2♥</b> (10 contra 9). O <b>K♣</b> da mão perderia para o 3♥: às vezes vale guardar a carta forte para a próxima vaza.")],
       },
       {
-        id: "truco", title: "Truco, retruco, vale quatro e vale cinco",
+        id: "truco", title: "Truco, retruco, vale nove e vale doze",
         body: [
           "Na sua vez, <b>antes de jogar uma carta</b>, você pode pedir <b>truco</b> e a mão passa a valer <b>3</b>. O adversário escolhe <b>aceitar</b>, <b>aumentar</b> ou <b>correr</b>. No 2×2, quem responde é o <b>próximo adversário</b> na ordem dos assentos.",
-          "Os aumentos sobem <b>1 → 3 → 6 → 9 → 12</b>: truco, retruco, vale quatro e vale cinco. Quem <b>corre</b> entrega o valor que estava valendo antes do último pedido — correr de um truco custa <b>1 ponto</b>; correr de um retruco custa <b>3</b>.",
+          "Os aumentos sobem <b>1 → 3 → 6 → 9 → 12</b>: truco, retruco, vale nove e vale doze. Quem <b>corre</b> entrega o valor que estava valendo antes do último pedido — correr de um truco custa <b>1 ponto</b>; correr de um retruco custa <b>3</b>.",
           "O direito de aumentar <b>alterna</b>: fica com quem aceitou o último pedido, e só volta a valer <b>depois de jogar uma carta</b>.",
         ],
         figures: [fig(cards(T.truco, { marks: marksAll(T.truco, "good"), label: "Mão forte com 3 de paus, 2 de espadas e A de ouros" }),

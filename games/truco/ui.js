@@ -726,7 +726,9 @@ function renderTableCards(view) {
 function trucoLabel(value) {
   const next = nextTrucoValue(value);
   if (!next) return "Sem aumento";
-  return `${TRUCO_NAMES[next] ?? "Truco"} (vale ${next})`;
+  const name = TRUCO_NAMES[next] ?? "Truco";
+  /* "Vale nove" já diz o valor; só truco e retruco precisam do "(vale N)". */
+  return name.startsWith("Vale") ? name : `${name} (vale ${next})`;
 }
 
 function setButton(button, { hidden = false, disabled = false, text = null } = {}) {
@@ -798,7 +800,7 @@ function hintText(view) {
   if (view.pending) {
     if (view.pending.responder === view.seat) {
       const name = TRUCO_NAMES[view.pending.value] ?? "truco";
-      return `${playerName(view.pending.seat)} pediu ${name}. Aceite, aumente ou corra.`;
+      return `${playerName(view.pending.seat)} pediu ${name.toLowerCase()}. Aceite, aumente ou corra.`;
     }
     return `Aguardando ${playerName(view.pending.responder)} responder ao pedido.`;
   }

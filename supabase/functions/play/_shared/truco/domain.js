@@ -77,7 +77,7 @@ const MANILHAS = {
 };
 
 /** Nome do aumento conforme o valor que a mão passa a valer. */
-export const TRUCO_NAMES = { 3: "Truco", 6: "Retruco", 9: "Vale quatro", 12: "Vale cinco" };
+export const TRUCO_NAMES = { 3: "Truco", 6: "Retruco", 9: "Vale nove", 12: "Vale doze" };
 
 const isInt = value => Number.isInteger(value);
 const seatsFromState = state => Array.from({ length: state.hands.length }, (_, i) => i + 1);
