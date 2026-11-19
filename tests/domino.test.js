@@ -430,10 +430,11 @@ test("dominó: PARTY declara 2 a 4 jogadores por turnos, com tempo e eliminaçã
 
 /* ---------- mesa: a pedra sai da mão e as pontas livres ficam destacadas ---------- */
 
-test("dominó: a mesa anima a pedra da mão até a ponta e destaca as pontas livres", async () => {
+test("dominó: a mesa anima a pedra da mão e usa setas no lugar da barra de rolagem", async () => {
   const { readFileSync } = await import("node:fs");
   const ui = readFileSync(new URL("../games/domino/ui.js", import.meta.url), "utf8");
   const css = readFileSync(new URL("../games/domino/style.css", import.meta.url), "utf8");
+  const html = readFileSync(new URL("../games/domino/index.html", import.meta.url), "utf8");
 
   assert.match(ui, /queueFlight\(id\)/, "playTile precisa guardar a posição da pedra na mão antes do lance");
   assert.match(ui, /node\.dataset\.tile = entry\.tile/, "cada pedra da mesa precisa de data-tile para o voo acertar o destino");
@@ -446,4 +447,12 @@ test("dominó: a mesa anima a pedra da mão até a ponta e destaca as pontas liv
   assert.match(css, /@media \(prefers-reduced-motion:reduce\)[^}]*tile-landed\{animation:none/, "o pulso também respeita menos animação");
   assert.match(css, /\.board \.tile:first-child\{[^}]*color-mix/, "a ponta da esquerda precisa de destaque");
   assert.match(css, /\.board \.tile:last-child\{[^}]*color-mix/, "a ponta da direita precisa de destaque");
+
+  assert.match(ui, /createElementNS\(SVG_NS, "circle"\)/, "os pontos precisam ser círculos vetoriais (redondos e iguais)");
+  assert.match(css, /\.tile::after\{[^}]*left:50%/, "a divisória das faces é uma linha sobreposta, sem encolher uma das faces");
+  assert.match(html, /id="boardPrev"[\s\S]*id="boardNext"/, "a mesa precisa das setas de rolagem");
+  assert.match(ui, /els\.boardPrev\.addEventListener\("click", \(\) => scrollBoard\(-1\)\)/, "a seta da esquerda volta uma pedra");
+  assert.match(ui, /els\.boardNext\.addEventListener\("click", \(\) => scrollBoard\(1\)\)/, "a seta da direita avança uma pedra");
+  assert.match(css, /\.board::-webkit-scrollbar\{display:none/, "a barra de rolagem do sistema não deve aparecer");
+  assert.match(css, /\.board-nav\{[^}]*position:absolute/, "as setas ficam sobre as pontas da mesa");
 });

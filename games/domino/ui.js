@@ -30,7 +30,8 @@ const els = {
   partyHost: $("partyHost"), game: $("game"), status: $("status"), main: document.querySelector("main"),
   leftPlayer: $("leftPlayer"), topPlayer: $("topPlayer"), rightPlayer: $("rightPlayer"), bottomPlayer: $("bottomPlayer"),
   roundBadge: $("roundBadge"), endsText: $("endsText"), boneyardCount: $("boneyardCount"), turnTimer: $("turnTimer"),
-  board: $("board"), roundNote: $("roundNote"), drawBtn: $("drawBtn"), passBtn: $("passBtn"), hint: $("hint"),
+  board: $("board"), boardWrap: document.querySelector(".board-wrap"), boardPrev: $("boardPrev"), boardNext: $("boardNext"),
+  roundNote: $("roundNote"), drawBtn: $("drawBtn"), passBtn: $("passBtn"), hint: $("hint"),
   handLabel: $("handLabel"), hand: $("hand"),
   gate: $("gate"), gateTitle: $("gateTitle"), gateText: $("gateText"), gateBtn: $("gateBtn"),
   endPick: $("endPick"), endText: $("endText"), cancelEnd: $("cancelEnd"),
@@ -327,18 +328,25 @@ function renderBottom(view, bottom) {
 
 /* ---------- desenho das pedras ---------- */
 
+const SVG_NS = "http://www.w3.org/2000/svg";
 const DOT_POSITIONS = [
   [], [4], [2, 6], [2, 4, 6], [0, 2, 6, 8], [0, 2, 4, 6, 8], [0, 2, 3, 5, 6, 8],
 ];
+const FACE_COORDS = [16.7, 50, 83.3];   // centros das 9 casas no viewBox 100×100
 
+/** Face desenhada em SVG: os pontos são círculos vetoriais, sempre redondos e do mesmo tamanho. */
 function tileFace(value) {
-  const face = document.createElement("span");
-  face.className = "tile-face";
-  const on = new Set(DOT_POSITIONS[value] ?? []);
-  for (let i = 0; i < 9; i++) {
-    const cell = document.createElement("span");
-    cell.className = "pip-cell" + (on.has(i) ? " on" : "");
-    face.append(cell);
+  const face = document.createElementNS(SVG_NS, "svg");
+  face.setAttribute("class", "tile-face");
+  face.setAttribute("viewBox", "0 0 100 100");
+  face.setAttribute("aria-hidden", "true");
+  face.setAttribute("focusable", "false");
+  for (const pos of DOT_POSITIONS[value] ?? []) {
+    const dot = document.createElementNS(SVG_NS, "circle");
+    dot.setAttribute("cx", FACE_COORDS[pos % 3]);
+    dot.setAttribute("cy", FACE_COORDS[Math.floor(pos / 3)]);
+    dot.setAttribute("r", "12.5");
+    face.append(dot);
   }
   return face;
 }
@@ -431,6 +439,7 @@ function renderBoard(view) {
     empty.textContent = "A mesa espera a primeira pedra.";
     els.board.replaceChildren(empty);
     flight = null;
+    updateBoardNav();
     return;
   }
 
@@ -456,6 +465,32 @@ function renderBoard(view) {
     els.board.scrollLeft = Math.max(0, target.offsetLeft - (els.board.clientWidth - target.offsetWidth) / 2);
   }
   launchFlight();
+  updateBoardNav();
+}
+
+/* ---------- rolagem da mesa: uma pedra por clique na seta ---------- */
+
+/** Quanto rolar para revelar a próxima pedra (largura + espaço entre elas). */
+function boardStep() {
+  const tiles = els.board.querySelectorAll(".tile");
+  if (tiles.length > 1) return tiles[1].offsetLeft - tiles[0].offsetLeft;
+  if (tiles.length === 1) return tiles[0].offsetWidth + 6;
+  return Math.max(120, els.board.clientWidth * 0.8);
+}
+
+/** As setas só aparecem quando há mesa escondida para aquele lado. */
+function updateBoardNav() {
+  const max = els.board.scrollWidth - els.board.clientWidth;
+  const overflow = max > 1;
+  els.boardPrev.hidden = !overflow || els.board.scrollLeft <= 1;
+  els.boardNext.hidden = !overflow || els.board.scrollLeft >= max - 1;
+  els.boardWrap.classList.toggle("can-prev", !els.boardPrev.hidden);
+  els.boardWrap.classList.toggle("can-next", !els.boardNext.hidden);
+}
+
+function scrollBoard(direction) {
+  const behavior = reduceMotion() ? "auto" : "smooth";
+  els.board.scrollBy({ left: direction * boardStep(), behavior });
 }
 
 function renderActions(view) {
@@ -1040,6 +1075,15 @@ els.endPick.addEventListener("click", event => {
 });
 els.drawBtn.addEventListener("click", drawTile);
 els.passBtn.addEventListener("click", passTurn);
+els.boardPrev.addEventListener("click", () => scrollBoard(-1));
+els.boardNext.addEventListener("click", () => scrollBoard(1));
+let navFrame = 0;
+const scheduleBoardNav = () => {
+  if (navFrame) return;
+  navFrame = requestAnimationFrame(() => { navFrame = 0; updateBoardNav(); });
+};
+els.board.addEventListener("scroll", scheduleBoardNav, { passive: true });
+window.addEventListener("resize", scheduleBoardNav);
 els.rematch.addEventListener("click", () => {
   els.result.hidden = true;
   if (mode === "online") return;

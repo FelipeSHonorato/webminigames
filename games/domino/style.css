@@ -87,14 +87,32 @@ button{font:inherit;color:inherit}
 
 /* ---------- pedra de dominó (duas faces com pontos) ---------- */
 .board-wrap{position:relative;z-index:1;width:100%;min-height:76px;display:flex;align-items:center;justify-content:center}
-.board{display:flex;align-items:center;justify-content:safe center;gap:6px;width:100%;min-height:76px;padding:10px 8px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
+.board{display:flex;align-items:center;justify-content:safe center;gap:6px;width:100%;min-height:76px;padding:10px 34px;overflow-x:auto;overflow-y:hidden;
+  scrollbar-width:none;-ms-overflow-style:none}
+.board::-webkit-scrollbar{display:none;width:0;height:0}
+/* Com muitas pedras a mesa rola por setas nas pontas, no lugar da barra do sistema. */
+.board-wrap.can-prev .board{-webkit-mask-image:linear-gradient(90deg,transparent,#000 28px);mask-image:linear-gradient(90deg,transparent,#000 28px)}
+.board-wrap.can-next .board{-webkit-mask-image:linear-gradient(270deg,transparent,#000 28px);mask-image:linear-gradient(270deg,transparent,#000 28px)}
+.board-wrap.can-prev.can-next .board{
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent);
+  mask-image:linear-gradient(90deg,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
+.board-nav{position:absolute;top:50%;z-index:3;display:grid;place-items:center;width:30px;height:30px;margin-top:-15px;padding:0;border:1px solid rgba(255,255,255,.3);border-radius:50%;
+  background:rgba(9,32,23,.68);color:#f4fff8;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.35);
+  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);transition:background .12s,border-color .12s,transform .12s}
+.board-nav::before{content:"";width:8px;height:8px;border-top:2px solid currentColor;border-right:2px solid currentColor;border-radius:1px}
+.board-nav.prev{left:2px}
+.board-nav.prev::before{transform:rotate(-135deg);margin-left:-2px}
+.board-nav.next{right:2px}
+.board-nav.next::before{transform:rotate(45deg);margin-right:-2px}
+.board-nav:hover{background:rgba(9,32,23,.88);border-color:rgba(255,255,255,.5)}
+.board-nav:active{transform:scale(.94)}
+.board-nav:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .board-empty{display:grid;place-items:center;width:100%;min-height:60px;color:rgba(244,255,248,.65);font-size:.82rem;font-weight:700;letter-spacing:.03em}
 .tile{position:relative;display:flex;flex:none;background:linear-gradient(172deg,#fffdf7 0%,var(--bone) 46%,var(--bone-2) 100%);border:1px solid var(--bone-line);border-radius:8px;
   box-shadow:0 2px 4px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.9),inset 0 -2px 3px rgba(0,0,0,.08);color:var(--pip)}
-.tile-face{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);width:50%;height:100%;padding:8%}
-.tile-face + .tile-face{border-left:1.5px solid var(--bone-line)}
-.pip-cell{position:relative}
-.pip-cell.on::after{content:"";position:absolute;inset:15%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#3c4b60,var(--pip) 66%);box-shadow:0 1px 1px rgba(255,255,255,.3),inset 0 -1px 1px rgba(0,0,0,.35)}
+.tile::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:1.5px;margin-left:-.75px;background:var(--bone-line);pointer-events:none}
+.tile-face{display:block;width:50%;height:100%;padding:4%}
+.tile-face circle{fill:var(--pip)}
 /* A mesa usa a mesma linguagem da mão, um pouco menor, e marca as pontas livres com um brilho no feltro. */
 .board .tile{--tile-shadow:0 4px 9px rgba(0,0,0,.3),0 1px 2px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.9),inset 0 -2px 3px rgba(0,0,0,.1);
   width:clamp(62px,8vw,96px);aspect-ratio:2/1;cursor:default;border-radius:10px;box-shadow:var(--tile-shadow)}
@@ -189,6 +207,8 @@ button{font:inherit;color:inherit}
   .opponent-count{font-size:.62rem}
   .opponent.side .opponent-name{max-height:92px}
   .board .tile{width:clamp(52px,13vw,68px)}
+  .board{padding:10px 30px}
+  .board-nav{width:28px;height:28px;margin-top:-14px}
   .hand .tile-hand{width:clamp(56px,15vw,76px)}
   .status{font-size:.76rem;text-align:left}
   .turn-timer{margin-left:0}
