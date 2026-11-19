@@ -427,3 +427,23 @@ test("dominó: PARTY declara 2 a 4 jogadores por turnos, com tempo e eliminaçã
   assert.equal(TARGET, 100);
   assert.equal(HAND_SIZE, 7);
 });
+
+/* ---------- mesa: a pedra sai da mão e as pontas livres ficam destacadas ---------- */
+
+test("dominó: a mesa anima a pedra da mão até a ponta e destaca as pontas livres", async () => {
+  const { readFileSync } = await import("node:fs");
+  const ui = readFileSync(new URL("../games/domino/ui.js", import.meta.url), "utf8");
+  const css = readFileSync(new URL("../games/domino/style.css", import.meta.url), "utf8");
+
+  assert.match(ui, /queueFlight\(id\)/, "playTile precisa guardar a posição da pedra na mão antes do lance");
+  assert.match(ui, /node\.dataset\.tile = entry\.tile/, "cada pedra da mesa precisa de data-tile para o voo acertar o destino");
+  assert.match(ui, /launchFlight\(\)/, "renderBoard precisa disparar o voo da pedra");
+  assert.match(ui, /flight\.after = \(\) => openGate\(next\)/, "a tela de passar o aparelho espera a pedra pousar");
+  assert.match(ui, /prefers-reduced-motion: reduce/, "o voo respeita quem pediu menos animação");
+
+  assert.match(css, /\.flying-tile\{[^}]*position:fixed/, "o clone em voo precisa de estilo próprio");
+  assert.match(css, /@keyframes tile-land/, "a pedra precisa de um pulso ao pousar");
+  assert.match(css, /@media \(prefers-reduced-motion:reduce\)[^}]*tile-landed\{animation:none/, "o pulso também respeita menos animação");
+  assert.match(css, /\.board \.tile:first-child\{[^}]*color-mix/, "a ponta da esquerda precisa de destaque");
+  assert.match(css, /\.board \.tile:last-child\{[^}]*color-mix/, "a ponta da direita precisa de destaque");
+});

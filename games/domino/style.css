@@ -87,17 +87,27 @@ button{font:inherit;color:inherit}
 
 /* ---------- pedra de dominó (duas faces com pontos) ---------- */
 .board-wrap{position:relative;z-index:1;width:100%;min-height:76px;display:flex;align-items:center;justify-content:center}
-.board{display:flex;align-items:center;justify-content:safe center;gap:4px;width:100%;min-height:76px;padding:8px 6px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
+.board{display:flex;align-items:center;justify-content:safe center;gap:6px;width:100%;min-height:76px;padding:10px 8px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
 .board-empty{display:grid;place-items:center;width:100%;min-height:60px;color:rgba(244,255,248,.65);font-size:.82rem;font-weight:700;letter-spacing:.03em}
-.tile{position:relative;display:flex;flex:none;background:linear-gradient(180deg,var(--bone),var(--bone-2));border:1px solid var(--bone-line);border-radius:6px;box-shadow:0 2px 5px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.7);color:var(--pip)}
-.tile-face{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);width:50%;height:100%;padding:9%}
-.tile-face + .tile-face{border-left:2px solid var(--bone-line)}
+.tile{position:relative;display:flex;flex:none;background:linear-gradient(172deg,#fffdf7 0%,var(--bone) 46%,var(--bone-2) 100%);border:1px solid var(--bone-line);border-radius:8px;
+  box-shadow:0 2px 4px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.9),inset 0 -2px 3px rgba(0,0,0,.08);color:var(--pip)}
+.tile-face{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);width:50%;height:100%;padding:8%}
+.tile-face + .tile-face{border-left:1.5px solid var(--bone-line)}
 .pip-cell{position:relative}
-.pip-cell.on::after{content:"";position:absolute;inset:16%;border-radius:50%;background:var(--pip);box-shadow:inset 0 -1px 1px rgba(255,255,255,.28)}
-.board .tile{width:clamp(38px,5.4vw,54px);aspect-ratio:2/1;cursor:default}
-.board .tile:first-child,.board .tile:last-child{outline:2px solid var(--accent);outline-offset:2px}
-.board .tile.just-played{box-shadow:0 0 0 3px rgba(255,255,255,.55),0 2px 8px rgba(0,0,0,.35)}
-.board-empty + .tile{outline:none}
+.pip-cell.on::after{content:"";position:absolute;inset:15%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#3c4b60,var(--pip) 66%);box-shadow:0 1px 1px rgba(255,255,255,.3),inset 0 -1px 1px rgba(0,0,0,.35)}
+/* A mesa usa a mesma linguagem da mão, um pouco menor, e marca as pontas livres com um brilho no feltro. */
+.board .tile{--tile-shadow:0 4px 9px rgba(0,0,0,.3),0 1px 2px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.9),inset 0 -2px 3px rgba(0,0,0,.1);
+  width:clamp(62px,8vw,96px);aspect-ratio:2/1;cursor:default;border-radius:10px;box-shadow:var(--tile-shadow)}
+.board .tile:first-child{box-shadow:-6px 0 18px -6px color-mix(in srgb,var(--accent) 70%,transparent),var(--tile-shadow)}
+.board .tile:last-child{box-shadow:6px 0 18px -6px color-mix(in srgb,var(--accent) 70%,transparent),var(--tile-shadow)}
+.board-empty + .tile{box-shadow:var(--tile-shadow)}
+.board .tile.just-played{outline:2px solid rgba(255,255,255,.85);outline-offset:1px}
+.board .tile.tile-landed{animation:tile-land .28s cubic-bezier(.3,1.4,.5,1)}
+@keyframes tile-land{0%{transform:scale(1)}45%{transform:scale(1.09)}100%{transform:scale(1)}}
+/* Clone da pedra em voo entre a mão e a mesa (ui.js monta posição/tamanho na hora). */
+.flying-tile{position:fixed;z-index:55;margin:0;pointer-events:none;transform-origin:top left;will-change:transform;
+  filter:drop-shadow(0 10px 14px rgba(0,0,0,.4))}
+@media (prefers-reduced-motion:reduce){.board .tile.tile-landed{animation:none}.flying-tile{display:none}}
 
 .round-note{position:relative;z-index:1;margin:0;min-height:1.2em;max-width:52ch;text-align:center;font-size:.76rem;font-weight:700;line-height:1.35;color:rgba(244,255,248,.86)}
 
@@ -178,7 +188,7 @@ button{font:inherit;color:inherit}
   .opponent-name{font-size:.72rem}
   .opponent-count{font-size:.62rem}
   .opponent.side .opponent-name{max-height:92px}
-  .board .tile{width:clamp(34px,9vw,46px)}
+  .board .tile{width:clamp(52px,13vw,68px)}
   .hand .tile-hand{width:clamp(56px,15vw,76px)}
   .status{font-size:.76rem;text-align:left}
   .turn-timer{margin-left:0}

@@ -351,6 +351,74 @@ function tileNode(left, right, className = "tile") {
   return node;
 }
 
+/* ---------- animação: a pedra sai da mão e pousa na mesa ---------- */
+
+let flight = null;   // { tile, from: DOMRect, after? } — o lance já saiu da mão, falta desenhar o voo
+let flying = null;   // clone em voo na tela; o render seguinte esconde a pedra de destino até ela pousar
+
+const reduceMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+
+/** Guarda a posição da pedra na mão ANTES do lance: o render seguinte troca a mão pela mesa. */
+function queueFlight(id) {
+  flight = null;
+  if (reduceMotion()) return;
+  const source = els.hand.querySelector(`[data-tile="${id}"]`);
+  if (!source) return;
+  const from = source.getBoundingClientRect();
+  if (from.width < 8 || from.height < 8) return;
+  flight = { tile: id, from };
+}
+
+/** Cria um clone da pedra na posição da mão e leva até o lugar que ela ocupa na mesa. */
+function launchFlight() {
+  const job = flight;
+  flight = null;
+  if (!job) return;
+  const dest = els.board.querySelector(`.tile[data-tile="${job.tile}"]`);
+  if (!dest) { job.after?.(); return; }
+  const from = job.from;
+  const to = dest.getBoundingClientRect();
+  if (!to.width || !to.height) { job.after?.(); return; }
+  if (to.left === from.left && to.top === from.top && to.width === from.width) { job.after?.(); return; }
+
+  const ghost = dest.cloneNode(true);
+  ghost.removeAttribute("role");
+  ghost.removeAttribute("aria-label");
+  ghost.classList.remove("just-played");
+  ghost.classList.add("flying-tile");
+  Object.assign(ghost.style, {
+    left: `${from.left}px`, top: `${from.top}px`, width: `${from.width}px`, height: `${from.height}px`,
+  });
+  dest.style.visibility = "hidden";
+  flying = job;
+  document.body.append(ghost);
+
+  let landed = false;
+  const land = () => {
+    if (landed) return;
+    landed = true;
+    clearTimeout(guard);
+    ghost.remove();
+    flying = null;
+    /* Um render no meio do voo troca o nó: procura a pedra atual antes de revelar. */
+    const tile = els.board.querySelector(`.tile[data-tile="${job.tile}"]`) ?? dest;
+    tile.style.visibility = "";
+    tile.classList.add("tile-landed");
+    setTimeout(() => tile.classList.remove("tile-landed"), 320);
+    job.after?.();
+  };
+  const guard = setTimeout(land, 600);
+  ghost.addEventListener("transitionend", land, { once: true });
+
+  const dx = to.left - from.left;
+  const dy = to.top - from.top;
+  const scale = to.width / from.width;
+  requestAnimationFrame(() => {
+    ghost.style.transition = "transform .34s cubic-bezier(.22,.9,.32,1.08)";
+    ghost.style.transform = `translate(${dx}px,${dy}px) scale(${scale})`;
+  });
+}
+
 function renderBoard(view) {
   const board = Array.isArray(view.board) ? view.board : [];
   const [left, right] = view.ends ?? [null, null];
@@ -362,6 +430,7 @@ function renderBoard(view) {
     empty.className = "board-empty";
     empty.textContent = "A mesa espera a primeira pedra.";
     els.board.replaceChildren(empty);
+    flight = null;
     return;
   }
 
@@ -370,17 +439,23 @@ function renderBoard(view) {
   const lastTile = view.last?.action === "play" ? view.last.tile : null;
   const nodes = board.map(entry => {
     const node = tileNode(entry.left, entry.right);
+    node.dataset.tile = entry.tile;
     node.setAttribute("role", "img");
     node.setAttribute("aria-label", tileName(entry.tile));
     if (entry.tile === lastTile) node.classList.add("just-played");
     return node;
   });
   els.board.replaceChildren(...nodes);
+  if (flying) {
+    const pending = els.board.querySelector(`.tile[data-tile="${flying.tile}"]`);
+    if (pending) pending.style.visibility = "hidden";
+  }
 
   const target = nodes[Math.max(0, board.findIndex(entry => entry.tile === lastTile))] ?? nodes[0];
   if (target) {
     els.board.scrollLeft = Math.max(0, target.offsetLeft - (els.board.clientWidth - target.offsetWidth) / 2);
   }
+  launchFlight();
 }
 
 function renderActions(view) {
@@ -537,6 +612,7 @@ function closeEndPick() {
 
 function playTile(id, end) {
   closeEndPick();
+  queueFlight(id);
   move({ action: "play", tile: id, end });
 }
 
@@ -550,7 +626,7 @@ function localMove(input) {
   const actor = local.state.turn;
   if (actor == null) return;
   const result = partyMove(local.state, actor, input, ctxOf(local.state));
-  if (!result) { flash("Jogada inválida."); return; }
+  if (!result) { flight = null; flash("Jogada inválida."); return; }
   local.state = result.state;
   local.deadline = 0;
   if (result.ranking) { finishLocal(result.ranking, result.reason); return; }
@@ -558,6 +634,10 @@ function localMove(input) {
   if (next === actor) {
     local.viewSeat = actor;
     local.deadline = performance.now() + local.seconds * 1000;
+    render();
+  } else if (flight) {
+    /* A pedra pousa na mesa antes da tela de "passar o aparelho" cobrir a mesa. */
+    flight.after = () => openGate(next);
     render();
   } else {
     openGate(next);
